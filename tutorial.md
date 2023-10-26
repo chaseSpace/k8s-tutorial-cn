@@ -1462,8 +1462,8 @@ $ curl 10.0.2.3:30000
 可以看到app已经拿到了configmap中定义的env变量。若要更新env，直接更改configmap的yaml文件然后应用，然后删除业务pod即可。
 
 ### 参考
-
-- [主要参考K8s教程](https://github.com/guangzhengli/k8s-tutorials/blob/main/docs/pre.md)
+- [k8s教程](https://github.com/guangzhengli/k8s-tutorials/blob/main/docs/pre.md)
+- [Kubernetes从入门到实践 @赵卓](https://www.epubit.com/bookDetails?id=UB72096269c1157)
 - [Docker教程](https://yeasy.gitbook.io/docker_practice/)
 - [kubectl全部命令-官方](https://kubernetes.io/docs/reference/kubectl/cheatsheet/)
 - [K8s对外服务之Ingress](http://www.uml.org.cn/yunjisuan/202303134.asp?artid=25653)
