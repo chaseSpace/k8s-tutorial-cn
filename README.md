@@ -61,8 +61,8 @@
 
 可参考下面的教程来搭建Kubernetes集群：
 
-- [使用minikube安装k8s单节点集群](minikube%2Finstall.md)
-- [使用kubeadm搭建k8s多节点集群](kubeadm%2Finstall.md)
+- [使用minikube安装k8s单节点集群](install_by_minikube/install.md)
+- [使用kubeadm搭建k8s多节点集群](install_by_kubeadm/install.md)
 
 一些提高效率的设置：
 
@@ -87,7 +87,7 @@ Node则是集群中的承载实际工作任务的节点，直接负责对容器�
 
 K8s架构图如下：
 <div align="center">
-<img src="../img/k8s-arch.webp" width = "1200" height = "600" alt=""/>
+<img src="img/k8s-arch.webp" width = "1200" height = "600" alt=""/>
 </div>
 
 #### 1.2 Master
@@ -150,8 +150,9 @@ kubelet会定期调用Master节点上的API Server的REST API以报告自身状�
 k8s的对象模型图如下：
 
 <div align="center">
-<img src="../img/k8s-object-model.jpg" width = "1200" height = "600" alt=""/>
+<img src="img/k8s-object-model.jpg" width = "1200" height = "600" alt=""/>
 </div>
+
 
 1. **Pod**  
    Pod是k8s调度的基本单元，它封装了一个或多个容器。Pod中的容器会作为一个整体被k8s调度到一个Node上运行。
@@ -223,7 +224,7 @@ docker info |grep Mirrors -A 3
 
 #### 2.2 构建和运行镜像
 
-1. 编写一个简单的[main.go](./minikube/main.go)
+1. 编写一个简单的[main.go](main.go)
 2. 编写[Dockerfile](Dockerfile)
 
 打包镜像（替换leigg为你的docker账户名）
@@ -1112,7 +1113,7 @@ $ curl 10.0.2.3:30000
 这一步无条件，不再演示，LoadBalancer架构图如下：
 
 <div align="center">
-<img src="../img/k8s-loadbalancer.png" width = "600" height = "700" alt=""/>
+<img src="img/k8s-loadbalancer.png" width = "600" height = "700" alt=""/>
 </div>
 
 `LoadBalancer`类型的Service有点像`ClusterIP`和`NodePort`的结合，它监听了节点的随机端口，并转发端口流量到后端Pod。
@@ -1463,7 +1464,6 @@ $ curl 10.0.2.3:30000
 - [主要参考K8s教程](https://github.com/guangzhengli/k8s-tutorials/blob/main/docs/pre.md)
 - [Docker教程](https://yeasy.gitbook.io/docker_practice/)
 - [kubectl全部命令-官方](https://kubernetes.io/docs/reference/kubectl/cheatsheet/)
-- [国内Centos机器安装clash代理](../../pure_doc/use_clash_linux.md)
 - [K8s对外服务之Ingress](http://www.uml.org.cn/yunjisuan/202303134.asp?artid=25653)
 
 ### 资源索引
