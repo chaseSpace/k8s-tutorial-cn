@@ -87,7 +87,7 @@ Node则是集群中的承载实际工作任务的节点，直接负责对容器�
 
 K8s架构图如下：
 <div align="center">
-<img src="img/k8s-arch.webp" width = "1200" height = "600" alt=""/>
+<img src="img/k8s-arch.webp" width = "1400" height = "600" alt=""/>
 </div>
 
 #### 1.2 Master
