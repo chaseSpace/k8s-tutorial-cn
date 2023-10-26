@@ -1,0 +1,20 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pods-cronjob
+spec:
+  schedule: "*/1 * * * *" # 最小到min级别，这表示每分钟1次
+  startingDeadlineSeconds: 3 # 最大启动时间，超时后变成失败
+  concurrencyPolicy: Forbid # Allow/Forbid/Replace，上个周期的Job未执行结束时，是否允许下个周期的Job开始执行，默认Allow
+  suspend: false # 是否暂停cronjob的执行，一般通过kubectl edit修改
+  successfulJobsHistoryLimit: 3 # 保留多少条执行成功的Job记录，默认3
+  failedJobsHistoryLimit: 1 # 保留多少条执行失败的Job记录，默认1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - command: [ 'sh', '-c', 'echo "Start Job!"; sleep 30; echo "Job Done!"' ]
+              image: busybox
+              name: pods-cronjob-container

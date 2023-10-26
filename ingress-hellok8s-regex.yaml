@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hellok8s-ingress
+  annotations: # 键值对形式的注解 可以进一步配置控制器的行为，比如rewrite路由、强制https等
+    # nginx ingress提供的注解选项：https://kubernetes.github.io/ingress-nginx/examples/rewrite/#deployment
+#    nginx.ingress.kubernetes.io/ssl-redirect: "false"  # 禁用https重定向到http，若ingress配置了证书则默认true
+
+    # 若要路径支持正则匹配，需要配置下面两个注解
+    nginx.ingress.kubernetes.io/use-regex: "true"
+#    nginx.ingress.kubernetes.io/rewrite-target: /$1  # 若路径被带括号的正则表达式匹配，则转发后的路径为 第一个路径分组，若不匹配，则不重写
+spec:
+  ingressClassName: nginx  # 指定ingress控制器
+  rules:
+    - http:
+        paths:
+          - path: /hello  # 默认不区分大小写，匹配/hello/123 不匹配/hello123
+            pathType: Prefix  # 前缀匹配方式，路由直接透传不会截断
+            backend:
+              service:
+                name: service-hellok8s-clusterip
+                port:
+                  number: 3000
+          - path: /ingress/(.*)  # 正则匹配，括号内的内容为一个分组
+            pathType: ImplementationSpecific  # 使用默认的路径类型，具体行为由控制器决定
+            backend:
+              service:
+                name: service-hellok8s-clusterip
+                port:
+                  number: 3000

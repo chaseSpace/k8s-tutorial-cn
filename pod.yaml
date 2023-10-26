@@ -1,0 +1,12 @@
+# 注意所有的name都只能使用 小写字母 - . 组合
+apiVersion: v1
+kind: Pod
+metadata:
+  name: go-http
+  labels:
+    app: go
+    version: v1
+spec:
+  containers:
+    - name: go-http
+      image: leigg/hellok8s:v1

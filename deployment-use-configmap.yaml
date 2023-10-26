@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # deployment唯一名称
+  name: hellok8s-go-http
+spec:
+  replicas: 2 # 副本数量
+  selector:
+    matchLabels:
+      app: hellok8s # 管理template下所有 app=hellok8s的pod，（要求和template.metadata.labels完全一致！！！否则无法部署deployment）
+  template:   # template 定义一组pod
+    metadata:
+      labels:
+        app: hellok8s
+    spec:
+      containers:
+        - image: leigg/hellok8s:v4
+          name: hellok8s
+          env:
+            - name: DB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: hellok8s-config
+                  key: DB_URL

@@ -1,0 +1,20 @@
+---
+# Adapted from: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy
+# "Default": The Pod inherits the name resolution configuration from the node that the pods run on. See related discussion for more details.
+# "ClusterFirst": Any DNS query that does not match the configured cluster domain suffix, such as "www.kubernetes.io", is forwarded to the upstream nameserver inherited from the node. Cluster administrators may have extra stub-domain and upstream DNS servers configured. See related discussion for details on how DNS queries are handled in those cases.
+# "ClusterFirstWithHostNet": For Pods running with hostNetwork, you should explicitly set its DNS policy "ClusterFirstWithHostNet".
+# "None": It allows a Pod to ignore DNS settings from the Kubernetes environment. All DNS settings are supposed to be provided using the dnsConfig field in the Pod Spec. See Pod's DNS config subsection below.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dns-config-policy-pod
+spec:
+  containers:
+    - command:
+        - sleep
+        - "3600"
+      image: busybox
+      name: dns-config-policy-container
+  hostNetwork: true
+  dnsPolicy: ClusterFirstWithHostNet

@@ -1,0 +1,19 @@
+# kubectl example pod 可查看每个字段含义
+# kubectl example pod.spec
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pods-simple-pod
+spec:
+  imagePullSecrets: # 拉取镜像时可能需要使用secret，一般用来指定docker registry的认证信息
+    - name: regcred  # 需提前创建secret
+  containers:
+    - command:
+        - sleep
+        - "3600"
+      image: busybox
+      imagePullPolicy: IfNotPresent # 支持3种下载策略：Always/Never/IfNotPresent(默认)
+      name: pods-simple-container
+      workingDir: /data
+

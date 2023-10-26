@@ -1,0 +1,17 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memory-request-limit-pod
+spec:
+  containers:
+    - command: ["sleep", "3600"]
+      image: busybox
+      name: resources-limit-container
+      resources:
+        limits: #  容器能使用的最大资源，超出限制容器可能会被终止或受到严重限制
+          cpu: "0.1" # 默认单位为内核数，0.1等价100m（milli cpu）
+          memory: "128Mi" # 单位支持 MiB  、GiB、MB、GB （MiB=1024*1024B，MB=1000*1000B）
+        requests: # pod调度的最低要求，若资源不足，则无法调度
+          cpu: "0.1"
+          memory: "128Mi"

@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # deployment唯一名称
+  name: hellok8s-go-http
+spec:
+  replicas: 2 # 副本数量
+  selector:
+    matchLabels:
+      app: hellok8s # 管理template下所有 app=hellok8s的pod，（要求和template.metadata.labels完全一致！！！否则无法部署deployment）
+  template: # template 定义一组pod
+    metadata:
+      labels:
+        app: hellok8s
+    spec:
+      containers:
+        - image: leigg/hellok8s:v1
+          name: hellok8s
+          # 存活探针
+          livenessProbe:
+            # http get 探测pod提供HTTP服务的路径和端口
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 3 # 3s后开始探测
+            periodSeconds: 3 # 每3s探测一次
+            timeoutSeconds: 1 # 单次探测超时，默认1
+            failureThreshold: 3 # 探测失败时，k8s的重试次数，默认3，达到这个次数后 停止探测，再重启pod内的容器

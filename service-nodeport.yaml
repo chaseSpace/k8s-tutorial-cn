@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-hellok8s-nodeport
+spec:
+  type: NodePort
+  selector:
+    app: hellok8s
+  ports:
+    - port: 3000  # pod端口
+      nodePort: 30000  # 节点固定端口。在NodePort类型中，k8s要求在 30000-32767 范围内，否则apply报错
+    # 若需要暴露多个端口，则按下面形式
+#    - name: http
+#      protocol: TCP
+#      port: 80
+#      targetPort: 9376
+#    - name: https
+#      protocol: TCP
+#      port: 443
+#      targetPort: 9377

@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pods-job
+spec:
+#  completions: 3 # 启用它表示串行执行3次
+#  parallelism: 3 # 启动它表示并发数，由completions指定总次数
+#  backoffLimit: 3 # 限制重试次数，默认6，超过次数则不再启动新pod
+#  activeDeadlineSeconds: 10 # 限制job执行时间，超时还不终止则强制终止，并且稍后执行自动删除（若设置），且不受restartPolicy字段影响
+  ttlSecondsAfterFinished: 10 # 多少秒后自动删除执行成功的job，避免太多不再需要的job累积
+  template:
+    spec:
+      restartPolicy: Never # or OnFailure, 不能是其他值；推荐Never，因为这个策略下控制会启动新的pod，不会删除失败的pod，有助于排查问题；OnFailure是不断重启旧的pod
+      containers:
+        - command: ['sh', '-c', 'echo "Start Job!"; sleep 30; echo "Job Done!"']
+          image: busybox
+          name: pods-job-container

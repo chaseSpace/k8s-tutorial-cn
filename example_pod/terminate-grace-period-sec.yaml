@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pods-termination-grace-period-seconds
+spec:
+  containers:
+    - command:
+        - sleep
+        - "3600"
+      image: busybox
+      name: pods-termination-grace-period-seconds
+  terminationGracePeriodSeconds: 5  # Time to wait before moving from a TERM signal to the pod's main process to a KILL signal.

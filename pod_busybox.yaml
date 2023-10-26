@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox
+  labels:
+    app: busybox
+spec:
+  containers:
+    - name: busybox-container
+      image: busybox
+      command: [ "sleep", "infinity" ]

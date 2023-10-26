@@ -1,0 +1,26 @@
+# IMPORTANT:
+#
+# This example makes some assumptions:
+#
+# - There is one single node that is also a master (called 'master')
+# - The following command has been run: `kubectl taint nodes master pod-toleration:NoSchedule`
+#
+# Once the master node is tainted, a pod will not be scheduled on there (you can try the below yaml _without_ the spec.toleration to test this).
+#
+# CLEANUP:
+#
+#   delete pod pod-toleration                               # delete pod
+#   kubectl taint nodes master pod-toleration:NoSchedule-   # delete taint
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-toleration
+spec:
+  containers:
+    - command: ["sleep", "3600"]
+      image: busybox
+      name: pod-toleration-container
+  tolerations:
+    - key: ""  # empty means match all taint keys
+      operator: Exists

@@ -1,0 +1,18 @@
+---
+# Namespace here refers to the container namespaces, not kubernetes
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privileged-namespace-pod
+spec:
+  hostPID: true
+  hostIPC: true
+  hostNetwork: true
+  containers:
+    - command:
+        - sleep
+        - "3600"
+      image: busybox
+      name: privileged-namespace-container
+      securityContext:
+        privileged: true

@@ -1,0 +1,22 @@
+---
+# https://kubernetes.io/docs/concepts/storage/volumes/#example-pod-with-a-secret-a-downward-api-and-a-configmap
+apiVersion: v1
+kind: Pod
+metadata:
+  name: volumes-sa-token-pod
+spec:
+  containers:
+    - name: container-test
+      image: busybox
+      volumeMounts:
+        - mountPath: "/service-account"
+          name: volumes-sa-token-volume
+          readOnly: true
+  volumes:
+    - name: volumes-sa-token-volume
+      projected:
+        sources:
+          - serviceAccountToken:
+              audience: api
+              expirationSeconds: 3600
+              path: token

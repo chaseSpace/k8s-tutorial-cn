@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hellok8s-ingress
+spec:
+  ingressClassName: nginx  # 指定ingress控制器
+  rules:
+    - http:
+        paths:
+          - path: /hello  # 默认不区分大小写，匹配/hello/123 不匹配/hello123
+            # 路径匹配类型
+            # - Prefix：前缀匹配，路由直接透传不会截断；另外还有 Exact、ImplementationSpecific类型
+            # - Exact：精确匹配 URL 路径，且区分大小写
+            # - ImplementationSpecific：默认匹配方式，具体由 ingressClass 决定
+            pathType: Prefix
+            backend:
+              service:
+                name: service-hellok8s-clusterip
+                port:
+                  number: 3000
+          - path: /ingress/123
+            pathType: Prefix
+            backend:
+              service:
+                name: service-hellok8s-clusterip
+                port:
+                  number: 3000

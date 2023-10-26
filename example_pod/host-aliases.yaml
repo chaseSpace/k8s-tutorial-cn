@@ -1,0 +1,23 @@
+---
+# https://kubernetes.io/docs/concepts/services-networking/add-entries-to-pod-etc-hosts-with-host-aliases/#adding-additional-entries-with-hostaliases
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pods-host-aliases-pod
+spec:
+  hostAliases:
+    - ip: "127.0.0.1"
+      hostnames:
+        - "foo.local"
+        - "bar.local"
+    - ip: "10.1.2.3"
+      hostnames:
+        - "foo.remote"
+        - "bar.remote"
+  containers:
+    - name: cat-hosts
+      image: busybox
+      command:
+        - cat
+      args:
+        - "/etc/hosts"

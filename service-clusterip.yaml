@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-hellok8s-clusterip
+spec:
+  type: ClusterIP  # 这行是默认的，也可省略
+  selector:
+    app: hellok8s  # 通过selector 选择映射的pod
+  ports:
+    - port: 3000
+      targetPort: 3000 # 集群IP的端口
