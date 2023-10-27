@@ -1,56 +1,5 @@
 ## Kubernetes使用教程
 
-<!-- TOC -->
-  * [Kubernetes使用教程](#kubernetes使用教程)
-    * [1. 简介](#1-简介)
-      * [1.1 设计架构](#11-设计架构)
-      * [1.2 Master](#12-master)
-      * [1.3 Node](#13-node)
-      * [1.4 k8s的核心对象](#14-k8s的核心对象)
-    * [2. 创建程序和使用docker管理镜像](#2-创建程序和使用docker管理镜像)
-      * [2.1 安装docker](#21-安装docker)
-      * [2.2 构建和运行镜像](#22-构建和运行镜像)
-      * [2.3. 推送到docker仓库](#23-推送到docker仓库)
-    * [3. 使用Pod](#3-使用pod)
-      * [3.1 创建nginx pod](#31-创建nginx-pod)
-      * [3.2 创建pod](#32-创建pod)
-      * [3.3 查看nginx-pod状态](#33-查看nginx-pod状态)
-      * [3.4 与pod交互](#34-与pod交互)
-      * [3.5 Pod 与 Container 的不同](#35-pod-与-container-的不同)
-      * [3.6 创建go程序的pod](#36-创建go程序的pod)
-      * [3.7 pod有哪些状态](#37-pod有哪些状态)
-    * [4. 使用Deployment](#4-使用deployment)
-      * [4.1 部署deployment](#41-部署deployment)
-      * [4.2 修改deployment](#42-修改deployment)
-      * [4.3 更新deployment](#43-更新deployment)
-      * [4.4 回滚部署](#44-回滚部署)
-      * [4.5 滚动更新（Rolling Update）](#45-滚动更新rolling-update)
-      * [4.6 控制Pod水平伸缩](#46-控制pod水平伸缩)
-      * [4.7 存活探针 (livenessProb)](#47-存活探针-livenessprob)
-      * [4.8 就绪探针 (readiness)](#48-就绪探针-readiness)
-      * [4.9 更新的暂停与恢复](#49-更新的暂停与恢复)
-    * [5. 使用DaemonSet](#5-使用daemonset)
-    * [6. 使用Job和CronJob](#6-使用job和cronjob)
-      * [6.1 使用Job](#61-使用job)
-      * [6.2 使用CronJob](#62-使用cronjob)
-      * [6.3 其他控制器](#63-其他控制器)
-    * [7. 使用Service](#7-使用service)
-      * [7.1 不同类型的Service](#71-不同类型的service)
-      * [7.2 Service类型之ClusterIP](#72-service类型之clusterip)
-      * [7.3 Service类型之NodePort](#73-service类型之nodeport)
-      * [7.4 Service类型之LoadBalancer](#74-service类型之loadbalancer)
-      * [7.5 Service类型之ExternalName](#75-service类型之externalname)
-    * [8. 使用Ingress](#8-使用ingress)
-      * [8.1 关于Ingress控制器](#81-关于ingress控制器)
-      * [8.2 安装Nginx Ingress控制器](#82-安装nginx-ingress控制器)
-      * [8.3 开始测试](#83-开始测试)
-      * [8.4 Ingress高可靠部署](#84-ingress高可靠部署)
-      * [8.5 Ingress部署方案推荐](#85-ingress部署方案推荐)
-    * [9. 使用Namespace](#9-使用namespace)
-    * [10. 使用ConfigMap](#10-使用configmap)
-    * [参考](#参考)
-<!-- TOC -->
-
 为了方便阅读，建议点击网页右上角的 ![toc.jpg](img/toc.jpg) 按钮在右侧展开目录。
 
 **环境准备**：
@@ -154,7 +103,6 @@ k8s的对象模型图如下：
 <img src="img/k8s-object-model.jpg" width = "1200" height = "600" alt=""/>
 </div>
 
-
 1. **Pod**  
    Pod是k8s调度的基本单元，它封装了一个或多个容器。Pod中的容器会作为一个整体被k8s调度到一个Node上运行。
 
@@ -189,7 +137,9 @@ Service对象就是为了解决这个问题。Service可以自动跟踪并绑定
 
 - 命名空间（Namespace）：k8s通过namespace对同一台物理机上的k8s资源进行逻辑隔离。
 -
+
 标签（Labels）：是一种语义化标记，可以附加到Pod、Node等对象之上，然后更高级的对象可以基于标签对它们进行筛选和调用，例如Service可以将请求只路由到指定标签的Pod，或者Deployment可以将Pod只调度到指定标签的Node。
+
 - 注解（Annotations）：也是键值对数据，但更灵活，它的value允许包含结构化数据。一般用于元数据配置，不用于筛选。例如Ingress中通过注解为nginx控制器配置
   **禁用ssl重定向**。
 
@@ -1461,6 +1411,7 @@ $ curl 10.0.2.3:30000
 可以看到app已经拿到了configmap中定义的env变量。若要更新env，直接更改configmap的yaml文件然后应用，然后删除业务pod即可。
 
 ### 参考
+
 - [k8s教程](https://github.com/guangzhengli/k8s-tutorials/blob/main/docs/pre.md)
 - [Kubernetes从入门到实践 @赵卓](https://www.epubit.com/bookDetails?id=UB72096269c1157)
 - [Docker教程](https://yeasy.gitbook.io/docker_practice/)
