@@ -147,6 +147,8 @@ Service对象就是为了解决这个问题。Service可以自动跟踪并绑定
 
 ### 2.1 安装docker
 
+如果安装的k8s版本不使用docker作为容器运行时，那只需要在master节点（或专门的镜像部署节点）安装docker。
+我们需要docker来构建和推送镜像。
 ```shell
 yum install -y yum-utils device-mapper-persistent-data lvm2
 yum-config-manager --add-repo http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
@@ -160,17 +162,33 @@ docker version
 # 设置源
 echo '{
     "registry-mirrors": [
-        "http://hub-mirror.c.163.com",
-        "https://docker.mirrors.ustc.edu.cn",
         "https://registry.docker-cn.com"
     ]
 }' > /etc/docker/daemon.json
 
+# 重启docker
 systemctl restart docker
+# 开机启动
 systemctl enable docker
 
 # 查看源是否设置成功
-docker info |grep Mirrors -A 3
+$ docker info |grep Mirrors -A 3
+Registry Mirrors:
+ https://registry.docker-cn.com/
+
+```
+
+另外，可能需要纠正主机时间和时区：
+```shell
+# 先设置时区
+echo "ZONE=Asia/Shanghai" >> /etc/sysconfig/clock
+ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+
+# 若时间不准，则同步时间（容器会使用节点的时间）
+yum -y install ntpdate
+ntpdate -u  pool.ntp.org
+
+$ date # 检查时间
 ```
 
 ### 2.2 构建和运行镜像
@@ -201,6 +219,10 @@ docker run --rm -p 3000:3000 leigg/hellok8s:v1
 
 ### 2.3. 推送到docker仓库
 
+k8s部署服务时会从远端拉取本地不存在的镜像，但由于这个k8s版本是使用containerd不是docker作为容器运行时，
+所以读取不到docker构建的本地镜像，另外即使当前节点有本地镜像，其他节点不存在也会从远端拉取，所以每次修改代码后，
+都需要推送新的镜像到远端，再更新部署。
+
 先登录docker hub：
 
 ```shell
@@ -212,7 +234,7 @@ $ docker login  # 然后输入自己的docker账户和密码，没有先去官�
 ```shell
 docker push leigg/hellok8s:v1
 ```
-
+>如果是生产部署，则不会使用docker官方仓库，而是使用harbor等项目搭建本地仓库，以保证稳定拉取镜像。
 ## 3. 使用Pod
 
 Pod 是 Kubernetes 最小的可部署单元，**通常包含一个或多个容器**。
@@ -289,7 +311,7 @@ Pod 是 Kubernetes 最小的可部署/调度单元，通常包含一个或多个
 
 ### 3.6 创建go程序的pod
 
-定义[pod.yaml](./pod.yaml)
+定义[pod.yaml](./pod.yaml)，这里面使用了之前已经推送的镜像`leigg/hellok8s:v1`
 
 启动pod：
 
@@ -360,9 +382,9 @@ $ curl http://localhost:3000
 
 - **声明性配置**：Deployment的配置是声明性的，你只需定义所需的状态，而不是详细指定如何实现它。Kubernetes会根据你的声明来管理应用程序的状态。
 
-先创建一个[deployment文件](./deployment.yaml)， 用来编排多个pod。
 
 ### 4.1 部署deployment
+先创建一个[deployment文件](./deployment.yaml)， 用来编排多个pod。
 
 ```shell
 $ kk apply -f deployment.yaml
@@ -385,7 +407,7 @@ hellok8s-go-http-55cfd74847-5jw7f   1/1     Running   0          68s   20.2.36.7
 hellok8s-go-http-55cfd74847-zlf49   1/1     Running   0          68s   20.2.36.74   k8s-node1   <none>           <none>
 ```
 
-**删除pod会自动重启一个，确保可用的pod数量与`replicas`保持一致，不再演示**。
+**删除pod会自动重启一个，确保可用的pod数量与`deployment.yaml`中的`replicas`字段保持一致，不再演示**。
 
 ### 4.2 修改deployment
 
@@ -797,7 +819,7 @@ kubectl get daemonset -n kube-system
 Job和CronJob控制器与Deployment、Daemonset都是同级的控制器。它俩都是用来执行一次性任务的，区别在于Job是一次性的，而CronJob是周期性的。
 
 本节笔者使用k8s官方提供的 [playground平台](https://labs.play-with-k8s.com) 来进行测试，简单几步就可以搭建起一个临时的多节点k8s集群，
-这里也推荐使用，练习/演示必备。
+这里也推荐使用，练习/演示必备。（当然读者也可以使用已经搭建好的集群进行测试）
 
 ### 6.1 使用Job
 
