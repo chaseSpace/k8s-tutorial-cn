@@ -939,24 +939,29 @@ Kubernetes提供了多种类型的Service，包括ClusterIP、NodePort、LoadBal
 Service类型的选择取决于你的应用程序的具体要求以及你希望如何将其暴露到网络中。
 
 - ClusterIP:
-    - 用途：如果你的服务只需要在集群内部访问，而不需要从集群外部直接访问，可以使用ClusterIP。
-    - 示例：内部数据库服务、内部API服务等。
+    - 原理：使用这种方式发布时，会为Service提供一个固定的集群内部虚拟IP，供集群内访问。
+    - 场景：内部数据库服务、内部API服务等。
+- ClusterIP（Headless版）:
+    - 原理：这种方式不会分配ClusterIP，也不会通过Kube-proxy进行反向代理和负载均衡，而是通过DNS提供稳定的网络ID来访问，
+      并且DNS会将无头Service的后端解析为Pod的后端IP列表，也仅供集群内访问
+    - 场景：一般提供给StatefulSet使用。
 - NodePort:
-    - 用途：通过每个节点上的 IP 和静态端口（NodePort）公开 Service。 为了让 Service 可通过节点端口访问，Kubernetes 会为
-      Service 配置集群 IP 地址， 相当于你请求了`ClusterIP`类型的服务。
-    - 示例：Web应用程序、REST API等。
+    - 原理：通过每个节点上的 IP 和静态端口发布服务。 这是一种基于ClusterIP的发布方式，因为它应用后首先会生成一个集群内部IP，
+        然后再将其绑定到节点的IP和端口，这样就可以在集群外通过节点IP:端口的方式访问服务。
+    - 场景：Web应用程序、REST API等。
 - LoadBalancer:
-    - 用途：使用云平台的负载均衡器向外部公开 Service。Kubernetes 不直接提供负载均衡组件； 你必须提供一个，或者将你的
-      Kubernetes 集群与某个云平台集成。
-    - 示例：Web应用程序、公开的API服务等。
+    - 原理：这种方式又基于ClusterIP和NodePort两种方式，另外还会使用到外部由云厂商提供的负载均衡器。由后者向外发布Service。
+      一般在使用云平台提供的Kubernetes集群时，会用到这种方式。
+    - 场景：Web应用程序、公开的API服务等。
 - ExternalName:
-    - 用途：将服务映射到 externalName 字段（例如，映射到主机名 `api.foo.bar.example`）。 该映射将集群的 DNS
-      服务器配置为返回具有该外部主机名值的 CNAME 记录。 集群不会为之创建任何类型代理。
-    - 示例：连接到外部数据库服务、外部认证服务等。
+    - 原理：与上面提到的发布方式不太相同，这种方式是将外部服务引入集群内部，为集群内提供服务。
+    - 场景：连接到外部数据库服务、外部认证服务等。
 
 ### 7.2 Service类型之ClusterIP
 
-ClusterIP通过分配集群内部IP来暴露服务（内部暴露），这样就可以通过集群IP+端口访问到pod服务。
+ClusterIP通过分配集群内部IP来在集群内暴露服务（集群外不能访问），这样就可以在集群内通过集群IP+端口访问到pod服务。
+
+>这种方式适用于那些不需要对外暴露的服务，如节点守护agent等。
 
 准备工作：
 
@@ -983,14 +988,28 @@ kk get pods --watch
 ```shell
 kk apply -f service-clusterip.yaml
 
-kk get endpoints                  
+$ kk get svc
+NAME                         TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)    AGE
+kubernetes                   ClusterIP   20.1.0.1      <none>        443/TCP    11h
+service-hellok8s-clusterip   ClusterIP   20.1.120.16   <none>        3000/TCP   20s
+
+$ kk get endpoints                  
 NAME                         ENDPOINTS                         AGE
 kubernetes                   10.0.2.2:6443                     6h54m
 service-hellok8s-clusterip   20.2.36.72:3000,20.2.36.73:3000   6m38s
 ```
+这里通过`kk get svc`获取到的就是集群内`default`空间下的service列表，我们发布的自然是第二个，它的ClusterIP是`20.1.120.16`，
+这个IP是可以在节点直接访问的：
+```shell
+$ curl 20.1.120.16:3000
+[v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-dstff
+# 多次访问，会观察到hostname变化，说明service进行了负载均衡
+$ curl 20.1.120.16:3000 
+[v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-wtdht
+```
 
-可以看到这里第二行是我们刚定义的service，`ENDPOINTS`中包含的两个地址则是两个就绪的pod的访问地址（这个IP也是pod专属网段，节点无法直接访问），
-这些端点是和就绪的pod保持实时一致的，下面通过扩缩容来观察。
+然后我们通过`kk get endpoints`获取到的是Service后端的逻辑Pod组的信息，`ENDPOINTS`列中包含的两个地址则是两个就绪的pod的访问地址（这个IP也是Pod网段，节点无法直接访问），
+这些端点是和就绪的pod保持实时一致的（Service会实时跟踪），下面通过扩缩容来观察。
 
 ```shell
 $ kk scale deployment/hellok8s-go-http --replicas=3                      
@@ -1011,16 +1030,7 @@ kubernetes                   10.0.2.2:6443                     7h5m
 service-hellok8s-clusterip   20.2.36.72:3000,20.2.36.75:3000   17m
 ```
 
-查看 Service 提供的在集群内访问pod的虚拟ClusterIP（重要！！！）：
-
-```shell
-$ kk get svc service-hellok8s-clusterip     
-NAME                         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
-service-hellok8s-clusterip   ClusterIP   20.1.160.186   <none>        3000/TCP   31m
-```
-
-`ClusterIP`类型的`Service`只能在集群内（运行的Pod内）访问，所以在集群节点上也是无法**直接访问**的。
-下面启动一个Nginx Pod来访问这个虚拟ClusterIP （`20.1.160.186`）。
+`ClusterIP`除了在节点上可直接访问，在集群内也是可以访问的。下面启动一个Nginx Pod来访问这个虚拟的ClusterIP （`20.1.120.16`）。
 
 1. 定义 [pod_nginx.yaml](pod_nginx.yaml)，并应用它，不再演示。(
    提前在node上拉取镜像：`ctr images pull docker.io/library/nginx:latest`)
@@ -1037,13 +1047,55 @@ nginx                               1/1     Running   0          11s
 $ kk exec -it nginx -- bash 
 kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
 
-# 访问 hellok8s 提供的 cluster ip
-root@nginx:/# curl 20.1.160.186:3000
+# 访问 hellok8s 的 cluster ip
+root@nginx:/# curl 20.1.120.16:3000
 [v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-dstff
-# 再访问，可以看到hostname发生变化，这个hostname就是pod的名称（说明service提供了负载均衡）
-root@nginx:/# curl 20.1.160.186:3000
+root@nginx:/# curl 20.1.120.16:3000
 [v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-wtdht
 ```
+
+**Service访问及负载均衡原理**  
+如果还记得文章开头的架构图，就会发现每个节点都运行着一个kube-proxy组件，这个组件会跟踪Service和Pod的动态变化，并且最新
+的Service和Pod的映射关系会被记录到iptables中，这样每个节点上的iptables规则都会被更新。而iptables使用NAT技术将虚拟IP的流量转发到Endpoint。
+
+通过在master节点（其他节点也可）`iptables -L -v -n -t nat`可以查看其配置，这个结果会很长。这里贴出关键的两条链：
+```shell
+$ iptables -L -v -n -t nat
+...
+Chain KUBE-SERVICES (2 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    0     0 KUBE-SVC-JD5MR3NA4I4DYORP  tcp  --  *      *       0.0.0.0/0            20.1.0.10            /* kube-system/kube-dns:metrics cluster IP */ tcp dpt:9153
+    6   360 KUBE-SVC-BRULDGNIV2IQDBPU  tcp  --  *      *       0.0.0.0/0            20.1.120.16          /* default/service-hellok8s-clusterip cluster IP */ tcp dpt:3000
+    0     0 KUBE-SVC-NPX46M4PTMTKRN6Y  tcp  --  *      *       0.0.0.0/0            20.1.0.1             /* default/kubernetes:https cluster IP */ tcp dpt:443
+    0     0 KUBE-SVC-TCOU7JCQXEZGVUNU  udp  --  *      *       0.0.0.0/0            20.1.0.10            /* kube-system/kube-dns:dns cluster IP */ udp dpt:53
+    0     0 KUBE-SVC-ERIFXISQEP7F7OF4  tcp  --  *      *       0.0.0.0/0            20.1.0.10            /* kube-system/kube-dns:dns-tcp cluster IP */ tcp dpt:53
+ 1079 64740 KUBE-NODEPORTS  all  --  *      *       0.0.0.0/0            0.0.0.0/0            /* kubernetes service nodeports; NOTE: this must be the last rule in this chain */ ADDRTYPE match dst-type LOCAL
+
+Chain KUBE-SVC-BRULDGNIV2IQDBPU (1 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    6   360 KUBE-MARK-MASQ  tcp  --  *      *      !20.2.0.0/16          20.1.120.16          /* default/service-hellok8s-clusterip cluster IP */ tcp dpt:3000
+    2   120 KUBE-SEP-JCBKJJ6OJ3DPB6OD  all  --  *      *       0.0.0.0/0            0.0.0.0/0            /* default/service-hellok8s-clusterip -> 20.2.36.77:3000 */ statistic mode random probability 0.50000000000
+    4   240 KUBE-SEP-YHSEP23J6IVZKCOG  all  --  *      *       0.0.0.0/0            0.0.0.0/0            /* default/service-hellok8s-clusterip -> 20.2.36.78:3000 */
+...
+```
+这里有 `KUBE-SERVICES`和 `KUBE-SVC-BRULDGNIV2IQDBPU`两条链，前者引用了后者，在第一条链中，可以看到 **target**为`20.1.120.16`(ClusterIP)的流量将转发至3个目标 `KUBE-SVC-BRULDGNIV2IQDBPU`：
+- 第一条规则会对除了 20.2.0.0/16 地址范围之外的且目标是3000端口的所有来源的tcp协议数据包执行MASQ动作，即NAT操作（把数据包的源IP转换为目标IP）
+- 第二条规则将任意链内流量转发到目标`KUBE-SEP-JCBKJJ6OJ3DPB6OD`，尾部`probability`说明应用此规则的概率是0.5
+- 第三条规则将任意链内流量转发到目标`KUBE-SEP-YHSEP23J6IVZKCOG`，概率也是0.5（1-0.5）
+而这2和3两个规则中的目标其实就是指向两个后端Pod IP，可通过`iptables-save | grep KUBE-SEP-YHSEP23J6IVZKCOG`查看其中一个目标明细：
+```shell
+$ iptables-save | grep KUBE-SEP-YHSEP23J6IVZKCOG
+:KUBE-SEP-YHSEP23J6IVZKCOG - [0:0]
+-A KUBE-SEP-YHSEP23J6IVZKCOG -s 20.2.36.78/32 -m comment --comment "default/service-hellok8s-clusterip" -j KUBE-MARK-MASQ
+-A KUBE-SEP-YHSEP23J6IVZKCOG -p tcp -m comment --comment "default/service-hellok8s-clusterip" -m tcp -j DNAT --to-destination 20.2.36.78:3000
+-A KUBE-SVC-BRULDGNIV2IQDBPU -m comment --comment "default/service-hellok8s-clusterip -> 20.2.36.78:3000" -j KUBE-SEP-YHSEP23J6IVZKCOG
+
+$ kk get pods -o wide
+NAME                                READY   STATUS    RESTARTS   AGE   IP           NODE        NOMINATED NODE   READINESS GATES
+hellok8s-go-http-6bb87f8cb5-dstff   1/1     Running   0          53m   20.2.36.77   k8s-node1   <none>           <none>
+hellok8s-go-http-6bb87f8cb5-wtdht   1/1     Running   0          52m   20.2.36.78   k8s-node1   <none>           <none>
+```
+可以看到链`KUBE-SEP-YHSEP23J6IVZKCOG`的规则之一就是将转入的流量全部转发到目标`20.2.36.78:3000`，这个IP也是名字为`hellok8s-go-http-6bb87f8cb5-wtdht`的Pod的内部IP。
 
 ### 7.3 Service类型之NodePort
 
