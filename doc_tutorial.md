@@ -26,8 +26,8 @@
       * [4.4 回滚部署](#44-回滚部署)
       * [4.5 滚动更新（Rolling Update）](#45-滚动更新rolling-update)
       * [4.6 控制Pod水平伸缩](#46-控制pod水平伸缩)
-      * [4.7 存活探针 (livenessProb)](#47-存活探针--livenessprob-)
-      * [4.8 就绪探针 (readiness)](#48-就绪探针--readiness-)
+      * [4.7 存活探针 (livenessProb)](#47-存活探针-livenessprob)
+      * [4.8 就绪探针 (readiness)](#48-就绪探针-readiness)
       * [4.9 更新的暂停与恢复](#49-更新的暂停与恢复)
     * [5. 使用DaemonSet](#5-使用daemonset)
     * [6. 使用Job和CronJob](#6-使用job和cronjob)
@@ -49,7 +49,6 @@
     * [9. 使用Namespace](#9-使用namespace)
     * [10. 使用ConfigMap](#10-使用configmap)
     * [参考](#参考)
-    * [资源索引](#资源索引)
 <!-- TOC -->
 
 为了方便阅读，建议点击网页右上角的 ![toc.jpg](img/toc.jpg) 按钮在右侧展开目录。
@@ -1467,11 +1466,3 @@ $ curl 10.0.2.3:30000
 - [Docker教程](https://yeasy.gitbook.io/docker_practice/)
 - [kubectl全部命令-官方](https://kubernetes.io/docs/reference/kubectl/cheatsheet/)
 - [K8s对外服务之Ingress](http://www.uml.org.cn/yunjisuan/202303134.asp?artid=25653)
-
-### 资源索引
-
-- 模板示例
-  - [Pod示例集合](example_pod)
-  - [Deployment示例集合](example_deployment)
-  - [Job示例集合](example_job)
-- [k8s发布历史](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG)

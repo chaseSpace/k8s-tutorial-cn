@@ -43,6 +43,22 @@ crictl rmi e6e09b2c69433
 crictl rmi --prune
 ```
 
+也可以直接使用docker清理未使用的资源（如镜像，容器，卷，cache）：
+
+```shell
+# 查看可清理的资源
+$ docker system df
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          1         0         4.904MB   4.904MB (100%)
+Containers      0         0         0B        0B
+Local Volumes   0         0         0B        0B
+Build Cache     58        0         622.9MB   622.9MB
+
+# 此命令可以用于清理磁盘，删除关闭的容器、无用的镜像和网络
+# 添加 -f 禁用询问
+docker system prune
+```
+
 ### 2. Pod问题
 
 ### 2.1 Pod启动失败
