@@ -3,7 +3,11 @@ kind: Service
 metadata:
   name: service-hellok8s-clusterip
 spec:
-  type: ClusterIP  # 这行是默认的，也可省略
+  type: ClusterIP  # 这行是默认的，可省略
+#  sessionAffinity: ClientIP # or None, 设置会话亲和性（ClientIP表示同一客户端ip的请求会路由到同个Pod）
+#  sessionAffinityConfig:
+#    clientIP:
+#      timeoutSeconds: 3600 # 范围 0~86400，默认10800（3h）
   selector:
     app: hellok8s  # 通过selector 选择映射的pod
   ports:
