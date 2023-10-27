@@ -1,4 +1,4 @@
-## Kubernetes使用教程
+# Kubernetes 使用教程
 
 为了方便阅读，建议点击网页右上角的 ![toc.jpg](img/toc.jpg) 按钮在右侧展开目录。
 
@@ -19,7 +19,7 @@
 1. 安装oy-my-zsh（以及自动补全插件），[教程](https://jsharkc.github.io/post/centos-install-oh-my-zsh/)
 2. 设置kubectl的alias为`kk`，下文会用到。
 
-### 1. 简介
+## 1. 简介
 
 Kubernetes项目是Google公司在2014年启动（内部项目最初叫做Borg）。它建立在Google公司超过10多年的运维经验之上，Google所有的应用都运行在容器上。
 Kubernetes是目前最受欢迎的开源容器编排平台。
@@ -27,7 +27,7 @@ Kubernetes是目前最受欢迎的开源容器编排平台。
 Kubernetes可以实现容器集群的自动化部署、自动扩缩容、维护等功能。它拥有自动包装、自我修复、横向缩放、服务发现、负载均衡、
 自动部署、升级回滚、存储编排等特性。
 
-#### 1.1 设计架构
+### 1.1 设计架构
 
 K8s集群节点拥有Master和Node两种角色，Master管理Node，而Node管理容器。
 
@@ -40,7 +40,7 @@ K8s架构图如下：
 <img src="img/k8s-arch.webp" width = "1300" height = "550" alt=""/>
 </div>
 
-#### 1.2 Master
+### 1.2 Master
 
 Master由四个部分组成：
 
@@ -73,7 +73,7 @@ Master由四个部分组成：
 
 kube-controller-manager所执行的各项操作也是基于API Server进程的。
 
-#### 1.3 Node
+### 1.3 Node
 
 Node由三部分组成：kubelet、kube-proxy和容器运行时（如docker/containerd）。
 
@@ -92,7 +92,7 @@ kubelet会定期调用Master节点上的API Server的REST API以报告自身状�
 3. **容器运行时**  
    负责直接管理容器生命周期的软件。k8s支持包含docker、containerd在内的任何基于k8s cri（容器运行时接口）实现的runtime。
 
-#### 1.4 k8s的核心对象
+### 1.4 k8s的核心对象
 
 为了完成对大规模容器集群的高效率、全功能性的任务编排，k8s设计了一系列额外的抽象层，这些抽象层对应的实例由用户通过Yaml或Json文件进行描述，
 然后由k8s的API Server负责解析、存储和维护。
@@ -143,9 +143,9 @@ Service对象就是为了解决这个问题。Service可以自动跟踪并绑定
 - 注解（Annotations）：也是键值对数据，但更灵活，它的value允许包含结构化数据。一般用于元数据配置，不用于筛选。例如Ingress中通过注解为nginx控制器配置
   **禁用ssl重定向**。
 
-### 2. 创建程序和使用docker管理镜像
+## 2. 创建程序和使用docker管理镜像
 
-#### 2.1 安装docker
+### 2.1 安装docker
 
 ```shell
 yum install -y yum-utils device-mapper-persistent-data lvm2
@@ -173,7 +173,7 @@ systemctl enable docker
 docker info |grep Mirrors -A 3
 ```
 
-#### 2.2 构建和运行镜像
+### 2.2 构建和运行镜像
 
 1. 编写一个简单的[main.go](main.go)
 2. 编写[Dockerfile](Dockerfile)
@@ -199,7 +199,7 @@ docker run --rm -p 3000:3000 leigg/hellok8s:v1
 
 运行ok则按ctrl+c退出。
 
-#### 2.3. 推送到docker仓库
+### 2.3. 推送到docker仓库
 
 先登录docker hub：
 
@@ -213,14 +213,14 @@ $ docker login  # 然后输入自己的docker账户和密码，没有先去官�
 docker push leigg/hellok8s:v1
 ```
 
-### 3. 使用Pod
+## 3. 使用Pod
 
 Pod 是 Kubernetes 最小的可部署单元，**通常包含一个或多个容器**。
 它们可以容纳紧密耦合的容器，例如运行在同一主机上的应用程序和其辅助进程。但是，在生产环境中，通常使用其他资源来更好地管理和扩展服务。
 
 Pod是 Kubernetes 中创建和管理的、最小的可部署的计算单元。
 
-#### 3.1 创建nginx pod
+### 3.1 创建nginx pod
 
 ```yaml
 # nginx.yaml
@@ -234,7 +234,7 @@ spec:
       image: nginx  # 镜像默认来源 DockerHub
 ```
 
-#### 3.2 创建pod
+### 3.2 创建pod
 
 运行第一条k8s命令创建pod：
 
@@ -242,7 +242,7 @@ spec:
 kubectl apply -f nginx.yaml
 ```
 
-#### 3.3 查看nginx-pod状态
+### 3.3 查看nginx-pod状态
 
 ```shell
 kubectl get po nginx-pod
@@ -250,7 +250,7 @@ kubectl get po nginx-pod
 
 查看全部pods：`kubectl get pods`
 
-#### 3.4 与pod交互
+### 3.4 与pod交互
 
 添加端口转发，然后就可以在宿主机访问nginx-pod
 
@@ -275,7 +275,7 @@ kubectl exec -it nginx-pod -- /bin/bash   # 进入pod shell
 kubectl logs -f nginx-pod  # 查看日志（stdout/stderr）
 ```
 
-#### 3.5 Pod 与 Container 的不同
+### 3.5 Pod 与 Container 的不同
 
 在刚刚创建的资源里，在最内层是我们的服务 nginx，运行在 container 容器当中， container (容器) 的**本质是进程**，而 pod
 是管理这一组进程的资源。
@@ -287,7 +287,7 @@ kubectl logs -f nginx-pod  # 查看日志（stdout/stderr）
 **Pod定义**  
 Pod 是 Kubernetes 最小的可部署/调度单元，通常包含一个或多个容器。它们可以容纳紧密耦合的容器，例如运行在同一主机上的应用程序和其辅助进程。但是，在生产环境中，通常使用其他资源来更好地管理和扩展服务。
 
-#### 3.6 创建go程序的pod
+### 3.6 创建go程序的pod
 
 定义[pod.yaml](./pod.yaml)
 
@@ -317,7 +317,7 @@ $ curl http://localhost:3000
 [v1] Hello, Kubernetes!#
 ```
 
-#### 3.7 pod有哪些状态
+### 3.7 pod有哪些状态
 
 - Pending（挂起）： Pod 正在调度中（包含镜像拉取、容器创建和启动）。
 - ContainerCreating（容器创建中）： Pod 已经被调度，但其中的容器尚未完全创建和启动。
@@ -345,7 +345,7 @@ $ curl http://localhost:3000
 5. Pod进程收到SIGTERM信号
 6. 到达宽限时间还在运行，kubelet发送SIGKILL信号，设置宽限时间0s，直接删除Pod
 
-### 4. 使用Deployment
+## 4. 使用Deployment
 
 通常，Pod不会被（通过pod.yaml）直接创建和管理，而是由更高级别的控制器，如Deployment，来创建和管理。
 这是因为Deployment提供了更强大的应用程序管理功能。
@@ -362,7 +362,7 @@ $ curl http://localhost:3000
 
 先创建一个[deployment文件](./deployment.yaml)， 用来编排多个pod。
 
-#### 4.1 部署deployment
+### 4.1 部署deployment
 
 ```shell
 $ kk apply -f deployment.yaml
@@ -387,7 +387,7 @@ hellok8s-go-http-55cfd74847-zlf49   1/1     Running   0          68s   20.2.36.7
 
 **删除pod会自动重启一个，确保可用的pod数量与`replicas`保持一致，不再演示**。
 
-#### 4.2 修改deployment
+### 4.2 修改deployment
 
 通过vi修改内容中的replicas=3，再次部署，开始之前，我们使用下面的命令来观察pod数量变化
 
@@ -409,7 +409,7 @@ hellok8s-go-http-58cb496c84-pjkp9   1/1     Running             0          1s
 hellok8s-go-http-58cb496c84-sdrt2   1/1     Running             0          1s
 ```
 
-#### 4.3 更新deployment
+### 4.3 更新deployment
 
 这一步通过修改main.go来模拟实际项目中的服务更新，修改后的文件是[main2.go](./main2.go)。
 
@@ -464,7 +464,7 @@ $ curl http://localhost:3000
 
 这里演示的更新是容器更新，修改deployment.yaml的其他配置也属于更新。
 
-#### 4.4 回滚部署
+### 4.4 回滚部署
 
 如果新的镜像无法正常启动，则旧的pod不会被删除，但需要回滚，使deployment回到正常状态。
 
@@ -540,7 +540,7 @@ NAME               READY   UP-TO-DATE   AVAILABLE   AGE
 hellok8s-go-http   3/3     3            3           7m42s
 ```
 
-#### 4.5 滚动更新（Rolling Update）
+### 4.5 滚动更新（Rolling Update）
 
 k8s 1.15版本起支持滚动更新，即先创建新的pod，创建成功后再删除旧的pod，确保更新过程无感知，大大降低对业务影响。
 
@@ -592,7 +592,7 @@ spec:
 
 注意：无论是通过`kubectl set image ...`还是`kubectl rollout restart deployment xxx`方式更新deployment都会遵循配置进行滚动更新。
 
-#### 4.6 控制Pod水平伸缩
+### 4.6 控制Pod水平伸缩
 
 ```shell
 # 指定副本数量
@@ -607,7 +607,7 @@ hellok8s-go-http-668c7f75bd   10        10        10      33m   hellok8s     lei
 hellok8s-go-http-7c9d684dd    0         0         0       32m   hellok8s     leigg/hellok8s:v2_problem   app=hellok8s,pod-template-hash=7c9d684dd
 ```
 
-#### 4.7 存活探针 (livenessProb)
+### 4.7 存活探针 (livenessProb)
 
 存活探测器来确定什么时候要重启容器。 例如，存活探测器可以探测到应用死锁（应用程序在运行，但是无法继续执行后面的步骤）情况。
 重启这种状态下的容器有助于提高应用的可用性，即使其中存在缺陷。
@@ -686,7 +686,7 @@ Events:
 
 [官方文档](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
 
-#### 4.8 就绪探针 (readiness)
+### 4.8 就绪探针 (readiness)
 
 就绪探测器可以知道容器何时准备好接受请求流量，当一个 Pod 内的所有容器都就绪时，才能认为该 Pod 就绪。
 这种信号的一个用途就是控制哪个 Pod 作为 Service 的后端。若 Pod 尚未就绪，会被从 Service 的负载均衡器中剔除。
@@ -733,7 +733,7 @@ Events:
   Warning  Unhealthy  21s (x22 over 110s)  kubelet            Readiness probe failed: HTTP probe failed with statuscode: 500
 ```
 
-#### 4.9 更新的暂停与恢复
+### 4.9 更新的暂停与恢复
 
 在更新时，有时候我们希望先更新1个Pod，通过监控各项指标日志来验证没问题后，再继续更新其他Pod。这个需求可以通过暂停和恢复Deployment来解决。
 
@@ -763,7 +763,7 @@ kk rollout undo deployment hellok8s-go-http --to-revision=N
 kk rollout resume deploy hellok8s-go-http
 ```
 
-### 5. 使用DaemonSet
+## 5. 使用DaemonSet
 
 DaemonSet是一种特殊的控制器，它会在每个node上**只会**运行一个pod，
 因此常用来部署那些为节点本身提供服务或维护的Pod（如日志收集和转发、监控等）。
@@ -792,14 +792,14 @@ kubectl get daemonset -n kube-system
 
 对于Daemonset控制器管理的Pod的更新，都是先（手动或自动）删除再创建，不会进行滚动更新。
 
-### 6. 使用Job和CronJob
+## 6. 使用Job和CronJob
 
 Job和CronJob控制器与Deployment、Daemonset都是同级的控制器。它俩都是用来执行一次性任务的，区别在于Job是一次性的，而CronJob是周期性的。
 
 本节笔者使用k8s官方提供的 [playground平台](https://labs.play-with-k8s.com) 来进行测试，简单几步就可以搭建起一个临时的多节点k8s集群，
 这里也推荐使用，练习/演示必备。
 
-#### 6.1 使用Job
+### 6.1 使用Job
 
 具体来说，Job控制器可以执行3种类型的任务。
 
@@ -843,7 +843,7 @@ job.batch "pods-job" deleted
 任务执行失败，可以通过`backoffLimit`字段设置失败重试次数，默认是6次。并且推荐设置`restartPolicy`为Never（而不是OnFailure），
 这样可以保留启动失败的Pod，以便排查日志。
 
-#### 6.2 使用CronJob
+### 6.2 使用CronJob
 
 它是基于Job的更高级的控制器，添加了时间管理功能。可以实现：
 
@@ -874,7 +874,7 @@ cronjob.batch "pods-cronjob" deleted
 No resources found in default namespace.
 ```
 
-#### 6.3 其他控制器
+### 6.3 其他控制器
 
 除了前面介绍的Deployment、DaemonSet、Job和CronJob控制器，其他还有：
 
@@ -895,7 +895,7 @@ ReplicaSetController也可通过模板创建，可自行查询。需要注意的
 
 下一节，将介绍前面这些 Controller 控制的Pod集合如何有效且稳定的对外暴露服务。
 
-### 7. 使用Service
+## 7. 使用Service
 
 先提出几个问题：
 
@@ -911,7 +911,7 @@ pod。
 
 > `Service`为Pod提供了网络访问、负载均衡以及服务发现等功能。
 
-#### 7.1 不同类型的Service
+### 7.1 不同类型的Service
 
 Kubernetes提供了多种类型的Service，包括ClusterIP、NodePort、LoadBalancer和ExternalName，每种类型服务不同的需求和用例。
 Service类型的选择取决于你的应用程序的具体要求以及你希望如何将其暴露到网络中。
@@ -932,7 +932,7 @@ Service类型的选择取决于你的应用程序的具体要求以及你希望�
       服务器配置为返回具有该外部主机名值的 CNAME 记录。 集群不会为之创建任何类型代理。
     - 示例：连接到外部数据库服务、外部认证服务等。
 
-#### 7.2 Service类型之ClusterIP
+### 7.2 Service类型之ClusterIP
 
 ClusterIP通过分配集群内部IP来暴露服务（内部暴露），这样就可以通过集群IP+端口访问到pod服务。
 
@@ -1023,7 +1023,7 @@ root@nginx:/# curl 20.1.160.186:3000
 [v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-wtdht
 ```
 
-#### 7.3 Service类型之NodePort
+### 7.3 Service类型之NodePort
 
 `ClusterIP`只能在集群内访问Pod服务，而`NodePort`则进一步将服务暴露到集群外部的节点的固定端口上。
 
@@ -1054,7 +1054,7 @@ $ curl 10.0.2.3:30000
 [v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-4bddw
 ```
 
-#### 7.4 Service类型之LoadBalancer
+### 7.4 Service类型之LoadBalancer
 
 `LoadBalancer` 是通过使用云提供商的负载均衡器（一般叫做SLB，Service LoadBalancer）的方式向外暴露服务。
 负载均衡器可以将集群外的流量转发到集群内的Pod，
@@ -1074,7 +1074,7 @@ $ curl 10.0.2.3:30000
 
 - [阿里云使用私网SLB教程](https://help.aliyun.com/zh/ack/ack-managed-and-ack-dedicated/user-guide/configure-an-ingress-controller-to-use-an-internal-facing-slb-instance?spm=a2c4g.11186623.0.0.5d1736e0l59zqg)
 
-#### 7.5 Service类型之ExternalName
+### 7.5 Service类型之ExternalName
 
 `ExternalName`是k8s中一个特殊的service类型，它不需要指定selector去选择哪些pods实例提供服务，而是使用DNS
 CNAME机制把自己CNAME到你指定的另外一个域名上，你可以提供集群内的名字，
@@ -1136,7 +1136,7 @@ cloud-mysql-svc.default.svc.cluster.local	canonical name = mysql-s23423.db.tence
 另外，很多时候，比如是自己部署的DB服务，只有IP而没有域名，ExternalName是无法实现这个需求的，需要使用 `无头Service`+`Endpoints`
 来实现，请看后续。
 
-### 8. 使用Ingress
+## 8. 使用Ingress
 
 `Ingress` 是一种用于管理和公开集群内服务的 API 对象。它充当了对集群中的服务进行外部公开和流量路由的入口点。
 `Ingress` 允许你配置规则以指定服务之间的路径和主机名路由，从而可以根据 URL 路径和主机名将请求路由到不同的后端服务。
@@ -1156,7 +1156,7 @@ Ingress具有 TLS/SSL 支持：你可以为 Ingress 配置 TLS 证书，以加�
 
 > 相对于Ingress，service类型之一的NodePort转发流量的方式比较单一，仅支持节点的特定端口到特定service的流量转发，并且不支持编写路由规则、域名配置等重要功能。
 
-#### 8.1 关于Ingress控制器
+### 8.1 关于Ingress控制器
 
 它指的是Ingress的具体实现，像简介中说的路由、rewrite等功能都是k8s ingress定义的通用功能，但k8s并不负责实现这些功能。
 它把具体实现交给第三方，以提供灵活性和可定制化。
@@ -1164,7 +1164,7 @@ Ingress具有 TLS/SSL 支持：你可以为 Ingress 配置 TLS 证书，以加�
 常见的Ingress控制器实现有：Nginx Ingress、APISIX Ingress、BFE
 Ingress等，[点击链接](https://kubernetes.io/zh-cn/docs/concepts/services-networking/ingress-controllers/) 查看更多。
 
-#### 8.2 安装Nginx Ingress控制器
+### 8.2 安装Nginx Ingress控制器
 
 传统架构中常用Nginx作为外部网关，所以这里也使用Nginx作为Ingress控制器来练习。
 
@@ -1220,7 +1220,7 @@ job.batch/ingress-nginx-admission-patch    1/1           7s         16m
 所以Nginx Ingress Controller启动后会默认监听节点的两个随机端口（这里是31888/30158），分别对应其Pod内的80/443，
 后面讲如何修改为节点固定端口。
 
-#### 8.3 开始测试
+### 8.3 开始测试
 
 准备工作：
 
@@ -1264,7 +1264,7 @@ $ curl 10.0.2.3:31888/hello123
 - [默认后端：ingress-hellok8s-defaultbackend.yaml](ingress-hellok8s-defaultbackend.yaml)
 - [正则匹配：ingress-hellok8s-regex.yaml](ingress-hellok8s-regex.yaml)
 
-#### 8.4 Ingress高可靠部署
+### 8.4 Ingress高可靠部署
 
 一般通过多节点部署的方式来实现高可靠，同时Ingress作为业务的流量入口，也建议一个ingress服务独占一个节点的方式进行部署，
 避免业务服务与ingress服务发生资源争夺。
@@ -1306,7 +1306,7 @@ $ kk apply -f deploy.yaml # 更新部署
 >
 注意：默认不能部署到master节点，存在污点问题，需要移除污点才可以。参考 [k8s-master增加和删除污点](https://www.cnblogs.com/zouhong/p/17351418.html)
 
-#### 8.5 Ingress部署方案推荐
+### 8.5 Ingress部署方案推荐
 
 1. **Deployment + `LoadBalancer` 模式的 Service**  
    介绍：如果要把ingress部署在公有云，那用这种方式比较合适。用Deployment部署ingress-controller，创建一个 type为 LoadBalancer
@@ -1321,7 +1321,7 @@ $ kk apply -f deploy.yaml # 更新部署
    介绍：同样用Deployment模式部署ingress-controller，并创建对应的service，但是type为NodePort。这样，Ingress就会暴露在集群节点ip的特定端口上。
    然后可以直接将Ingress节点IP填到域名CNAME记录中。
 
-### 9. 使用Namespace
+## 9. 使用Namespace
 
 Namespace（命名空间）用来隔离集群内不同环境下的资源。仅同一namespace下的资源命名需要唯一，它的作用域仅针对带有名字空间的对象，例如
 Deployment、Service 等。
@@ -1366,7 +1366,7 @@ $ kubectl get namespaces
 $ kubectl get pods -n dev
 ```
 
-### 10. 使用ConfigMap
+## 10. 使用ConfigMap
 
 K8s 使用 ConfigMap 来将你的配置数据和应用程序代码分开，将非机密性的数据保存到键值对中。ConfigMap 在设计上不是用来保存大量数据的。
 在 ConfigMap 中保存的数据不可超过 1 MiB。如果你需要保存超出此尺寸限制的数据，你可能考虑挂载存储卷。
@@ -1410,7 +1410,7 @@ $ curl 10.0.2.3:30000
 
 可以看到app已经拿到了configmap中定义的env变量。若要更新env，直接更改configmap的yaml文件然后应用，然后删除业务pod即可。
 
-### 参考
+## 参考
 
 - [k8s教程](https://github.com/guangzhengli/k8s-tutorials/blob/main/docs/pre.md)
 - [Kubernetes从入门到实践 @赵卓](https://www.epubit.com/bookDetails?id=UB72096269c1157)
