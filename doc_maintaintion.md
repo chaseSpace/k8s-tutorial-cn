@@ -5,6 +5,18 @@
 TODO
 #### 1.2 node下线
 
+简单版：
+```shell
+# master上执行
+kubectl drain k8s-node1 --ignore-daemonsets #驱逐节点下的pod到其他节点
+kubectl get nodes |grep k8s-node1 # 观察node状态应该变成SchedulingDisabled
+kubectl delete node k8s-node1
+
+# node上执行
+kubeadm reset
+rm -rf /etc/kubernetes && service kubelet restart
+```
+
 ### 2. 镜像管理
 镜像存放位置取决于集群采用的容器运行时，首先配置crictl
 ```shell

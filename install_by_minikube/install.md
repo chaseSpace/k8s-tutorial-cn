@@ -8,6 +8,8 @@
     * [3.minikube的镜像管理](#3minikube的镜像管理)
 <!-- TOC -->
 
+为了提高命令行使用效率，建议先 [安装ohmyzsh](../doc_install_ohmyzsh.md)。
+
 **环境准备**：
 
 ```

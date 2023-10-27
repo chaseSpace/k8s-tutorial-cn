@@ -16,7 +16,7 @@
 
 一些提高效率的设置：
 
-1. 安装oy-my-zsh（以及自动补全插件），[教程](https://jsharkc.github.io/post/centos-install-oh-my-zsh/)
+1. [安装ohmyzsh](doc_install_ohmyzsh.md)
 2. 设置kubectl的alias为`kk`，下文会用到。
 
 ## 1. 简介

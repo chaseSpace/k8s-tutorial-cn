@@ -18,6 +18,7 @@
   * [6. 验证集群](#6-验证集群)
 <!-- TOC -->
 
+为了提高命令行使用效率，建议先 [安装ohmyzsh](../doc_install_ohmyzsh.md)。
 ## 1. 准备资源
 
 ```
@@ -77,6 +78,7 @@ systemctl status containerd
 
 即 kubeadm、kubelet 和 kubectl
 
+在centos上安装：
 ```shell
 # 设置阿里云为源
 cat <<EOF > /etc/yum.repos.d/kubernetes.repo
@@ -90,37 +92,37 @@ gpgkey=http://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg
        http://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg
 EOF
 
-# ubuntu
-apt-get update && apt-get install -y apt-transport-https
+# centos 安装各组件
+sudo yum install -y wget \
+    kubelet-1.25.14 kubeadm-1.25.14 kubectl-1.25.14 --disableexcludes=kubernetes
 
-curl https://mirrors.aliyun.com/kubernetes/apt/doc/apt-key.gpg | apt-key add - 
-
-cat <<EOF > /etc/apt/sources.list.d/kubernetes.list
-deb https://mirrors.aliyun.com/kubernetes/apt/ kubernetes-xenial main
-EOF
-
-apt-get update
-# 2023-10-15 已经出了1.28
-apt-get install -y kubelet=1.25.14-00 kubeadm=1.25.14-00 kubectl=1.25.14-00
-# 查看软件仓库包含哪些版本 apt-cache madison kubelet
-# 删除 apt-get remove  -y kubelet kubeadm kubectl
+# 开机启动，且立即启动
+sudo systemctl enable --now kubelet
 
 # 检查版本
 kubelet --version
 kubeadm version -o json
 kubectl version -o json
 
-# centos 安装各组件
-sudo yum install -y kubelet-1.25.14 kubeadm-1.25.14 kubectl-1.25.14 --disableexcludes=kubernetes
-
-# 开机启动，且立即启动
-sudo systemctl enable --now kubelet
-
 # 配置容器运行时，以便后续通过crictl管理 集群内的容器和镜像
 crictl config runtime-endpoint unix:///var/run/containerd/containerd.sock
+```
 
-# 准备工具
-sudo yum install wget -y
+在ubuntu上安装：
+```shell
+apt-get update && apt-get install -y apt-transport-https
+
+curl https://mirrors.aliyun.com/kubernetes/apt/doc/apt-key.gpg | apt-key add - 
+
+# 设置阿里源
+cat <<EOF > /etc/apt/sources.list.d/kubernetes.list
+deb https://mirrors.aliyun.com/kubernetes/apt/ kubernetes-xenial main
+EOF
+
+apt-get update
+apt-get install -y kubelet=1.25.14-00 kubeadm=1.25.14-00 kubectl=1.25.14-00
+# 查看软件仓库包含哪些版本 apt-cache madison kubelet
+# 删除 apt-get remove  -y kubelet kubeadm kubectl
 ```
 
 ## 4. 为kubelet和runtime配置相同的cgroup driver
@@ -140,6 +142,7 @@ https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-dri
 设置hosts
 
 ```shell
+# 建议主机ip与教程一致
 cat <<EOF >> /etc/hosts
 10.0.2.2 k8s-master
 10.0.2.3 k8s-node1
@@ -245,14 +248,6 @@ $ kubeadm init \
 [preflight] This might take a minute or two, depending on the speed of your internet connection
 [preflight] You can also perform this action in beforehand using 'kubeadm config images pull'
 ... 日志较长，建立复制保存这段日志，留作以后维护查看组件配置信息使用
-
-
-
-
-# 配置文件生效
-# 一台机器只需执行一次
-echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /etc/profile
-source /etc/profile
 ```
 
 [k8s-cluster-init.log](k8s-cluster-init.log) 是一个k8s集群初始化日志实例。
@@ -264,11 +259,11 @@ rm -rf /var/lib/kubelet # 删除核心组件目录
 rm -rf /etc/kubernetes # 删除集群配置 
 rm -rf /etc/cni/net.d # 删除容器网络配置
 rm -rf /var/log/pods && rm -rf /var/log/containers # 删除pod和容器日志
-kubeadm reset -f
+kubeadm reset -f # 重置集群
 # 镜像我们仍然保留，/var/lib/containerd
 # crictl images 
-reboot
 # 然后可能需要重启master，否则其他节点无法加入新集群
+reboot
 ```
 
 k8s组件的日志文件位置（当集群故障时查看）：
@@ -283,10 +278,15 @@ kube-scheduler-k8s-master_kube-system_kube-scheduler-55ce404921d20a4a05c7dea8098
 
 ### 5.2 准备用户的 k8s 配置文件
 
-**若是root用户，请忽略这一步**。
+以便用户可以使用 kubectl 工具与 Kubernetes 集群进行通信，下面的操作只需要在**master节点**执行一次。
 
-以便用户可以使用 kubectl 工具与 Kubernetes 集群进行通信。
+若是root用户，执行：
+```shell
+echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /etc/profile
+source /etc/profile
+```
 
+不是root用户，执行：
 ```shell
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
@@ -387,8 +387,8 @@ calico-node-xjwt8                          0/1     Init:ErrImagePull   0        
 # 观察到calico镜像拉取失败，查看pod日志
 kubectl describe pod -n kube-system calico-node-bsqtv
 # 从输出中可观察到是拉取 docker.io/calico/cni:v3.26.1 镜像失败，改为手动拉取（在所有节点都执行）
-ctr image pull docker.io/calico/cni:v3.26.1
-ctr image pull docker.io/calico/node:v3.26.1
+ctr image pull docker.io/calico/cni:v3.26.1 && \
+ctr image pull docker.io/calico/node:v3.26.1 && \
 ctr image pull docker.io/calico/kube-controllers:v3.26.1
 
 # 检查
@@ -411,7 +411,7 @@ service kubelet restart
 rm -rf /etc/cni/net.d && service kubelet restart
 ```
 
-安装calicoctl，方便观察calico的各种信息和状态：
+安装calicoctl（也可暂时不用安装），方便观察calico的各种信息和状态：
 
 ```shell
 # 第1种安装方式（推荐）
