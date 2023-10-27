@@ -1105,7 +1105,7 @@ hellok8s-go-http-6bb87f8cb5-wtdht   1/1     Running   0          52m   20.2.36.7
 
 准备工作：
 
-1. 停掉已经创建的`ClusterIP`Service，虽然也不干扰，但可以让演示环境更简单（执行：`kk delete -f service-clusterip.yaml`）；
+1. 删除已经创建的`ClusterIP`类型的Service，减少干扰（执行：`kk delete -f service-clusterip.yaml`）；
 2. 定义 [service-nodeport.yaml](service-nodeport.yaml)，并应用；
 3. 现在可以通过访问k8s集群中的任一节点ip+端口进行验证
 
