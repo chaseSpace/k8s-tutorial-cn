@@ -7,14 +7,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: service-headless-and-endpoint
+  name: service-headless-and-endpoint # 与下面Endpoints的 meta.name 必须一致
 spec:
   clusterIP: None # headless service
 #  selector: {}  # 不填写selector
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 80
+      targetPort: 80 # 与下面的port必须一致，否则无法正常转发
 ---
 apiVersion: v1
 kind: Endpoints

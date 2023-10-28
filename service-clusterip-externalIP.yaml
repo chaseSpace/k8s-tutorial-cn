@@ -1,0 +1,16 @@
+# 在任一节点上访问
+#$ curl 192.168.31.100:3000
+#[v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-57r86
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-hellok8s-clusterip-externalip
+spec:
+  type: ClusterIP
+  selector:
+    app: hellok8s
+  ports:
+    - port: 3000
+      targetPort: 3000
+  externalIPs:
+    - 10.10.10.10 # 任意局域网IP都可
