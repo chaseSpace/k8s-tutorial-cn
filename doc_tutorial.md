@@ -1216,14 +1216,14 @@ Address 2: 20.2.36.78 20-2-36-78.service-hellok8s-clusterip-headless.default.svc
 
 ### 7.6 Service类型之ExternalName
 
-`ExternalName`也是k8s中一个特殊的Service类型，它不需要指定selector去选择哪些pods实例提供服务，而是使用DNS
+ExternalName 也是k8s中一个特殊的Service类型，它不需要指定selector去选择哪些pods实例提供服务，而是使用DNS
 CNAME机制把svc指向另外一个域名，这个域名可以是任何能够访问的地址，
 比如`mysql.db.svc`这样的建立在db命名空间内的mysql服务，也可以指定`www.baidu.com`这样的外部真实域名。
 
 比如可以定义一个service指向 `www.baidu.com`，然后可以在集群内的任何一个pod上访问这个service的域名，
 请求service域名将自动重定向到`www.baidu.com`。
 
-> 注意`ExternalName`这个类型也仅在集群内（不含节点）生效。
+> 注意 ExternalName 这个类型也仅在集群内（不含节点）可访问。
 
 操作步骤：
 
@@ -1258,14 +1258,14 @@ Address 4: 240e:ff:e020:38::ff:b06d:569b
 注意：这里无法通过curl测试达到访问百度的效果，笔者推断是因为curl在使用service域名访问时只能拿到`www.baidu.com`
 ，拿不到百度服务器IP，即curl不具备DNS解析功能，所以无法正常访问百度获取到HTML。而ping工具可以执行DNS解析，所以能够拿到IP。
 
-**用途说明**：`ExternalName`类Service一般用在集群内部需要调用外部服务的时候，比如云服务商部署的DB等服务。
+**用途说明**：ExternalName 类Service一般用在集群内部需要调用外部服务的时候，比如云服务商部署的DB等服务。
 
 **无头Service + Endpoints**  
-另外，很多时候，比如是自己部署的DB服务，只有IP而没有域名，`ExternalName`是无法实现这个需求的，需要使用 `无头Service`+`Endpoints`来实现，
+另外，很多时候，比如是自己部署的DB服务，只有IP而没有域名，ExternalName 是无法实现这个需求的，需要使用 `无头Service`+`Endpoints`来实现，
 这里提供一个测试通过的模板 [service-headless-endpoints.yaml](service-headless-endpoints.yaml) 供读者自行练习。
 
-> Endpoint对象一般不需要手动创建，Service controller会在service创建时自动创建，只有在需要关联集群外的服务时可能用到。
-> 这个时候就手动创建Endpoint，并填入外部服务的IP和端口。如果集群外的服务地址是域名而不是IP，则使用`ExternalName`。
+> Endpoints对象一般不需要手动创建，Service controller会在service创建时自动创建，只有在需要关联集群外的服务时可能用到。
+> 这个时候就可定义Endpoints模板，其中填入外部服务的IP和端口，然后应用即可。如果集群外的服务提供的地址是域名而不是IP，则使用`ExternalName`。
 
 ### 7.7 搭配externalIP
 
