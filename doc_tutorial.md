@@ -940,7 +940,7 @@ pod。
 
 ### 7.1 不同类型的Service
 
-Kubernetes提供了多种类型的Service，包括ClusterIP、NodePort、LoadBalancer和ExternalName，每种类型服务不同的需求和用例。
+Kubernetes提供了多种类型的Service，包括ClusterIP、NodePort、LoadBalancer、Headless和ExternalName，每种类型服务不同的需求和用例。
 Service类型的选择取决于你的应用程序的具体要求以及你希望如何将其暴露到网络中。
 
 - ClusterIP:
@@ -948,15 +948,15 @@ Service类型的选择取决于你的应用程序的具体要求以及你希望�
     - 场景：内部数据库服务、内部API服务等。
 - NodePort:
     - 原理：通过每个节点上的 IP 和静态端口发布服务。 这是一种基于ClusterIP的发布方式，因为它应用后首先会生成一个集群内部IP，
-      然后再将其绑定到节点的IP和端口，这样就可以在集群外通过节点IP:端口的方式访问服务。
+      然后再将其绑定到节点的IP和端口，这样就可以在集群外通过 `nodeIp:port` 的方式访问服务。
     - 场景：Web应用程序、REST API等。
 - LoadBalancer:
-    - 原理：这种方式又基于ClusterIP和NodePort两种方式，另外还会使用到外部由云厂商提供的负载均衡器。由后者向外发布Service。
+    - 原理：这种方式又基于 NodePort，另外还会使用到外部由云厂商提供的负载均衡器。由后者向外发布 Service。
       一般在使用云平台提供的Kubernetes集群时，会用到这种方式。
     - 场景：Web应用程序、公开的API服务等。
-- ClusterIP（Headless版）:
-    - 原理：这种方式不会分配ClusterIP，也不会通过Kube-proxy进行反向代理和负载均衡，而是通过DNS提供稳定的网络ID来访问，
-      并且DNS会将无头Service的后端解析为Pod的后端IP列表，也仅供集群内访问，属于**向内发布**。
+- Headless:
+    - 原理：这种方式不会分配任何集群IP，也不会通过Kube-proxy进行反向代理和负载均衡，而是通过DNS提供稳定的网络ID来访问，
+      并且DNS会将无头Service的后端解析为Pod的后端IP列表，以供集群内访问（不含节点），属于**向内发布**。
     - 场景：一般提供给StatefulSet使用。
 - ExternalName:
     - 原理：与上面提到的发布方式不太相同，这种方式是通过CNAME机制将外部服务引入集群内部，为集群内提供服务，属于**向内发布**。
@@ -964,9 +964,9 @@ Service类型的选择取决于你的应用程序的具体要求以及你希望�
 
 ### 7.2 Service类型之ClusterIP
 
-ClusterIP通过分配集群内部IP来在集群内（包含节点）暴露服务，这样就可以在集群内通过集群IP+端口访问到pod服务，集群外则无法访问。
+ClusterIP通过分配集群内部IP来在集群内（包含节点）暴露服务，这样就可以在集群内通过 `clusterIP:port` 访问到pod服务，集群外则无法访问。
 
->这种方式适用于那些不需要对外暴露的服务，如节点守护agent等。
+> 这种方式适用于那些不需要对外暴露的服务，如节点守护agent等。
 
 准备工作：
 
@@ -988,7 +988,7 @@ kk get pods --watch
 ```
 
 4. deployment更新成功后，编写 `Service` 配置文件 [service-clusterip.yaml](service-clusterip.yaml)
-5. 应用`Service` 配置文件，并观察 `Endpoint`
+5. 应用Service配置文件，并观察Endpoint资源
 
 ```shell
 kk apply -f service-clusterip.yaml
@@ -1016,8 +1016,13 @@ $ curl 20.1.120.16:3000
 ```
 
 然后我们通过`kk get endpoints`获取到的是Service后端的逻辑Pod组的信息，`ENDPOINTS`
-列中包含的两个地址则是两个就绪的pod的访问地址（这个IP也是Pod网段，节点无法直接访问），
-这些端点是和就绪的pod保持实时一致的（Service会实时跟踪），下面通过扩缩容来观察。
+列中包含的两个地址则是两个就绪的pod的访问地址（这个IP是Pod专属网段，节点无法直接访问），
+这些端点是和就绪的pod保持一致的（Service会实时跟踪），下面通过控制Pod数量增减来观察。
+
+> 在 Kubernetes 中，Endpoints 是一种资源对象，用于指定与一个 Service 关联的后端 Pod 的 IP 地址和端口信息。
+> Endpoints 对象充当服务发现机制的一部分，它告诉 Kubernetes 如何将流量路由到 Service 的后端 Pod。
+> 
+> Endpoints一般都是通过Service自动生成的，Service会自动跟踪关联的Pod，当Pod状态发生变化时会自动更新Endpoints。
 
 ```shell
 $ kk scale deployment/hellok8s-go-http --replicas=3                      
@@ -1038,13 +1043,10 @@ kubernetes                   10.0.2.2:6443                     7h5m
 service-hellok8s-clusterip   20.2.36.72:3000,20.2.36.75:3000   17m
 ```
 
->在 Kubernetes 中，Endpoints 是一种资源对象，用于指定与一个 Service 关联的后端 Pod 的 IP 地址和端口信息。
-> Endpoints 对象充当服务发现机制的一部分，它告诉 Kubernetes 如何将流量路由到 Service 的后端 Pod。
-
 `ClusterIP`除了在节点上可直接访问，在集群内也是可以访问的。下面启动一个Nginx Pod来访问这个虚拟的ClusterIP （`20.1.120.16`）。
 
 1. 定义 [pod_nginx.yaml](pod_nginx.yaml)，并应用它，不再演示。(
-   提前在node上拉取镜像：`ctr images pull docker.io/library/nginx:latest`)
+   可提前在node上拉取镜像：`ctr images pull docker.io/library/nginx:latest`)
 2. 进入nginx pod shell，尝试访问 `service-hellok8s-clusterip`提供的endpoint
 
 ```shell
@@ -1117,16 +1119,17 @@ hellok8s-go-http-6bb87f8cb5-wtdht   1/1     Running   0          52m   20.2.36.7
 
 ### 7.3 Service类型之NodePort
 
-`ClusterIP`只能在集群内访问Pod服务，而`NodePort`则进一步将服务暴露到集群外部的节点的固定端口上。
+ClusterIP 只能在集群内访问Pod服务，而 NodePort 则进一步将服务暴露到集群节点的静态端口上。
 
-比如K8s集群有2个节点：node1, node2，暴露后就可以通过 `node1-ip:port` 或 `node2-ip:port` 的方式来稳定访问Pod服务。
+比如k8s集群有2个节点：node1和node2，暴露后就可以通过 `node1-ip:port` 或 `node2-ip:port` 的方式来稳定访问Pod服务。
 
 操作步骤：
 
 1. 定义 [service-nodeport.yaml](service-nodeport.yaml)，并应用；
-2. 现在可以通过访问k8s集群中的任一节点ip+端口进行验证
+2. 通过访问k8s集群中的任一节点ip+端口进行验证
 
 具体指令如下：
+
 ```shell
 # 同样会分配一个 cluster-ip
 $ kk get svc service-hellok8s-nodeport                   
@@ -1148,29 +1151,27 @@ $ curl 10.0.2.3:30000
 
 ### 7.4 Service类型之LoadBalancer
 
-`LoadBalancer` 是通过使用云提供商的负载均衡器（一般叫做SLB，Service LoadBalancer）的方式向外暴露服务。
+LoadBalancer 是通过使用云提供商的负载均衡器（一般叫做SLB，Service LoadBalancer）的方式向外暴露服务。
 负载均衡器可以将集群外的流量转发到集群内的节点，后者再转发到Pod，
 假如你在 AWS 的 EKS 集群上创建一个 Type 为 LoadBalancer 的 Service。它会自动创建一个 ELB (Elastic Load Balancer)
 ，并可以根据配置的 IP 池中自动分配一个独立的 IP 地址，可以供外部访问。
 
-这一步由于没有条件，不再演示，LoadBalancer架构图如下：
+这一步由于没有条件，不再演示。LoadBalancer 架构图如下：
 
 <div align="center">
-<img src="img/k8s-loadbalancer.png" width = "600" height = "700" alt=""/>
+<img src="img/k8s-loadbalancer.png" width = "800" height = "400" alt=""/>
 </div>
 
-从架构图可看出，`LoadBalancer`是基于`NodePort`
-的一种Service，这里提供模板供参考：[service-loadbalancer.yaml](service-loadbalancer.yaml)
+从架构图可看出，`LoadBalancer`是基于 NodePort 的一种Service，这里提供模板供参考：[service-loadbalancer.yaml](service-loadbalancer.yaml)
 
-所以如果是使用公有云托管的K8s集群，那么通常也会使用它们提供的SLB服务（即会用到`LoadBalancer`）。若是自己搭建的集群，
+所以如果是使用公有云托管的k8s集群，那么通常也会使用它们提供的SLB服务。若是自己搭建的集群，
 那么一般也不会使用`LoadBalancer`（私有集群一般也不支持`LoadBalancer`）。
 
 - [阿里云使用私网SLB教程](https://help.aliyun.com/zh/ack/ack-managed-and-ack-dedicated/user-guide/configure-an-ingress-controller-to-use-an-internal-facing-slb-instance?spm=a2c4g.11186623.0.0.5d1736e0l59zqg)
 
+### 7.5 Service类型之Headless
 
-### 7.5 Service类型之ClusterIP（Headless版）
-
-这是一种特殊的Service类型，它没有ClusterIP，而是通过DNS域名来访问Pod服务。由于没有ClusterIP，所以节点和集群外都无法直接访问Service。
+这是一种特殊的Service类型，它不分配任何集群IP，而是通过分配的DNS域名来访问Pod服务。由于没有Cluster IP，所以节点和集群外都无法直接访问Service。
 无头Service主要提供给StatefulSet使用。
 
 操作步骤：
@@ -1220,9 +1221,9 @@ CNAME机制把svc指向另外一个域名，这个域名可以是任何能够访
 比如`mysql.db.svc`这样的建立在db命名空间内的mysql服务，也可以指定`www.baidu.com`这样的外部真实域名。
 
 比如可以定义一个service指向 `www.baidu.com`，然后可以在集群内的任何一个pod上访问这个service的域名，
-请求service域名将自动转发到`www.baidu.com`。
+请求service域名将自动重定向到`www.baidu.com`。
 
-> 注意`ExternalName`这个类型也仅在集群内生效，在节点上是无法访问service域名的。
+> 注意`ExternalName`这个类型也仅在集群内（不含节点）生效。
 
 操作步骤：
 
@@ -1253,19 +1254,21 @@ Address 2: 14.119.104.254
 Address 3: 240e:ff:e020:37::ff:b08c:124f
 Address 4: 240e:ff:e020:38::ff:b06d:569b
 ```
-注意：这里无法通过curl测试达到访问百度的效果，因为curl在使用service域名访问时只能拿到`www.baidu.com`，拿不到百度服务器IP，即curl不具备DNS解析功能
-所以无法访问百度。而ping工具可以执行DNS解析，所以能够拿到IP。
+
+注意：这里无法通过curl测试达到访问百度的效果，笔者推断是因为curl在使用service域名访问时只能拿到`www.baidu.com`
+，拿不到百度服务器IP，即curl不具备DNS解析功能，所以无法正常访问百度获取到HTML。而ping工具可以执行DNS解析，所以能够拿到IP。
 
 **用途说明**：`ExternalName`类Service一般用在集群内部需要调用外部服务的时候，比如云服务商部署的DB等服务。
 
-**无头Service + Endpoint**  
-另外，很多时候，比如是自己部署的DB服务，只有IP而没有域名，`ExternalName` 是无法实现这个需求的，需要使用 `无头Service`+`Endpoint`
-来实现，这里提供一个测试通过的模板 [service-headless-endpoints.yaml](service-headless-endpoints.yaml) 供读者自行练习。
+**无头Service + Endpoints**  
+另外，很多时候，比如是自己部署的DB服务，只有IP而没有域名，`ExternalName`是无法实现这个需求的，需要使用 `无头Service`+`Endpoints`来实现，
+这里提供一个测试通过的模板 [service-headless-endpoints.yaml](service-headless-endpoints.yaml) 供读者自行练习。
 
 > Endpoint对象一般不需要手动创建，Service controller会在service创建时自动创建，只有在需要关联集群外的服务时可能用到。
 > 这个时候就手动创建Endpoint，并填入外部服务的IP和端口。如果集群外的服务地址是域名而不是IP，则使用`ExternalName`。
 
 ### 7.7 搭配externalIP
+
 前面小节介绍的 ClusterIP（含Headless）/NodePort/LoadBalancer/ExternalName 五种Service都可以搭配 externalIP 使用，
 externalIP是Service模板中的一个配置字段，位置是`spec.externalIP`。配置此字段后，在原模板提供的功能基础上，
 还可以将Service注册到指定的externalIP（通常是节点网段内的空闲IP）上，从而增加Service的一种暴露方式。
