@@ -9,7 +9,7 @@ spec:
 #    clientIP:
 #      timeoutSeconds: 3600 # 范围 0~86400，默认10800（3h）
   selector:
-    app: hellok8s  # 通过selector 选择映射的pod
+    app: hellok8s  # 通过selector关联pod组
   ports:
     - port: 3000 # service端口
       targetPort: 3000 # 后端pod端口
