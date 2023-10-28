@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-hellok8s-loadbalancer
+spec:
+  selector:
+    app: hellok8s
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+#      nodePort: 30080 # 可选，不设置就自动选择
+  type: LoadBalancer
+#  externalTrafficPolicy: Local # or Cluster, Local表示保留客户端源IP，Cluster（默认）表示不保留源IP但有较好的集群内负载均衡效果
+#  healthCheckNodePort: 80 # 可选，设置节点的健康检查端口（不设置也会自动选择一个端口用作健康检查）

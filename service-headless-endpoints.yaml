@@ -1,0 +1,27 @@
+# 进入curl容器
+# ping service-headless-and-endpoint.default.svc.cluster.local
+#PING service-headless-and-endpoint.default.svc.cluster.local (14.119.104.189): 56 data bytes
+#64 bytes from 14.119.104.189: seq=0 ttl=54 time=12.529 ms
+#64 bytes from 14.119.104.189: seq=1 ttl=54 time=12.661 ms
+# -
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-headless-and-endpoint
+spec:
+  clusterIP: None # headless service
+#  selector: {}  # 不填写selector
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: service-headless-and-endpoint
+subsets:
+  - addresses:
+      - ip: 14.119.104.189 # baidu.com ip
+    ports:
+      - port: 80
