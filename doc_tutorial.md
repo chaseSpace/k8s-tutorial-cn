@@ -773,7 +773,7 @@ kk rollout pause deploy {deploy-name}
 kk rollout resume deploy {deploy-name}
 ```
 
-测试步骤如下：
+操作步骤如下：
 
 ```shell
 # 一次性执行两条命令
@@ -799,7 +799,7 @@ DaemonSet是一种特殊的控制器，它会在每个node上**只会**运行一
 
 DaemonSet的yaml文件示例 [daemonset.yaml](./example_deployment/daemonset.yaml)
 
-测试步骤如下：
+操作步骤如下：
 
 ```shell
 kubectl create -f fluentd-daemonset.yaml
@@ -944,7 +944,7 @@ Kubernetes提供了多种类型的Service，包括ClusterIP、NodePort、LoadBal
 Service类型的选择取决于你的应用程序的具体要求以及你希望如何将其暴露到网络中。
 
 - ClusterIP:
-    - 原理：使用这种方式发布时，会为Service提供一个固定的集群内部虚拟IP，供集群内访问。
+    - 原理：使用这种方式发布时，会为Service提供一个固定的集群内部虚拟IP，供集群内（包含节点）访问。
     - 场景：内部数据库服务、内部API服务等。
 - NodePort:
     - 原理：通过每个节点上的 IP 和静态端口发布服务。 这是一种基于ClusterIP的发布方式，因为它应用后首先会生成一个集群内部IP，
@@ -964,9 +964,9 @@ Service类型的选择取决于你的应用程序的具体要求以及你希望�
 
 ### 7.2 Service类型之ClusterIP
 
-ClusterIP通过分配集群内部IP来在集群内暴露服务（集群外不能访问），这样就可以在集群内通过集群IP+端口访问到pod服务。
+ClusterIP通过分配集群内部IP来在集群内（包含节点）暴露服务，这样就可以在集群内通过集群IP+端口访问到pod服务，集群外则无法访问。
 
-> 这种方式适用于那些不需要对外暴露的服务，如节点守护agent等。
+>这种方式适用于那些不需要对外暴露的服务，如节点守护agent等。
 
 准备工作：
 
@@ -1037,6 +1037,9 @@ NAME                         ENDPOINTS                         AGE
 kubernetes                   10.0.2.2:6443                     7h5m
 service-hellok8s-clusterip   20.2.36.72:3000,20.2.36.75:3000   17m
 ```
+
+>在 Kubernetes 中，Endpoints 是一种资源对象，用于指定与一个 Service 关联的后端 Pod 的 IP 地址和端口信息。
+> Endpoints 对象充当服务发现机制的一部分，它告诉 Kubernetes 如何将流量路由到 Service 的后端 Pod。
 
 `ClusterIP`除了在节点上可直接访问，在集群内也是可以访问的。下面启动一个Nginx Pod来访问这个虚拟的ClusterIP （`20.1.120.16`）。
 
@@ -1118,12 +1121,12 @@ hellok8s-go-http-6bb87f8cb5-wtdht   1/1     Running   0          52m   20.2.36.7
 
 比如K8s集群有2个节点：node1, node2，暴露后就可以通过 `node1-ip:port` 或 `node2-ip:port` 的方式来稳定访问Pod服务。
 
-准备工作：
+操作步骤：
 
-1. 删除已经创建的`ClusterIP`类型的Service，减少干扰（执行：`kk delete -f service-clusterip.yaml`）；
-2. 定义 [service-nodeport.yaml](service-nodeport.yaml)，并应用；
-3. 现在可以通过访问k8s集群中的任一节点ip+端口进行验证
+1. 定义 [service-nodeport.yaml](service-nodeport.yaml)，并应用；
+2. 现在可以通过访问k8s集群中的任一节点ip+端口进行验证
 
+具体指令如下：
 ```shell
 # 同样会分配一个 cluster-ip
 $ kk get svc service-hellok8s-nodeport                   
@@ -1170,7 +1173,7 @@ $ curl 10.0.2.3:30000
 这是一种特殊的Service类型，它没有ClusterIP，而是通过DNS域名来访问Pod服务。由于没有ClusterIP，所以节点和集群外都无法直接访问Service。
 无头Service主要提供给StatefulSet使用。
 
-测试步骤：
+操作步骤：
 
 1. 定义 [service-clusterip-headless.yaml](service-clusterip-headless.yaml)，并应用；
 2. 定义 [pod_curl.yaml](pod_curl.yaml) 并应用（具有curl和nslookup命令），用来作为client访问定义好的service;
@@ -1221,7 +1224,7 @@ CNAME机制把svc指向另外一个域名，这个域名可以是任何能够访
 
 > 注意`ExternalName`这个类型也仅在集群内生效，在节点上是无法访问service域名的。
 
-测试步骤：
+操作步骤：
 
 1. 定义 [service-externalname.yaml](service-externalname.yaml)，并应用
 2. 进入上一节中准备好的curl容器，使用curl和nslookup命令进行访问测试；
@@ -1255,15 +1258,21 @@ Address 4: 240e:ff:e020:38::ff:b06d:569b
 
 **用途说明**：`ExternalName`类Service一般用在集群内部需要调用外部服务的时候，比如云服务商部署的DB等服务。
 
-**无头Service + Endpoints**  
-另外，很多时候，比如是自己部署的DB服务，只有IP而没有域名，`ExternalName` 是无法实现这个需求的，需要使用 `无头Service`+`Endpoints`
+**无头Service + Endpoint**  
+另外，很多时候，比如是自己部署的DB服务，只有IP而没有域名，`ExternalName` 是无法实现这个需求的，需要使用 `无头Service`+`Endpoint`
 来实现，这里提供一个测试通过的模板 [service-headless-endpoints.yaml](service-headless-endpoints.yaml) 供读者自行练习。
 
->在 Kubernetes 中，Endpoints 是一种资源对象，用于指定与一个 Service 关联的后端 Pod 的 IP 地址和端口信息。
-> Endpoints 对象充当服务发现机制的一部分，它告诉 Kubernetes 如何将流量路由到 Service 的后端 Pod。
-> 
-> 一般情况下不需要手动创建Endpoint对象，Service controller会在service创建时自动创建，只有在需要关联集群外的服务时可能用到。
+> Endpoint对象一般不需要手动创建，Service controller会在service创建时自动创建，只有在需要关联集群外的服务时可能用到。
 > 这个时候就手动创建Endpoint，并填入外部服务的IP和端口。如果集群外的服务地址是域名而不是IP，则使用`ExternalName`。
+
+### 7.7 搭配externalIP
+前面小节介绍的 ClusterIP（含Headless）/NodePort/LoadBalancer/ExternalName 五种Service都可以搭配 externalIP 使用，
+externalIP是Service模板中的一个配置字段，位置是`spec.externalIP`。配置此字段后，在原模板提供的功能基础上，
+还可以将Service注册到指定的externalIP（通常是节点网段内的空闲IP）上，从而增加Service的一种暴露方式。
+
+这里提供一个测试通过的模板 [service-clusterip-externalIP.yaml](service-clusterip-externalIP.yaml) 给读者自行练习。
+
+`spec.externalIP`可以配置为任意局域网IP（你需要的），而不必是节点网段ip，Service Controller会自动为每个节点添加路由。
 
 ## 8. 使用Ingress
 
