@@ -149,6 +149,7 @@ Service对象就是为了解决这个问题。Service可以自动跟踪并绑定
 
 如果安装的k8s版本不使用docker作为容器运行时，那只需要在master节点（或专门的镜像部署节点）安装docker。
 我们需要docker来构建和推送镜像。
+
 ```shell
 yum install -y yum-utils device-mapper-persistent-data lvm2
 yum-config-manager --add-repo http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
@@ -179,6 +180,7 @@ Registry Mirrors:
 ```
 
 另外，可能需要纠正主机时间和时区：
+
 ```shell
 # 先设置时区
 echo "ZONE=Asia/Shanghai" >> /etc/sysconfig/clock
@@ -234,7 +236,9 @@ $ docker login  # 然后输入自己的docker账户和密码，没有先去官�
 ```shell
 docker push leigg/hellok8s:v1
 ```
->如果是生产部署，则不会使用docker官方仓库，而是使用harbor等项目搭建本地仓库，以保证稳定拉取镜像。
+
+> 如果是生产部署，则不会使用docker官方仓库，而是使用harbor等项目搭建本地仓库，以保证稳定拉取镜像。
+
 ## 3. 使用Pod
 
 Pod 是 Kubernetes 最小的可部署单元，**通常包含一个或多个容器**。
@@ -382,8 +386,8 @@ $ curl http://localhost:3000
 
 - **声明性配置**：Deployment的配置是声明性的，你只需定义所需的状态，而不是详细指定如何实现它。Kubernetes会根据你的声明来管理应用程序的状态。
 
-
 ### 4.1 部署deployment
+
 先创建一个[deployment文件](./deployment.yaml)， 用来编排多个pod。
 
 ```shell
@@ -941,27 +945,27 @@ Service类型的选择取决于你的应用程序的具体要求以及你希望�
 - ClusterIP:
     - 原理：使用这种方式发布时，会为Service提供一个固定的集群内部虚拟IP，供集群内访问。
     - 场景：内部数据库服务、内部API服务等。
-- ClusterIP（Headless版）:
-    - 原理：这种方式不会分配ClusterIP，也不会通过Kube-proxy进行反向代理和负载均衡，而是通过DNS提供稳定的网络ID来访问，
-      并且DNS会将无头Service的后端解析为Pod的后端IP列表，也仅供集群内访问
-    - 场景：一般提供给StatefulSet使用。
 - NodePort:
     - 原理：通过每个节点上的 IP 和静态端口发布服务。 这是一种基于ClusterIP的发布方式，因为它应用后首先会生成一个集群内部IP，
-        然后再将其绑定到节点的IP和端口，这样就可以在集群外通过节点IP:端口的方式访问服务。
+      然后再将其绑定到节点的IP和端口，这样就可以在集群外通过节点IP:端口的方式访问服务。
     - 场景：Web应用程序、REST API等。
 - LoadBalancer:
     - 原理：这种方式又基于ClusterIP和NodePort两种方式，另外还会使用到外部由云厂商提供的负载均衡器。由后者向外发布Service。
       一般在使用云平台提供的Kubernetes集群时，会用到这种方式。
     - 场景：Web应用程序、公开的API服务等。
+- ClusterIP（Headless版）:
+    - 原理：这种方式不会分配ClusterIP，也不会通过Kube-proxy进行反向代理和负载均衡，而是通过DNS提供稳定的网络ID来访问，
+      并且DNS会将无头Service的后端解析为Pod的后端IP列表，也仅供集群内访问，属于**向内发布**。
+    - 场景：一般提供给StatefulSet使用。
 - ExternalName:
-    - 原理：与上面提到的发布方式不太相同，这种方式是将外部服务引入集群内部，为集群内提供服务。
+    - 原理：与上面提到的发布方式不太相同，这种方式是通过CNAME机制将外部服务引入集群内部，为集群内提供服务，属于**向内发布**。
     - 场景：连接到外部数据库服务、外部认证服务等。
 
 ### 7.2 Service类型之ClusterIP
 
 ClusterIP通过分配集群内部IP来在集群内暴露服务（集群外不能访问），这样就可以在集群内通过集群IP+端口访问到pod服务。
 
->这种方式适用于那些不需要对外暴露的服务，如节点守护agent等。
+> 这种方式适用于那些不需要对外暴露的服务，如节点守护agent等。
 
 准备工作：
 
@@ -998,8 +1002,10 @@ NAME                         ENDPOINTS                         AGE
 kubernetes                   10.0.2.2:6443                     6h54m
 service-hellok8s-clusterip   20.2.36.72:3000,20.2.36.73:3000   6m38s
 ```
+
 这里通过`kk get svc`获取到的就是集群内`default`空间下的service列表，我们发布的自然是第二个，它的ClusterIP是`20.1.120.16`，
 这个IP是可以在节点直接访问的：
+
 ```shell
 $ curl 20.1.120.16:3000
 [v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-dstff
@@ -1008,7 +1014,8 @@ $ curl 20.1.120.16:3000
 [v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-wtdht
 ```
 
-然后我们通过`kk get endpoints`获取到的是Service后端的逻辑Pod组的信息，`ENDPOINTS`列中包含的两个地址则是两个就绪的pod的访问地址（这个IP也是Pod网段，节点无法直接访问），
+然后我们通过`kk get endpoints`获取到的是Service后端的逻辑Pod组的信息，`ENDPOINTS`
+列中包含的两个地址则是两个就绪的pod的访问地址（这个IP也是Pod网段，节点无法直接访问），
 这些端点是和就绪的pod保持实时一致的（Service会实时跟踪），下面通过扩缩容来观察。
 
 ```shell
@@ -1059,6 +1066,7 @@ root@nginx:/# curl 20.1.120.16:3000
 的Service和Pod的映射关系会被记录到iptables中，这样每个节点上的iptables规则都会被更新。而iptables使用NAT技术将虚拟IP的流量转发到Endpoint。
 
 通过在master节点（其他节点也可）`iptables -L -v -n -t nat`可以查看其配置，这个结果会很长。这里贴出关键的两条链：
+
 ```shell
 $ iptables -L -v -n -t nat
 ...
@@ -1078,11 +1086,15 @@ Chain KUBE-SVC-BRULDGNIV2IQDBPU (1 references)
     4   240 KUBE-SEP-YHSEP23J6IVZKCOG  all  --  *      *       0.0.0.0/0            0.0.0.0/0            /* default/service-hellok8s-clusterip -> 20.2.36.78:3000 */
 ...
 ```
-这里有 `KUBE-SERVICES`和 `KUBE-SVC-BRULDGNIV2IQDBPU`两条链，前者引用了后者，在第一条链中，可以看到 **target**为`20.1.120.16`(ClusterIP)的流量将转发至3个目标 `KUBE-SVC-BRULDGNIV2IQDBPU`：
+
+这里有 `KUBE-SERVICES`和 `KUBE-SVC-BRULDGNIV2IQDBPU`两条链，前者引用了后者，在第一条链中，可以看到 **target**
+为`20.1.120.16`(ClusterIP)的流量将转发至3个目标 `KUBE-SVC-BRULDGNIV2IQDBPU`：
+
 - 第一条规则会对除了 20.2.0.0/16 地址范围之外的且目标是3000端口的所有来源的tcp协议数据包执行MASQ动作，即NAT操作（把数据包的源IP转换为目标IP）
 - 第二条规则将任意链内流量转发到目标`KUBE-SEP-JCBKJJ6OJ3DPB6OD`，尾部`probability`说明应用此规则的概率是0.5
 - 第三条规则将任意链内流量转发到目标`KUBE-SEP-YHSEP23J6IVZKCOG`，概率也是0.5（1-0.5）
-而这2和3两个规则中的目标其实就是指向两个后端Pod IP，可通过`iptables-save | grep KUBE-SEP-YHSEP23J6IVZKCOG`查看其中一个目标明细：
+  而这2和3两个规则中的目标其实就是指向两个后端Pod IP，可通过`iptables-save | grep KUBE-SEP-YHSEP23J6IVZKCOG`查看其中一个目标明细：
+
 ```shell
 $ iptables-save | grep KUBE-SEP-YHSEP23J6IVZKCOG
 :KUBE-SEP-YHSEP23J6IVZKCOG - [0:0]
@@ -1095,7 +1107,9 @@ NAME                                READY   STATUS    RESTARTS   AGE   IP       
 hellok8s-go-http-6bb87f8cb5-dstff   1/1     Running   0          53m   20.2.36.77   k8s-node1   <none>           <none>
 hellok8s-go-http-6bb87f8cb5-wtdht   1/1     Running   0          52m   20.2.36.78   k8s-node1   <none>           <none>
 ```
-可以看到链`KUBE-SEP-YHSEP23J6IVZKCOG`的规则之一就是将转入的流量全部转发到目标`20.2.36.78:3000`，这个IP也是名字为`hellok8s-go-http-6bb87f8cb5-wtdht`的Pod的内部IP。
+
+可以看到链`KUBE-SEP-YHSEP23J6IVZKCOG`的规则之一就是将转入的流量全部转发到目标`20.2.36.78:3000`
+，这个IP也是名字为`hellok8s-go-http-6bb87f8cb5-wtdht`的Pod的内部IP。
 
 ### 7.3 Service类型之NodePort
 
@@ -1131,84 +1145,124 @@ $ curl 10.0.2.3:30000
 ### 7.4 Service类型之LoadBalancer
 
 `LoadBalancer` 是通过使用云提供商的负载均衡器（一般叫做SLB，Service LoadBalancer）的方式向外暴露服务。
-负载均衡器可以将集群外的流量转发到集群内的Pod，
+负载均衡器可以将集群外的流量转发到集群内的节点，后者再转发到Pod，
 假如你在 AWS 的 EKS 集群上创建一个 Type 为 LoadBalancer 的 Service。它会自动创建一个 ELB (Elastic Load Balancer)
 ，并可以根据配置的 IP 池中自动分配一个独立的 IP 地址，可以供外部访问。
 
-这一步无条件，不再演示，LoadBalancer架构图如下：
+这一步由于没有条件，不再演示，LoadBalancer架构图如下：
 
 <div align="center">
 <img src="img/k8s-loadbalancer.png" width = "600" height = "700" alt=""/>
 </div>
 
-`LoadBalancer`类型的Service有点像`ClusterIP`和`NodePort`的结合，它监听了节点的随机端口，并转发端口流量到后端Pod。
+从架构图可看出，`LoadBalancer`是基于`NodePort`
+的一种Service，这里提供模板供参考：[service-loadbalancer.yaml](service-loadbalancer.yaml)
 
-如果是使用公有云维护的K8s集群（不是自己搭建），那么通常也会使用它们提供的SLB服务（即会用到`LoadBalancer`）。若是自己搭建的集群，
-那么一般也不会使用`LoadBalancer`，而是使用 DaemonSet+HostNetwork+nodeSelector 来向外暴露服务 （后续介绍）。
+所以如果是使用公有云托管的K8s集群，那么通常也会使用它们提供的SLB服务（即会用到`LoadBalancer`）。若是自己搭建的集群，
+那么一般也不会使用`LoadBalancer`（私有集群一般也不支持`LoadBalancer`）。
 
 - [阿里云使用私网SLB教程](https://help.aliyun.com/zh/ack/ack-managed-and-ack-dedicated/user-guide/configure-an-ingress-controller-to-use-an-internal-facing-slb-instance?spm=a2c4g.11186623.0.0.5d1736e0l59zqg)
 
-### 7.5 Service类型之ExternalName
 
-`ExternalName`是k8s中一个特殊的service类型，它不需要指定selector去选择哪些pods实例提供服务，而是使用DNS
-CNAME机制把自己CNAME到你指定的另外一个域名上，你可以提供集群内的名字，
-比如`mysql.db.svc`这样的建立在db命名空间内的mysql服务，也可以指定`http://mysql.example.com`这样的外部真实域名。
+### 7.5 Service类型之ClusterIP（Headless版）
 
-比如可以定义一个 `Service` 指向 `ifconfig.me` （一个curl访问可获取自己公网IP的公共地址），然后可以在集群内的任何一个pod上访问这个service的名称，
-请求将自动转发到`ifconfig.me`。
+这是一种特殊的Service类型，它没有ClusterIP，而是通过DNS域名来访问Pod服务。由于没有ClusterIP，所以节点和集群外都无法直接访问Service。
+无头Service主要提供给StatefulSet使用。
 
-> 注意`ExternalName`这个类型也仅在集群内生效，在节点上是无法访问service名称的。
+测试步骤：
 
-准备工作：
+1. 定义 [service-clusterip-headless.yaml](service-clusterip-headless.yaml)，并应用；
+2. 定义 [pod_curl.yaml](pod_curl.yaml) 并应用（具有curl和nslookup命令），用来作为client访问定义好的service;
+3. 进入curl容器，使用curl和nslookup命令进行访问测试；
 
-1. 定义 [service-externalname.yaml](service-externalname.yaml)，并应用
-2. 定义 [pod_busybox.yaml](pod_busybox.yaml) 并应用，用来作为client访问定义好的service
-2. 验证步骤如下：
+具体指令如下：
 
 ```shell
-# 进入busybox pod
-$ kk exec -it busybox -- sh            
+kk apply -f service-clusterip-headless.yaml
 
-# 使用 service名称 作为dns地址 进行查找
-/ $ nslookup cloud-mysql-svc
-Server:		20.1.0.10
-Address:	20.1.0.10:53
+kk apply -f pod_curl.yaml
 
-** server can't find cloud-mysql-svc.cluster.local: NXDOMAIN
+# 进入curl容器
+kk exec -it curl -- /bin/sh
+# 访问测试
+/ # curl service-hellok8s-clusterip-headless.default.svc.cluster.local:3000
+[v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-57r86
+/ # curl service-hellok8s-clusterip-headless.default.svc.cluster.local:3000
+[v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-lgtgf
 
-** server can't find cloud-mysql-svc.svc.cluster.local: NXDOMAIN
+# CNAME记录查询
+/ # nslookup service-hellok8s-clusterip-headless.default.svc.cluster.local
+nslookup: can't resolve '(null)': Name does not resolve
 
-** server can't find cloud-mysql-svc.cluster.local: NXDOMAIN
-
-** server can't find cloud-mysql-svc.svc.cluster.local: NXDOMAIN
-
-cloud-mysql-svc.default.svc.cluster.local	canonical name = mysql-s23423.db.tencent.com
-
-cloud-mysql-svc.default.svc.cluster.local	canonical name = mysql-s23423.db.tencent.com
-
-# 如结果所示，最终在 default.svc.cluster.local 这个域内找到了service配置的外部地址
-
-# 也可使用完整域名查找
-/ $ nslookup cloud-mysql-svc.default.svc.cluster.local
-Server:		20.1.0.10
-Address:	20.1.0.10:53
-
-cloud-mysql-svc.default.svc.cluster.local	canonical name = mysql-s23423.db.tencent.com
-
-cloud-mysql-svc.default.svc.cluster.local	canonical name = mysql-s23423.db.tencent.com
+Name:      service-hellok8s-clusterip-headless.default.svc.cluster.local
+Address 1: 20.2.36.77 20-2-36-77.service-hellok8s-clusterip-headless.default.svc.cluster.local
+Address 2: 20.2.36.78 20-2-36-78.service-hellok8s-clusterip-headless.default.svc.cluster.local
 ```
+
+这里的`service-hellok8s-clusterip-headless.default.svc.cluster.local`就是Service提供给集群内部访问Pod组的域名，
+组成方式为`{ServiceName}.{Namespace}.svc.{ClusterDomain}`，其中ClusterDomain表示集群域，默认为`cluster.local`，
+`Namespace`在Service的yaml文件中未指定那就是default。
+
+在上述操作中，我们通过curl进行了访问测试，可以看到没问题，但是并不提供负载均衡功能，读者可多访问几次进行观察。
+然后我们通过nslookup查看域名的DNS信息，可以看到Service域名指向两个Pod IP，并且它们还有对应的专有域名，但因为Pod IP非固定，
+所以这个专有域名也没任何作用。
+
+除了直接调用域名访问服务之外，还可解析域名来根据需求决定访问哪个Pod。这种方式更适合StatefulSet产生的有状态Pod。
+
+### 7.6 Service类型之ExternalName
+
+`ExternalName`也是k8s中一个特殊的Service类型，它不需要指定selector去选择哪些pods实例提供服务，而是使用DNS
+CNAME机制把svc指向另外一个域名，这个域名可以是任何能够访问的地址，
+比如`mysql.db.svc`这样的建立在db命名空间内的mysql服务，也可以指定`www.baidu.com`这样的外部真实域名。
+
+比如可以定义一个service指向 `www.baidu.com`，然后可以在集群内的任何一个pod上访问这个service的域名，
+请求service域名将自动转发到`www.baidu.com`。
+
+> 注意`ExternalName`这个类型也仅在集群内生效，在节点上是无法访问service域名的。
+
+测试步骤：
+
+1. 定义 [service-externalname.yaml](service-externalname.yaml)，并应用
+2. 进入上一节中准备好的curl容器，使用curl和nslookup命令进行访问测试；
+
+具体指令如下：
+
+```shell
+kk apply -f service-externalname.yaml
+
+# 进入curl容器
+$ kk exec -it curl -- /bin/sh          
+/ # ping service-hellok8s-externalname.default.svc.cluster.local
+PING service-hellok8s-externalname.default.svc.cluster.local (14.119.104.254): 56 data bytes
+64 bytes from 14.119.104.254: seq=0 ttl=54 time=9.353 ms
+64 bytes from 14.119.104.254: seq=1 ttl=54 time=9.278 ms
+^C
+--- service-hellok8s-externalname.default.svc.cluster.local ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 9.278/9.315/9.353 ms
+/ # nslookup service-hellok8s-externalname.default.svc.cluster.local
+nslookup: can't resolve '(null)': Name does not resolve
+
+Name:      service-hellok8s-externalname.default.svc.cluster.local
+Address 1: 14.119.104.189
+Address 2: 14.119.104.254
+Address 3: 240e:ff:e020:37::ff:b08c:124f
+Address 4: 240e:ff:e020:38::ff:b06d:569b
+```
+注意：这里无法通过curl测试达到访问百度的效果，因为curl在使用service域名访问时只能拿到`www.baidu.com`，拿不到百度服务器IP，即curl不具备DNS解析功能
+所以无法访问百度。而ping工具可以执行DNS解析，所以能够拿到IP。
 
 **用途说明**：`ExternalName`类Service一般用在集群内部需要调用外部服务的时候，比如云服务商部署的DB等服务。
 
-> 注意：观察`cloud-mysql-svc.default.svc.cluster.local`这个域名组成：
-> - `cloud-mysql-svc` 是服务名
-> - `default` 是集群 namespace
-> - `svc.cluster.local` 是service默认域  
-    > 也就是说，修改集群 namespace 字段我们就可以实现跨集群 namespace 的Pod访问。
+**无头Service + Endpoints**  
+另外，很多时候，比如是自己部署的DB服务，只有IP而没有域名，`ExternalName` 是无法实现这个需求的，需要使用 `无头Service`+`Endpoints`
+来实现，这里提供一个测试通过的模板 [service-headless-endpoints.yaml](service-headless-endpoints.yaml) 供读者自行练习。
 
->
-另外，很多时候，比如是自己部署的DB服务，只有IP而没有域名，ExternalName是无法实现这个需求的，需要使用 `无头Service`+`Endpoints`
-来实现，请看后续。
+>在 Kubernetes 中，Endpoints 是一种资源对象，用于指定与一个 Service 关联的后端 Pod 的 IP 地址和端口信息。
+> Endpoints 对象充当服务发现机制的一部分，它告诉 Kubernetes 如何将流量路由到 Service 的后端 Pod。
+> 
+> 一般情况下不需要手动创建Endpoint对象，Service controller会在service创建时自动创建，只有在需要关联集群外的服务时可能用到。
+> 这个时候就手动创建Endpoint，并填入外部服务的IP和端口。如果集群外的服务地址是域名而不是IP，则使用`ExternalName`。
 
 ## 8. 使用Ingress
 
