@@ -1443,7 +1443,7 @@ service/service-hellok8s-clusterip              ClusterIP      20.1.112.41    <n
 NAME                                         CLASS   HOSTS   ADDRESS   PORTS   AGE
 ingress.networking.k8s.io/hellok8s-ingress   nginx   *                 80      9m18s
 
-# 先通过clusterIP访问httpd
+# 1-通过clusterIP访问httpd
 $ curl 20.1.140.111:8080
 <html><body><h1>It works!</h1></body></html>
 
@@ -1453,13 +1453,11 @@ NAME                                 TYPE           CLUSTER-IP     EXTERNAL-IP  
 ingress-nginx-controller             LoadBalancer   20.1.251.172   <pending>     80:31504/TCP,443:32548/TCP   19h
 ingress-nginx-controller-admission   ClusterIP      20.1.223.76    <none>        443/TCP                      19h
 
-# 在节点上访问
-$ curl 20.1.95.211:8080 
-<html><body><h1>It works!</h1></body></html>
-
+# 2-通过节点映射端口访问 /httpd
 $ curl 127.0.0.1:31504/httpd
 <html><body><h1>It works!</h1></body></html>
 
+# 3-通过节点映射端口访问 /hello
 $ curl 127.0.0.1:31504/hello
 [v3] Hello, Kubernetes!, this is ingress test, host:hellok8s-go-http-6df8b5c5d7-75qb6
 ```
