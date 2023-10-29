@@ -1,0 +1,20 @@
+#$ echo '127.0.0.1 hellok8s.foo.com' >> /etc/hosts
+#$ curl hellok8s.foo.com:31504/hello
+#  [v3] Hello, Kubernetes!, From host: hellok8s-go-http-6df8b5c5d7-ll82f
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hellok8s-ingress
+spec:
+  ingressClassName: nginx  # 指定ingress控制器
+  rules:
+    - host: hellok8s.foo.com
+      http:
+        paths:
+          - path: /hello
+            pathType: Prefix
+            backend:
+              service:
+                name: service-hellok8s-clusterip
+                port:
+                  number: 3000

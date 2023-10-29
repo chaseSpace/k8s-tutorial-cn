@@ -9,10 +9,10 @@ spec:
   ingressClassName: nginx  # 指定ingress控制器
   tls:
     - hosts:
-        - https-example.foo.com
-      secretName: testsecret-tls  # 引用 secret-hellok8s-cert.yaml 中配置的secret name
+        - hellok8s.foo.com
+      secretName: hellok8s-tls  # 引用 secret-hellok8s-cert.yaml 中配置的secret name
   rules:
-    - host: https-example.foo.com
+    - host: hellok8s.foo.com
     - http:
         paths:
           - path: /hello

@@ -67,9 +67,9 @@ yum install containerd -y
 containerd  --version
 # - 创建或修改配置
 vi /etc/containerd/config.toml  # 直接使用此文档同级位置的 containerd.config.toml 覆盖即可
+systemctl enable containerd # 开机启动
 
 systemctl daemon-reload
-systemctl enable containerd # 开机启动
 systemctl restart containerd
 systemctl status containerd
 ```

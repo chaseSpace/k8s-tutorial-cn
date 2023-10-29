@@ -2,6 +2,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: hellok8s-ingress
+  annotations: # 通过注解来进一步控制nginx控制器的行为
+    nginx.ingress.kubernetes.io/rewrite-target: /  # 匹配路由后，重写为 /； 比如 /hello 重写为 /
 spec:
   ingressClassName: nginx  # 指定ingress控制器
   rules:
@@ -18,10 +20,11 @@ spec:
                 name: service-hellok8s-clusterip
                 port:
                   number: 3000
-          - path: /ingress/123
+
+          - path: /httpd
             pathType: Prefix
             backend:
               service:
-                name: service-hellok8s-clusterip
+                name: service-httpd
                 port:
-                  number: 3000
+                  number: 8080
