@@ -1279,11 +1279,19 @@ externalIP是Service模板中的一个配置字段，位置是`spec.externalIP`�
 
 ## 8. 使用Ingress
 
-`Ingress` 是一种用于管理和公开集群内服务的 API 对象。它充当了对集群中的服务进行外部公开和流量路由的入口点。
-`Ingress` 允许你配置规则以指定服务之间的路径和主机名路由，从而可以根据 URL 路径和主机名将请求路由到不同的后端服务。
+上节中的Service可以通过 NodePort 或者 LoadBalancer 或者 配置externalIP 或 Pod中配置HostPort 的方式对外暴露服务，
+这些方式都有一个严重问题，那就是需要占用节点端口。当需要暴露的服务逐渐增加，节点端口的占用会越来越多，且增加很大管理成本。
+除此之外，这些方式也都不支持域名以及SSL配置，还需要额外配置Nginx等反向代理组件。
 
-Ingress具有 TLS/SSL 支持：你可以为 Ingress 配置 TLS 证书，以加密传输到后端服务的流量下功能：
+Ingress就是为了解决这个问题而设计的，它允许你将 Service 映射到集群对外提供的某个端点上（无需占用节点端口），从而实现对外部提供服务的功能。
 
+举个例子：集群对外的统一端点是`api.example.com:80`，可以这样为集群内的两个Service（backend:8080、frontend:8082）配置映射：
+- api.example.com/backend 指向 backend:8080
+- api.example.com/frontend 指向 frontend:8082
+
+Ingress可以为多个主机名配置不同的路由规则，提供与Nginx功能相似的服务。
+
+总的来说，Ingress提供以下功能：
 - **路由规则**：Ingress 允许你定义路由规则，使请求根据主机名和路径匹配路由到不同的后端服务。这使得可以在同一 IP
   地址和端口上公开多个服务。
 - **Rewrite 规则**：Ingress 支持 URL 重写，允许你在路由过程中修改请求的 URL 路径；
@@ -1293,17 +1301,19 @@ Ingress具有 TLS/SSL 支持：你可以为 Ingress 配置 TLS 证书，以加�
 - **自定义错误页面**：你可以定义自定义错误页面，以提供用户友好的错误信息；
 - **插件和控制器**：社区提供了多个 Ingress 控制器，如 Nginx Ingress Controller 和 Traefik，它们为 Ingress 提供了更多功能和灵活性。
 
-`Ingress` 可以简单理解为后端集群服务的 网关（Gateway），它是所有流量的入口，经过配置的路由规则，将流量重定向到后端的服务。
+Ingress 可以简单理解为集群服务的网关（Gateway），它是所有流量的入口，经过配置的路由规则，将流量重定向到后端的服务。
 
-> 相对于Ingress，service类型之一的NodePort转发流量的方式比较单一，仅支持节点的特定端口到特定service的流量转发，并且不支持编写路由规则、域名配置等重要功能。
+### 8.1 Ingress控制器
 
-### 8.1 关于Ingress控制器
+使用Ingress时一般涉及2个组件：
+- **Ingress**：是 Kubernetes 中的一种 API 资源类型，它定义了从集群外部访问集群内服务的规则。通常，这些规则涉及到 HTTP 和 HTTPS 流量的路由和负载均衡。
+  Ingress 对象本身只是一种规则定义，它需要一个 Ingress 控制器来实际执行这些规则。
+- **Ingress 控制器**：是 Kubernetes 集群中的一个独立组件或服务，它实际处理 Ingress 规则，根据这些规则配置集群中的代理服务器（如 Nginx、HAProxy、Traefik 等）来处理流量路由和负载均衡。
+  Ingress 控制器负责监视 Ingress 对象的变化，然后动态更新代理服务器的配置以反映这些变化。Kubernetes社区提供了一些不同的 Ingress 控制器，您可以根据需求选择合适的控制器。
 
-它指的是Ingress的具体实现，像简介中说的路由、rewrite等功能都是k8s ingress定义的通用功能，但k8s并不负责实现这些功能。
-它把具体实现交给第三方，以提供灵活性和可定制化。
-
-常见的Ingress控制器实现有：Nginx Ingress、APISIX Ingress、BFE
-Ingress等，[点击链接](https://kubernetes.io/zh-cn/docs/concepts/services-networking/ingress-controllers/) 查看更多。
+Ingress控制器不会随集群一起安装，需要单独安装。可以选择的Ingress控制器很多，这里是
+[社区提供的Ingress控制器列表](https://kubernetes.io/zh-cn/docs/concepts/services-networking/ingress-controllers/)，
+可根据情况自行选择，常用的是Nginx、Traefik。
 
 ### 8.2 安装Nginx Ingress控制器
 
@@ -1333,7 +1343,13 @@ ingress-nginx-controller-6f4df7b5d6-lxfsr   1/1     Running     0          2m36s
 
 # 注意前两个 Completed 的pod是一次性的，用于执行初始化工作，现在安装成功。
 
-#查看安装的所有资源
+# 等待各项资源就绪
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=120s
+  
+#查看安装的各种资源
 $ kubectl get all -n ingress-nginx
 NAME                                            READY   STATUS      RESTARTS   AGE
 pod/ingress-nginx-admission-create-smxkz        0/1     Completed   0          16m
@@ -1355,8 +1371,42 @@ job.batch/ingress-nginx-admission-create   1/1           5s         16m
 job.batch/ingress-nginx-admission-patch    1/1           7s         16m
 ```
 
+可能会遇到image拉取失败，解决如下：
+```
+$ kk get pod -ningress-nginx                                           
+NAME                                        READY   STATUS              RESTARTS   AGE
+ingress-nginx-admission-create-csfjc        0/1     ImagePullBackOff    0          5m55s
+ingress-nginx-admission-patch-rgdxr         0/1     ImagePullBackOff    0          5m55s
+ingress-nginx-controller-6f4df7b5d6-dhfg2   0/1     ContainerCreating   0          5m55s
+
+$ kk describe pod ingress-nginx-admission-create-csfjc -ningress-nginx
+...
+Events:
+Type     Reason     Age                   From               Message
+  ----     ------     ----                  ----               -------
+Normal   Scheduled  3m6s                  default-scheduler  Successfully assigned ingress-nginx/ingress-nginx-admission-create-csfjc to k8s-node1
+Normal   BackOff    2m19s                 kubelet            Back-off pulling image "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b"
+Warning  Failed     2m19s                 kubelet            Error: ImagePullBackOff
+Normal   Pulling    2m5s (x2 over 3m20s)  kubelet            Pulling image "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b"
+Warning  Failed     15s (x2 over 2m19s)   kubelet            Failed to pull image "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b": rpc error: code = DeadlineExceeded desc = failed to pull and unpack image "registry.k8s.io/ingress-nginx/kube-webhook-certgen@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b": failed to resolve reference "registry.k8s.io/ingress-nginx/kube-webhook-certgen@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b": failed to do request: Head "https://us-west2-docker.pkg.dev/v2/k8s-artifacts-prod/images/ingress-nginx/kube-webhook-certgen/manifests/sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b": dial tcp 142.251.8.82:443: i/o timeout
+
+
+# 发现无法访问 registry.k8s.io，参考https://github.com/anjia0532/gcr.io_mirror 进行解决
+# 笔者发起issue来同步nginx用到的几个镜像到作者的docker仓库，大概1min完成同步，然后现在在节点手动拉取这个可访问的docker.io下的镜像进行替代
+# 在非master节点执行（ctr是containerd cli）：
+ctr image pull docker.io/anjia0532/google-containers.ingress-nginx.kube-webhook-certgen:v20230407
+ctr image pull docker.io/anjia0532/google-containers.ingress-nginx.controller:v1.8.2
+
+# 替换模板中的镜像
+sed -i 's#registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b#docker.io/anjia0532/google-containers.ingress-nginx.kube-webhook-certgen:v20230407#' deploy.yaml
+sed -i 's#registry.k8s.io/ingress-nginx/controller:v1.8.2@sha256:74834d3d25b336b62cabeb8bf7f1d788706e2cf1cfd64022de4137ade8881ff2#docker.io/anjia0532/google-containers.ingress-nginx.controller:v1.8.2#' deploy.yaml
+# 再次应用
+kk apply -f deploy.yaml
+```
+
 这里重点关注`service/ingress-nginx-controller`这一行，这是Nginx Ingress自动创建的`LoadBalancer`类型的service，
-它负责实现转发节点流量到 pod `ingress-nginx-controller`，后者再转发流量到 `service-hellok8s-clusterip`，然后最终到达业务pod。
+它会跟踪Ingress配置中的后端Pod组端点变化，并实时更新Pod `ingress-nginx-controller`中的转发规则，
+后者再转发流量到 `service-hellok8s-clusterip`，然后最终到达业务pod。
 
 所以Nginx Ingress Controller启动后会默认监听节点的两个随机端口（这里是31888/30158），分别对应其Pod内的80/443，
 后面讲如何修改为节点固定端口。
@@ -1374,34 +1424,54 @@ docker push leigg/hellok8s:v3_nginxingress
 ```
 
 3. 更新deployment镜像：`kubectl set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v3_nginxingress`，并等待更新完成
-4. 恢复之前的ClusterIP类型的`Service`
-4. 定义 Ingress yaml文件 [ingress-hellok8s.yaml](ingress-hellok8s.yaml)，并在其中定义路由规则，然后应用
-5. 在集群节点上验证
+4. 部署 [deployment_httpd_svc.yaml](deployment_httpd_svc.yaml) 作为 Ingress 后端之一
+5. 定义 Ingress [ingress-hellok8s.yaml](ingress-hellok8s.yaml)，其中定义了路由规则，然后应用
+6. 在节点上验证
 
 ```shell
-$ kk get svc service-hellok8s-clusterip                       
-NAME                         TYPE           CLUSTER-IP     EXTERNAL-IP                   PORT(S)          AGE
-service-hellok8s-clusterip   ClusterIP      20.1.106.177   <none>                        3000/TCP         5s
+# 查看部署的资源（省略了不相关的资源）
+$ kk get pods,svc,ingress          
+NAME                                    READY   STATUS    RESTARTS       AGE
+pod/hellok8s-go-http-6bb87f8cb5-57r86   1/1     Running   1 (12h ago)    37h
+pod/hellok8s-go-http-6bb87f8cb5-lgtgf   1/1     Running   1 (12h ago)    37h
+pod/httpd-69fb5746b6-5v559              1/1     Running   0              97s
 
-# 这里的80端口并不是指节点端口，而是控制器pod内监听的端口
-$ kk get ingress           
-NAME               CLASS   HOSTS   ADDRESS   PORTS   AGE
-hellok8s-ingress   nginx   *                 80      2m
+NAME                                            TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)    AGE
+service/httpd-svc                               ClusterIP      20.1.140.111   <none>          8080/TCP   97s
+service/service-hellok8s-clusterip              ClusterIP      20.1.112.41    <none>          3000/TCP   28h
 
-# 现在可以直接访问节点的转发端口（访问集群任一节点均可，端口一致）
-$ curl 10.0.2.3:31888/hello      
-[v3] Hello, Kubernetes!, host:hellok8s-go-http-6df8b5c5d7-h76jl
-$ curl 10.0.2.3:31888/ingress/123
-[v3] Hello, Kubernetes!, path:/ingress/123
-$ curl 10.0.2.3:31888/hello123   
-/hello123 is not found, 404
+NAME                                         CLASS   HOSTS   ADDRESS   PORTS   AGE
+ingress.networking.k8s.io/hellok8s-ingress   nginx   *                 80      9m18s
+
+# 先通过clusterIP访问httpd
+$ curl 20.1.140.111:8080
+<html><body><h1>It works!</h1></body></html>
+
+# 前一节讲到的nginx 以 LoadBalancer部署的svc，所以要通过节点访问，需要先获知svc映射到节点的端口号，如下为 80:31504, 443:32548
+$ kk get svc -ningress-nginx
+NAME                                 TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                      AGE
+ingress-nginx-controller             LoadBalancer   20.1.251.172   <pending>     80:31504/TCP,443:32548/TCP   19h
+ingress-nginx-controller-admission   ClusterIP      20.1.223.76    <none>        443/TCP                      19h
+
+# 在节点上访问
+$ curl 20.1.95.211:8080 
+<html><body><h1>It works!</h1></body></html>
+
+$ curl 127.0.0.1:31504/httpd
+<html><body><h1>It works!</h1></body></html>
+
+$ curl 127.0.0.1:31504/hello
+[v3] Hello, Kubernetes!, this is ingress test, host:hellok8s-go-http-6df8b5c5d7-75qb6
 ```
 
-若要更新路由规则，修改yaml文件后再次应用即可，通过`kk logs -f ingress-nginx-controller-xxx -n ingress-nginx`可以看到路由访问日志。
+这就是基本的ingress使用步骤，还可以通过`kk describe -f ingress-hellok8s.yaml`查看具体路由规则。
 
-这里列出几个常见的配置示例：
+若要更新路由规则，修改Ingress yaml文件后再次应用即可，通过`kk logs -f ingress-nginx-controller-xxx -n ingress-nginx`可以看到请求日志。
 
-- [证书配置：ingress-hellok8s-cert.yaml](ingress-hellok8s-cert.yaml)
+这里列出几个常见的配置示例，供读者自行练习：
+
+- [虚拟域名：ingress-hellok8s-host.yaml](ingress-hellok8s-host.yaml)
+- [配置证书：ingress-hellok8s-cert.yaml](ingress-hellok8s-cert.yaml)
 - [默认后端：ingress-hellok8s-defaultbackend.yaml](ingress-hellok8s-defaultbackend.yaml)
 - [正则匹配：ingress-hellok8s-regex.yaml](ingress-hellok8s-regex.yaml)
 
