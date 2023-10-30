@@ -1523,9 +1523,9 @@ $ kk apply -f deploy.yaml # 更新部署
 
 2. **DaemonSet + HostNetwork + nodeSelector**  
    说明：用DaemonSet结合nodeSelector来部署ingress-controller到特定的node上，然后使用HostNetwork直接把该pod与宿主机node的网络打通，直接使用节点的80/433端口就能访问服务。这时，ingress-controller所在的node机器就很类似传统架构的边缘节点，比如机房入口的nginx服务器。该方式整个请求链路最简单，性能相对NodePort模式更好。
-   有一个问题是由于直接利用宿主机节点的网络和端口，一个node只能部署一个ingress-controller pod，但这在生产环境下也不算是问题，只要完成多节点部署即可。
+   有一个问题是由于直接利用宿主机节点的网络和端口，一个node只能部署一个ingress-controller pod，但这在生产环境下也不算是问题，只要完成多节点部署实现高可用即可。
    然后将Ingress节点公网IP填到域名CNAME记录中即可。  
-   笔者提供测试通过的Ingress-nginx模板供读者练习：[deploy-ingress-nginx-daemonset-hostnetwork.yaml](deploy-ingress-nginx-daemonset-hostnetwork.yaml)，主要修改了3处：
+   笔者提供测试通过的Ingress-nginx模板供读者练习：[ingress-nginx-daemonset-hostnetwork.yaml](ingress-nginx-daemonset-hostnetwork.yaml)，主要修改了3处：
    - `Deployment` 改为 `DaemonSet`
    - 注释`DaemonSet`模块的`strategy`部分（strategy是Deployment模块下的字段）
    - 在DaemonSet模块的`spec.template.spec`下添加`hostNetwork: true`
@@ -1533,8 +1533,10 @@ $ kk apply -f deploy.yaml # 更新部署
 3. **Deployment + `NodePort`模式的Service**  
    说明：同样用Deployment模式部署ingress-controller，并创建对应的service，但是type为NodePort。这样，Ingress就会暴露在集群节点ip的特定端口上。
    然后可以直接将Ingress节点公网IP填到域名CNAME记录中。    
-   笔者提供测试通过ingress-nginx模板供读者练习：[deploy-ingress-nginx-deployment-nodeport.yaml](deploy-ingress-nginx-deployment-nodeport.yaml)，主要修改了2处：
-   - `Service`模块下`spec.ports`部分新增`nodePort: 30080`和`nodePort: 30443`（注意nodePort设置的端口受到范围限制：30000-32767）
+   笔者提供测试通过Ingress-nginx模板供读者练习：[ingress-nginx-deployment-nodeport.yaml](ingress-nginx-deployment-nodeport.yaml)，主要修改了2处：
+   - `Service`模块下`spec.ports`部分新增`nodePort: 30080`和`nodePort: 30443`（注意nodePort设置的端口受到范围限制：30000-32767）  
+   
+   这种方式不适用于对外暴露80/443端口的应用。
 
 练习时，如对Ingress-nginx模板有修改，建议完全删除该模板对应资源（使用`kk delete -f deploy.yaml`，操作可能会耗时几十秒），否则直接应用可能不会生效。
 
