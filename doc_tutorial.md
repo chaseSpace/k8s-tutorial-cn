@@ -1629,6 +1629,8 @@ $ curl 10.0.2.3:30000
 
 可以看到app已经拿到了configmap中定义的env变量。若要更新env，直接更改configmap的yaml文件然后应用，然后删除业务pod即可。
 
+## TODO
+
 ## 参考
 
 - [k8s教程](https://github.com/guangzhengli/k8s-tutorials/blob/main/docs/pre.md)
