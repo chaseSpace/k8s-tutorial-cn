@@ -93,7 +93,7 @@ gpgkey=http://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg
 EOF
 
 # centos 安装各组件
-sudo yum install -y wget \
+sudo yum install -y wget lsof net-tools \
     kubelet-1.25.14 kubeadm-1.25.14 kubectl-1.25.14 --disableexcludes=kubernetes
 
 # 开机启动，且立即启动
