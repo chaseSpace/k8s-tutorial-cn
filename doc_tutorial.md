@@ -1512,23 +1512,31 @@ $ vi deploy.yaml
 $ kk apply -f deploy.yaml # 更新部署
 ```
 
->
-注意：默认不能部署到master节点，存在污点问题，需要移除污点才可以。参考 [k8s-master增加和删除污点](https://www.cnblogs.com/zouhong/p/17351418.html)
+>注意：默认不能部署到master节点，存在污点问题，需要移除污点才可以。参考 [k8s-master增加和删除污点](https://www.cnblogs.com/zouhong/p/17351418.html)
 
 ### 8.5 Ingress部署方案推荐
 
 1. **Deployment + `LoadBalancer` 模式的 Service**  
-   介绍：如果要把ingress部署在公有云，那用这种方式比较合适。用Deployment部署ingress-controller，创建一个 type为 LoadBalancer
-   的 service 关联这组 pod。大部分公有云，都会为 LoadBalancer 的 service 自动创建一个负载均衡器，通常还绑定了公网地址。
+   说明：如果要把Ingress部署到公有云，那用这种方式比较合适。用Deployment部署ingress-controller，创建一个type为 LoadBalancer
+   的 service 关联这组 Pod。大部分公有云，都会为 LoadBalancer 的 service 自动创建一个负载均衡器，通常还绑定了公网地址。
    只要把域名解析指向该地址，就实现了集群服务的对外暴露。
 
 2. **DaemonSet + HostNetwork + nodeSelector**  
-   介绍：用DaemonSet结合nodeselector来部署ingress-controller到特定的node上，然后使用HostNetwork直接把该pod与宿主机node的网络打通，直接使用宿主机的80/433端口就能访问服务。这时，ingress-controller所在的node机器就很类似传统架构的边缘节点，比如机房入口的nginx服务器。该方式整个请求链路最简单，性能相对NodePort模式更好。
-   缺点是由于直接利用宿主机节点的网络和端口，一个node只能部署一个ingress-controller pod， 比较适合大并发的生产环境使用。
-
+   说明：用DaemonSet结合nodeSelector来部署ingress-controller到特定的node上，然后使用HostNetwork直接把该pod与宿主机node的网络打通，直接使用节点的80/433端口就能访问服务。这时，ingress-controller所在的node机器就很类似传统架构的边缘节点，比如机房入口的nginx服务器。该方式整个请求链路最简单，性能相对NodePort模式更好。
+   有一个问题是由于直接利用宿主机节点的网络和端口，一个node只能部署一个ingress-controller pod，但这在生产环境下也不算是问题，只要完成多节点部署即可。
+   然后将Ingress节点公网IP填到域名CNAME记录中即可。  
+   笔者提供测试通过的Ingress-nginx模板供读者练习：[deploy-ingress-nginx-daemonset-hostnetwork.yaml](deploy-ingress-nginx-daemonset-hostnetwork.yaml)，主要修改了3处：
+   - `Deployment` 改为 `DaemonSet`
+   - 注释`DaemonSet`模块的`strategy`部分（strategy是Deployment模块下的字段）
+   - 在DaemonSet模块的`spec.template.spec`下添加`hostNetwork: true`
+    使用这个模板后，可以观察到在k8s-node1上会监听80、443和8443端口（Ingress-nginx需要的端口）。
 3. **Deployment + `NodePort`模式的Service**  
-   介绍：同样用Deployment模式部署ingress-controller，并创建对应的service，但是type为NodePort。这样，Ingress就会暴露在集群节点ip的特定端口上。
-   然后可以直接将Ingress节点IP填到域名CNAME记录中。
+   说明：同样用Deployment模式部署ingress-controller，并创建对应的service，但是type为NodePort。这样，Ingress就会暴露在集群节点ip的特定端口上。
+   然后可以直接将Ingress节点公网IP填到域名CNAME记录中。    
+   笔者提供测试通过ingress-nginx模板供读者练习：[deploy-ingress-nginx-deployment-nodeport.yaml](deploy-ingress-nginx-deployment-nodeport.yaml)，主要修改了2处：
+   - `Service`模块下`spec.ports`部分新增`nodePort: 30080`和`nodePort: 30443`（注意nodePort设置的端口受到范围限制：30000-32767）
+
+练习时，如对Ingress-nginx模板有修改，建议完全删除该模板对应资源（使用`kk delete -f deploy.yaml`，操作可能会耗时几十秒），否则直接应用可能不会生效。
 
 ## 9. 使用Namespace
 
