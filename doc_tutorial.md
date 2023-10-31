@@ -1277,6 +1277,85 @@ externalIP是Service模板中的一个配置字段，位置是`spec.externalIP`�
 
 `spec.externalIP`可以配置为任意局域网IP（你需要的），而不必是节点网段ip，Service Controller会自动为每个节点添加路由。
 
+### 7.8 服务发现
+k8s支持下面两种服务发现方式：
+- kube-dns（推荐）
+- 环境变量
+
+#### 7.8.1 kube-dns
+如果你足够细心，你可能已经发现了`kube-system`空间下有个名为`kube-dns`的service，这个service就是k8s内置的DNS组件，
+它用来为集群中所有Pod提供服务发现功能。这个service通过selector`k8s-app=kube-dns`关联了名为`coredns`的Pod组。
+
+```shell
+$ kk get pod,deployment,svc  -nkube-system |grep dns
+pod/coredns-c676cc86f-4vzdl                    1/1     Running   1 (2d14h ago)       2d17h
+pod/coredns-c676cc86f-v8s8k                    1/1     Running   1 (2d14h ago)       2d17h
+deployment.apps/coredns                   2/2     2            2           2d18h
+service/kube-dns   ClusterIP   20.1.0.10    <none>        53/UDP,53/TCP,9153/TCP   2d18h
+```
+k8s通过每个节点部署的kubelet组件向每个新启动的Pod注入DNS配置（通过`/etc/resolv.conf`），从而实现服务发现。这里随意选择一个Pod，
+查看DNS配置。
+```shell
+$ kk exec -it hellok8s-go-http-6bb87f8cb5-c6bvs --  cat /etc/resolv.conf 
+search default.svc.cluster.local svc.cluster.local cluster.local
+nameserver 20.1.0.10
+options ndots:5
+```
+详细解释这个配置：
+- `search default.svc.cluster.local svc.cluster.local cluster.local`   
+    这一行定义了DNS搜索域。它告诉DNS解析器，如果在域名中没有明确指定的主机名，那么应该依次尝试附加这些搜索域来查找主机名。
+    在这种情况下，如果你尝试解析一个名为example的主机名，DNS解析器会首先尝试example.default.svc.cluster.local，
+    然后是example.svc.cluster.local，最后是example.cluster.local。这对于Kubernetes集群中的服务发现非常有用，
+    因为它允许你使用短名称来引用服务，而不必指定完整的域名。
+- `nameserver 20.1.0.10`  
+    这一行指定了要使用的DNS服务器的IP地址（对应`kube-dns`的ClusterIP）。在这种情况下，DNS解析器将查询由IP地址`20.1.0.10`指定的DNS服务器（即`pod/coredns`）来解析域名。
+- `options ndots:5`  
+    这一行定义了DNS解析选项。ndots是一个数字，表示DNS解析器应该在域名中查找多少次点（.）以确定绝对域名。在这种情况下，
+    ndots:5表示如果一个域名中包含至少5个点，则DNS解析器会将它视为绝对域名，否则会依次附加搜索域来查找主机名。
+
+比如现在有如下部署：
+```shell
+$ kk get pod,svc                                                       
+NAME                                    READY   STATUS    RESTARTS   AGE
+pod/hellok8s-go-http-6bb87f8cb5-c6bvs   1/1     Running   0          3h7m
+pod/hellok8s-go-http-6bb87f8cb5-g8fmd   1/1     Running   0          3h7m
+
+NAME                                 TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+service/kubernetes                   ClusterIP   20.1.0.1       <none>        443/TCP    3h36m
+service/service-hellok8s-clusterip   ClusterIP   20.1.151.162   <none>        3000/TCP   3h33m
+```
+那么`service-hellok8s-clusterip`就是一个集群内有效的虚拟主机名（指向两个`hellok8s-go-http`Pod），我们可以启动一个`curl`容器来测试：
+```shell
+$ kk apply -f pod_curl.yaml                           
+pod/curl created
+$ kk exec -it curl --  curl service-hellok8s-clusterip:3000      
+[v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-g8fmd
+```
+
+有了内置的服务发现功能，我们在部署微服务项目时就无需再单独部署如consul这样的服务发现组件了，节省了不少的开发及维护工作。
+
+#### 7.8.2 环境变量
+在每个新启动的Pod中，kubelet也会向其注入当前namespace中已存在的Service信息（以环境变量形式），Pod可以通过这些环境变量来发现其他Service的IP地址。
+这里假设已经启动了`service/service-hellok8s-clusterip`，然后重新启动`pod/curl`，然后在后者shell中查看`service/service-hellok8s-clusterip`的环境变量：
+```shell
+$ kk exec -it curl --  printenv |grep HELLOK8S
+SERVICE_HELLOK8S_CLUSTERIP_PORT_3000_TCP_PORT=3000
+SERVICE_HELLOK8S_CLUSTERIP_PORT_3000_TCP=tcp://20.1.151.162:3000
+SERVICE_HELLOK8S_CLUSTERIP_PORT_3000_TCP_ADDR=20.1.151.162
+SERVICE_HELLOK8S_CLUSTERIP_SERVICE_HOST=20.1.151.162
+SERVICE_HELLOK8S_CLUSTERIP_PORT=tcp://20.1.151.162:3000
+SERVICE_HELLOK8S_CLUSTERIP_SERVICE_PORT=3000
+SERVICE_HELLOK8S_CLUSTERIP_PORT_3000_TCP_PROTO=tcp
+```
+所以此时我们也可以通过env的方式访问`service/service-hellok8s-clusterip`：
+```shell
+$ kk exec -it curl --  sh                                                                                    
+/ # curl $SERVICE_HELLOK8S_CLUSTERIP_SERVICE_HOST:$SERVICE_HELLOK8S_CLUSTERIP_SERVICE_PORT
+[v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-g8fmd
+```
+但是，环境变量方式对资源的创建顺序有要求。比如`pod/curl`先启动，某个service后创建，那么启动后的`pod/curl`中就不会有这个Service相关的环境变量。
+所以这里不推荐使用环境变量的方式访问Service，而是推荐使用内置DNS的方式。
+
 ## 8. 使用Ingress
 
 上节中的Service可以通过 NodePort 或者 LoadBalancer 或者 配置externalIP 或 Pod中配置HostPort 的方式对外暴露服务，
