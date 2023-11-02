@@ -1,24 +1,38 @@
+# 此模板演示了两种使用configmap的方式
+#  - 1. 环境变量方式
+#  - 2. 挂载volume方式
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  # deployment唯一名称
   name: hellok8s-go-http
 spec:
-  replicas: 2 # 副本数量
+  replicas: 1 # 当使用 hostPort 时，每个节点只能运行一个 pod
+  strategy:
+    type: Recreate # 因为下面使用hostPort进行测试，所以更新时只能先销毁再创建
   selector:
     matchLabels:
-      app: hellok8s # 管理template下所有 app=hellok8s的pod，（要求和template.metadata.labels完全一致！！！否则无法部署deployment）
-  template:   # template 定义一组pod
+      app: hellok8s
+  template:
     metadata:
       labels:
         app: hellok8s
     spec:
       containers:
-        - image: leigg/hellok8s:v4
+        - image: leigg/hellok8s:v4_configmap
           name: hellok8s
-          env:
+          ports:
+            - containerPort: 3000
+              hostPort: 3000
+          env: # 以环境变量的方式读取data
             - name: DB_URL
               valueFrom:
                 configMapKeyRef:
-                  name: hellok8s-config
+                  name: hellok8s-configmap
                   key: DB_URL
+          volumeMounts: # 以挂载卷的方式读取二进制数据
+            - name: configmap-volume
+              mountPath: "/etc/configmap_vol"
+      volumes:
+        - name: configmap-volume
+          configMap:
+            name: hellok8s-configmap

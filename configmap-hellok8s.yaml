@@ -1,6 +1,14 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: hellok8s-config
-data:
-  DB_URL: "http://DB_ADDRESS"
+  name: hellok8s-configmap
+data: # 用来保存UTF8字符串
+  DB_URL1: "http://mydb.example123.com"
+binaryData: # 用来保存二进制数据作为 base64 编码的字串。
+  app-config.json: eyJkYl91cmwiOiJteXNxbC5leGFtcGxlLmNvbSJ9Cg==  # echo '{"db_url":"mysql.example.com"}' |base64
+
+# 对于一个大量使用 configmap 的集群，禁用 configmap 修改会带来以下好处
+# 1. 保护应用，使之免受意外（不想要的）更新所带来的负面影响。
+# 2. 通过大幅降低对 kube-apiserver 的压力提升集群性能， 这是因为系统会关闭对已标记为不可变更的 configmap 的监视操作。
+# 一旦标记为不可更改，这个操作就不可逆，再想要修改就只能删除并重建 configmap
+immutable: true

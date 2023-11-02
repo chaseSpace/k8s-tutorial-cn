@@ -94,7 +94,7 @@ Events:
 ### 3. 清理资源
 
 ```shell
-kubectl delete deployment,service,ingress --all
+kubectl delete pod,deployment,service,ingress --all
 ```
 
 ### 3. 使用Velero备份和恢复集群
