@@ -1774,9 +1774,9 @@ API的方式会收到configmap的更新影响，其余两种则需要重启Pod�
 
 ### 10.2 Secret
 
-Secret用于存储敏感信息，例如密码、Token、（证书）密钥等，在使用上与ConfigMap会如以下差别。
-- `data`的value部分必须是base64字符串（**会执行base64解码检查**），但Pod中获取到的仍然是明文；
-- 模板语法上有不同
+Secret用于存储敏感信息，例如密码、Token、（证书）密钥等，在使用上与ConfigMap不会有太大差别，但需要注意下面两点。
+- `data`的value部分必须是base64编码后的字符串（**创建时会执行base64解码检查**），但Pod中获取到的仍然是明文；
+- 模板语法上稍有不同
   - Secret 支持的是`stringData`而不是`binaryData`，它的value可以是任何UTF8字符
   - 额外支持`type`字段，用来在创建时检查资源合法性
 
