@@ -1021,7 +1021,7 @@ $ curl 20.1.120.16:3000
 
 > 在 Kubernetes 中，Endpoints 是一种资源对象，用于指定与一个 Service 关联的后端 Pod 的 IP 地址和端口信息。
 > Endpoints 对象充当服务发现机制的一部分，它告诉 Kubernetes 如何将流量路由到 Service 的后端 Pod。
-> 
+>
 > Endpoints一般都是通过Service自动生成的，Service会自动跟踪关联的Pod，当Pod状态发生变化时会自动更新Endpoints。
 
 ```shell
@@ -1162,7 +1162,8 @@ LoadBalancer 是通过使用云提供商的负载均衡器（一般叫做SLB，S
 <img src="img/k8s-loadbalancer.png" width = "800" height = "400" alt=""/>
 </div>
 
-从架构图可看出，`LoadBalancer`是基于 NodePort 的一种Service，这里提供模板供参考：[service-loadbalancer.yaml](service-loadbalancer.yaml)
+从架构图可看出，`LoadBalancer`是基于 NodePort
+的一种Service，这里提供模板供参考：[service-loadbalancer.yaml](service-loadbalancer.yaml)
 
 所以如果是使用公有云托管的k8s集群，那么通常也会使用它们提供的SLB服务。若是自己搭建的集群，
 那么一般也不会使用`LoadBalancer`（私有集群一般也不支持`LoadBalancer`）。
@@ -1171,7 +1172,8 @@ LoadBalancer 是通过使用云提供商的负载均衡器（一般叫做SLB，S
 
 ### 7.5 Service类型之Headless
 
-这是一种特殊的Service类型，它不分配任何集群IP，而是通过分配的DNS域名来访问Pod服务。由于没有Cluster IP，所以节点和集群外都无法直接访问Service。
+这是一种特殊的Service类型，它不分配任何集群IP，而是通过分配的DNS域名来访问Pod服务。由于没有Cluster
+IP，所以节点和集群外都无法直接访问Service。
 无头Service主要提供给StatefulSet使用。
 
 操作步骤：
@@ -1261,11 +1263,13 @@ Address 4: 240e:ff:e020:38::ff:b06d:569b
 **用途说明**：ExternalName 类Service一般用在集群内部需要调用外部服务的时候，比如云服务商部署的DB等服务。
 
 **无头Service + Endpoints**  
-另外，很多时候，比如是自己部署的DB服务，只有IP而没有域名，ExternalName 是无法实现这个需求的，需要使用 `无头Service`+`Endpoints`来实现，
+另外，很多时候，比如是自己部署的DB服务，只有IP而没有域名，ExternalName
+是无法实现这个需求的，需要使用 `无头Service`+`Endpoints`来实现，
 这里提供一个测试通过的模板 [service-headless-endpoints.yaml](service-headless-endpoints.yaml) 供读者自行练习。
 
 > Endpoints对象一般不需要手动创建，Service controller会在service创建时自动创建，只有在需要关联集群外的服务时可能用到。
-> 这个时候就可定义Endpoints模板，其中填入外部服务的IP和端口，然后应用即可。如果集群外的服务提供的地址是域名而不是IP，则使用`ExternalName`。
+>
+这个时候就可定义Endpoints模板，其中填入外部服务的IP和端口，然后应用即可。如果集群外的服务提供的地址是域名而不是IP，则使用`ExternalName`。
 
 ### 7.7 搭配externalIP
 
@@ -1278,11 +1282,14 @@ externalIP是Service模板中的一个配置字段，位置是`spec.externalIP`�
 `spec.externalIP`可以配置为任意局域网IP（你需要的），而不必是节点网段ip，Service Controller会自动为每个节点添加路由。
 
 ### 7.8 服务发现
+
 k8s支持下面两种服务发现方式：
+
 - kube-dns（推荐）
 - 环境变量
 
 #### 7.8.1 kube-dns
+
 如果你足够细心，你可能已经发现了`kube-system`空间下有个名为`kube-dns`的service，这个service就是k8s内置的DNS组件，
 它用来为集群中所有Pod提供服务发现功能。这个service通过selector`k8s-app=kube-dns`关联了名为`coredns`的Pod组。
 
@@ -1293,27 +1300,33 @@ pod/coredns-c676cc86f-v8s8k                    1/1     Running   1 (2d14h ago)  
 deployment.apps/coredns                   2/2     2            2           2d18h
 service/kube-dns   ClusterIP   20.1.0.10    <none>        53/UDP,53/TCP,9153/TCP   2d18h
 ```
+
 k8s通过每个节点部署的kubelet组件向每个新启动的Pod注入DNS配置（通过`/etc/resolv.conf`），从而实现服务发现。这里随意选择一个Pod，
 查看DNS配置。
+
 ```shell
 $ kk exec -it hellok8s-go-http-6bb87f8cb5-c6bvs --  cat /etc/resolv.conf 
 search default.svc.cluster.local svc.cluster.local cluster.local
 nameserver 20.1.0.10
 options ndots:5
 ```
+
 详细解释这个配置：
+
 - `search default.svc.cluster.local svc.cluster.local cluster.local`   
-    这一行定义了DNS搜索域。它告诉DNS解析器，如果在域名中没有明确指定的主机名，那么应该依次尝试附加这些搜索域来查找主机名。
-    在这种情况下，如果你尝试解析一个名为example的主机名，DNS解析器会首先尝试example.default.svc.cluster.local，
-    然后是example.svc.cluster.local，最后是example.cluster.local。这对于Kubernetes集群中的服务发现非常有用，
-    因为它允许你使用短名称来引用服务，而不必指定完整的域名。
+  这一行定义了DNS搜索域。它告诉DNS解析器，如果在域名中没有明确指定的主机名，那么应该依次尝试附加这些搜索域来查找主机名。
+  在这种情况下，如果你尝试解析一个名为example的主机名，DNS解析器会首先尝试example.default.svc.cluster.local，
+  然后是example.svc.cluster.local，最后是example.cluster.local。这对于Kubernetes集群中的服务发现非常有用，
+  因为它允许你使用短名称来引用服务，而不必指定完整的域名。
 - `nameserver 20.1.0.10`  
-    这一行指定了要使用的DNS服务器的IP地址（对应`kube-dns`的ClusterIP）。在这种情况下，DNS解析器将查询由IP地址`20.1.0.10`指定的DNS服务器（即`pod/coredns`）来解析域名。
+  这一行指定了要使用的DNS服务器的IP地址（对应`kube-dns`的ClusterIP）。在这种情况下，DNS解析器将查询由IP地址`20.1.0.10`
+  指定的DNS服务器（即`pod/coredns`）来解析域名。
 - `options ndots:5`  
-    这一行定义了DNS解析选项。ndots是一个数字，表示DNS解析器应该在域名中查找多少次点（.）以确定绝对域名。在这种情况下，
-    ndots:5表示如果一个域名中包含至少5个点，则DNS解析器会将它视为绝对域名，否则会依次附加搜索域来查找主机名。
+  这一行定义了DNS解析选项。ndots是一个数字，表示DNS解析器应该在域名中查找多少次点（.）以确定绝对域名。在这种情况下，
+  ndots:5表示如果一个域名中包含至少5个点，则DNS解析器会将它视为绝对域名，否则会依次附加搜索域来查找主机名。
 
 比如现在有如下部署：
+
 ```shell
 $ kk get pod,svc                                                       
 NAME                                    READY   STATUS    RESTARTS   AGE
@@ -1324,7 +1337,10 @@ NAME                                 TYPE        CLUSTER-IP     EXTERNAL-IP   PO
 service/kubernetes                   ClusterIP   20.1.0.1       <none>        443/TCP    3h36m
 service/service-hellok8s-clusterip   ClusterIP   20.1.151.162   <none>        3000/TCP   3h33m
 ```
-那么`service-hellok8s-clusterip`就是一个集群内有效的虚拟主机名（指向两个`hellok8s-go-http`Pod），我们可以启动一个`curl`容器来测试：
+
+那么`service-hellok8s-clusterip`就是一个集群内有效的虚拟主机名（指向两个`hellok8s-go-http`Pod），我们可以启动一个`curl`
+容器来测试：
+
 ```shell
 $ kk apply -f pod_curl.yaml                           
 pod/curl created
@@ -1335,8 +1351,11 @@ $ kk exec -it curl --  curl service-hellok8s-clusterip:3000
 有了内置的服务发现功能，我们在部署微服务项目时就无需再单独部署如consul这样的服务发现组件了，节省了不少的开发及维护工作。
 
 #### 7.8.2 环境变量
+
 在每个新启动的Pod中，kubelet也会向其注入当前namespace中已存在的Service信息（以环境变量形式），Pod可以通过这些环境变量来发现其他Service的IP地址。
-这里假设已经启动了`service/service-hellok8s-clusterip`，然后重新启动`pod/curl`，然后在后者shell中查看`service/service-hellok8s-clusterip`的环境变量：
+这里假设已经启动了`service/service-hellok8s-clusterip`，然后重新启动`pod/curl`
+，然后在后者shell中查看`service/service-hellok8s-clusterip`的环境变量：
+
 ```shell
 $ kk exec -it curl --  printenv |grep HELLOK8S
 SERVICE_HELLOK8S_CLUSTERIP_PORT_3000_TCP_PORT=3000
@@ -1347,13 +1366,17 @@ SERVICE_HELLOK8S_CLUSTERIP_PORT=tcp://20.1.151.162:3000
 SERVICE_HELLOK8S_CLUSTERIP_SERVICE_PORT=3000
 SERVICE_HELLOK8S_CLUSTERIP_PORT_3000_TCP_PROTO=tcp
 ```
+
 所以此时我们也可以通过env的方式访问`service/service-hellok8s-clusterip`：
+
 ```shell
 $ kk exec -it curl --  sh                                                                                    
 / # curl $SERVICE_HELLOK8S_CLUSTERIP_SERVICE_HOST:$SERVICE_HELLOK8S_CLUSTERIP_SERVICE_PORT
 [v3] Hello, Kubernetes!, From host: hellok8s-go-http-6bb87f8cb5-g8fmd
 ```
-但是，环境变量方式对资源的创建顺序有要求。比如`pod/curl`先启动，某个service后创建，那么启动后的`pod/curl`中就不会有这个Service相关的环境变量。
+
+但是，环境变量方式对资源的创建顺序有要求。比如`pod/curl`先启动，某个service后创建，那么启动后的`pod/curl`
+中就不会有这个Service相关的环境变量。
 所以这里不推荐使用环境变量的方式访问Service，而是推荐使用内置DNS的方式。
 
 ## 8. 使用Ingress
@@ -1365,12 +1388,14 @@ $ kk exec -it curl --  sh
 Ingress就是为了解决这个问题而设计的，它允许你将 Service 映射到集群对外提供的某个端点上（无需占用节点端口），从而实现对外部提供服务的功能。
 
 举个例子：集群对外的统一端点是`api.example.com:80`，可以这样为集群内的两个Service（backend:8080、frontend:8082）配置映射：
+
 - api.example.com/backend 指向 backend:8080
 - api.example.com/frontend 指向 frontend:8082
 
 Ingress可以为多个主机名配置不同的路由规则，提供与Nginx功能相似的服务。
 
 总的来说，Ingress提供以下功能：
+
 - **路由规则**：Ingress 允许你定义路由规则，使请求根据主机名和路径匹配路由到不同的后端服务。这使得可以在同一 IP
   地址和端口上公开多个服务。
 - **Rewrite 规则**：Ingress 支持 URL 重写，允许你在路由过程中修改请求的 URL 路径；
@@ -1385,10 +1410,14 @@ Ingress 可以简单理解为集群服务的网关（Gateway），它是所有�
 ### 8.1 Ingress控制器
 
 使用Ingress时一般涉及2个组件：
-- **Ingress**：是 Kubernetes 中的一种 API 资源类型，它定义了从集群外部访问集群内服务的规则。通常，这些规则涉及到 HTTP 和 HTTPS 流量的路由和负载均衡。
+
+- **Ingress**：是 Kubernetes 中的一种 API 资源类型，它定义了从集群外部访问集群内服务的规则。通常，这些规则涉及到 HTTP 和
+  HTTPS 流量的路由和负载均衡。
   Ingress 对象本身只是一种规则定义，它需要一个 Ingress 控制器来实际执行这些规则。
-- **Ingress 控制器**：是 Kubernetes 集群中的一个独立组件或服务，它实际处理 Ingress 规则，根据这些规则配置集群中的代理服务器（如 Nginx、HAProxy、Traefik 等）来处理流量路由和负载均衡。
-  Ingress 控制器负责监视 Ingress 对象的变化，然后动态更新代理服务器的配置以反映这些变化。Kubernetes社区提供了一些不同的 Ingress 控制器，您可以根据需求选择合适的控制器。
+- **Ingress 控制器**：是 Kubernetes 集群中的一个独立组件或服务，它实际处理 Ingress 规则，根据这些规则配置集群中的代理服务器（如
+  Nginx、HAProxy、Traefik 等）来处理流量路由和负载均衡。
+  Ingress 控制器负责监视 Ingress 对象的变化，然后动态更新代理服务器的配置以反映这些变化。Kubernetes社区提供了一些不同的
+  Ingress 控制器，您可以根据需求选择合适的控制器。
 
 Ingress控制器不会随集群一起安装，需要单独安装。可以选择的Ingress控制器很多，这里是
 [社区提供的Ingress控制器列表](https://kubernetes.io/zh-cn/docs/concepts/services-networking/ingress-controllers/)，
@@ -1451,6 +1480,7 @@ job.batch/ingress-nginx-admission-patch    1/1           7s         16m
 ```
 
 可能会遇到image拉取失败，解决如下：
+
 ```
 $ kk get pod -ningress-nginx                                           
 NAME                                        READY   STATUS              RESTARTS   AGE
@@ -1543,7 +1573,8 @@ $ curl 127.0.0.1:31504/hello
 
 这就是基本的ingress使用步骤，还可以通过`kk describe -f ingress-hellok8s.yaml`查看具体路由规则。
 
-若要更新路由规则，修改Ingress yaml文件后再次应用即可，通过`kk logs -f ingress-nginx-controller-xxx -n ingress-nginx`可以看到请求日志。
+若要更新路由规则，修改Ingress yaml文件后再次应用即可，通过`kk logs -f ingress-nginx-controller-xxx -n ingress-nginx`
+可以看到请求日志。
 
 这里列出几个常见的配置示例，供读者自行练习：
 
@@ -1591,7 +1622,8 @@ $ vi deploy.yaml
 $ kk apply -f deploy.yaml # 更新部署
 ```
 
->注意：默认不能部署到master节点，存在污点问题，需要移除污点才可以。参考 [k8s-master增加和删除污点](https://www.cnblogs.com/zouhong/p/17351418.html)
+>
+注意：默认不能部署到master节点，存在污点问题，需要移除污点才可以。参考 [k8s-master增加和删除污点](https://www.cnblogs.com/zouhong/p/17351418.html)
 
 ### 8.5 Ingress部署方案推荐
 
@@ -1602,19 +1634,22 @@ $ kk apply -f deploy.yaml # 更新部署
 
 2. **DaemonSet + HostNetwork + nodeSelector**  
    说明：用DaemonSet结合nodeSelector来部署ingress-controller到特定的node上，然后使用HostNetwork直接把该pod与宿主机node的网络打通，直接使用节点的80/433端口就能访问服务。这时，ingress-controller所在的node机器就很类似传统架构的边缘节点，比如机房入口的nginx服务器。该方式整个请求链路最简单，性能相对NodePort模式更好。
-   有一个问题是由于直接利用宿主机节点的网络和端口，一个node只能部署一个ingress-controller pod，但这在生产环境下也不算是问题，只要完成多节点部署实现高可用即可。
+   有一个问题是由于直接利用宿主机节点的网络和端口，一个node只能部署一个ingress-controller
+   pod，但这在生产环境下也不算是问题，只要完成多节点部署实现高可用即可。
    然后将Ingress节点公网IP填到域名CNAME记录中即可。  
-   笔者提供测试通过的Ingress-nginx模板供读者练习：[ingress-nginx-daemonset-hostnetwork.yaml](ingress-nginx-daemonset-hostnetwork.yaml)，主要修改了3处：
-   - `Deployment` 改为 `DaemonSet`
-   - 注释`DaemonSet`模块的`strategy`部分（strategy是Deployment模块下的字段）
-   - 在DaemonSet模块的`spec.template.spec`下添加`hostNetwork: true`
-    使用这个模板后，可以观察到在k8s-node1上会监听80、443和8443端口（Ingress-nginx需要的端口）。
+   笔者提供测试通过的Ingress-nginx模板供读者练习：[ingress-nginx-daemonset-hostnetwork.yaml](ingress-nginx-daemonset-hostnetwork.yaml)
+   ，主要修改了3处：
+    - `Deployment` 改为 `DaemonSet`
+    - 注释`DaemonSet`模块的`strategy`部分（strategy是Deployment模块下的字段）
+    - 在DaemonSet模块的`spec.template.spec`下添加`hostNetwork: true`
+      使用这个模板后，可以观察到在k8s-node1上会监听80、443和8443端口（Ingress-nginx需要的端口）。
 3. **Deployment + `NodePort`模式的Service**  
    说明：同样用Deployment模式部署ingress-controller，并创建对应的service，但是type为NodePort。这样，Ingress就会暴露在集群节点ip的特定端口上。
    然后可以直接将Ingress节点公网IP填到域名CNAME记录中。    
-   笔者提供测试通过Ingress-nginx模板供读者练习：[ingress-nginx-deployment-nodeport.yaml](ingress-nginx-deployment-nodeport.yaml)，主要修改了2处：
-   - `Service`模块下`spec.ports`部分新增`nodePort: 30080`和`nodePort: 30443`（注意nodePort设置的端口受到范围限制：30000-32767）  
-   
+   笔者提供测试通过Ingress-nginx模板供读者练习：[ingress-nginx-deployment-nodeport.yaml](ingress-nginx-deployment-nodeport.yaml)
+   ，主要修改了2处：
+    - `Service`模块下`spec.ports`部分新增`nodePort: 30080`和`nodePort: 30443`（注意nodePort设置的端口受到范围限制：30000-32767）
+
    这种方式不适用于对外暴露80/443端口的应用。
 
 练习时，如对Ingress-nginx模板有修改，建议完全删除该模板对应资源（使用`kk delete -f deploy.yaml`，操作可能会耗时几十秒），否则直接应用可能不会生效。
@@ -1664,50 +1699,156 @@ $ kubectl get namespaces
 $ kubectl get pods -n dev
 ```
 
-## 10. 使用ConfigMap
+## 10. 使用ConfigMap和Secret
+
+ConfigMap 和 Secret 用来保存配置数据和敏感数据，在模板定义和使用上没有大太差别。
+
+### 10.1  ConfigMap
 
 K8s 使用 ConfigMap 来将你的配置数据和应用程序代码分开，将非机密性的数据保存到键值对中。ConfigMap 在设计上不是用来保存大量数据的。
-在 ConfigMap 中保存的数据不可超过 1 MiB。如果你需要保存超出此尺寸限制的数据，你可能考虑挂载存储卷。
+在 ConfigMap 中保存的数据不可超过 1 MiB。如果你需要保存超出此尺寸限制的数据，你需要考虑挂载存储卷。
 
-下面使用ConfigMap来保存`default`空间下的数据库连接地址：
+ConfigMap 可以用四种方式进行使用：
+
+- 在容器命令和参数内
+- 容器的环境变量（常见）
+- 在只读卷里面添加一个文件，让应用来读取（常见）
+- 编写代码在 Pod 中运行，使用 Kubernetes API 来读取 ConfigMap（不常见）
+
+下面使用ConfigMap来保存app`hellok8s`的配置信息：
 
 ```yaml
 # configmap-hellok8s.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: hellok8s-config
-  namespace: default # 可省略
-data:
-  DB_URL: "http://DB_ADDRESS"
+  name: hellok8s-configmap
+data: # 用来保存UTF8字符串
+  DB_URL: "http://mydb.example123.com"
+binaryData: # 用来保存二进制数据作为 base64 编码的字串。
+  app-config.json: eyJkYl91cmwiOiJteXNxbC5leGFtcGxlLmNvbSJ9Cg==  # echo '{"db_url":"mysql.example.com"}' |base64
+
+# 对于一个大量使用 configmap 的集群，禁用 configmap 修改会带来以下好处
+# 1. 保护应用，使之免受意外（不想要的）更新所带来的负面影响。
+# 2. 通过大幅降低对 kube-apiserver 的压力提升集群性能， 这是因为系统会关闭对已标记为不可变更的 configmap 的监视操作。
+# 一旦标记为不可更改，这个操作就不可逆，再想要修改就只能删除并重建 configmap
+immutable: true
 ```
 
-然后在 deployment
-配置中添加读取env的配置，并且env从configmap中读取，具体看 [deployment-use-configmap.yaml](deployment-use-configmap.yaml)。
+然后修改 deployment 以读取configmap，具体看 [deployment-use-configmap.yaml](deployment-use-configmap.yaml)。
 
-然后修改main.go为 [main_readenv.go](main_readenv.go)，接着重新构建并推送镜像：
+然后再修改main.go为 [main_read_configmap.go](main_read_configmap.go)，接着重新构建并推送镜像：
 
 ```shell
-docker build . -t leigg/hellok8s:v4
-docker push leigg/hellok8s:v4
+# 先删除所有资源
+$ kubectl delete pod,deployment,service,ingress --all
 
-$ kk apply -f deployment.yaml
-deployment.apps/hellok8s-go-http configured
+docker build . -t leigg/hellok8s:v4_configmap
+docker push leigg/hellok8s:v4_configmap
 
-$ kk get svc                    
-NAME                         TYPE           CLUSTER-IP     EXTERNAL-IP                   PORT(S)          AGE
-cloud-mysql-svc              ExternalName   <none>         mysql-s23423.db.tencent.com   <none>           2d14h
-kubernetes                   ClusterIP      20.1.0.1       <none>                        443/TCP          3d1h
-service-hellok8s-clusterip   ClusterIP      20.1.106.177   <none>                        3000/TCP         30h
-service-hellok8s-nodeport    NodePort       20.1.252.217   <none>                        3000:30000/TCP   2d17h
+kk apply -f deployment-use-configmap.yaml
 
-# 通过nodeport方式访问服务
-$ curl 10.0.2.3:30000     
-[v4] Hello, Kubernetes! From host: hellok8s-go-http-6649fc59cd-blt75, Get Database Connect URL: http://DB_ADDRESS
+$ kk get pod                               
+NAME                                READY   STATUS    RESTARTS   AGE
+hellok8s-go-http-684ff55564-qf2x9   1/1     Running   0          3m47s
+hellok8s-go-http-684ff55564-s5bfl   1/1     Running   0          3m47s
+
+# pod直接映射到节点端口
+$ curl 10.0.2.3:3000/hello
+[v4] Hello, Kubernetes! From host: hellok8s-go-http-c548c88b5-25sl9
+Get Database Connect URL: http://mydb.example123.com
+app-config.json:{"db_url":"mysql.example.com"}
 ```
 
-可以看到app已经拿到了configmap中定义的env变量。若要更新env，直接更改configmap的yaml文件然后应用，然后删除业务pod即可。
+可以看到app已经拿到了configmap中定义的配置信息。若要更新，直接更改configmap的yaml文件然后应用，然后重启业务pod即可（使用`kubectl rollout restart deployment <deployment-name>`）。
 
+若configmap配置了`immutable: true`，则无法再进行修改：
+
+```shell
+$ kk apply -f configmap-hellok8s.yaml      
+The ConfigMap "hellok8s-configmap" is invalid: data: Forbidden: field is immutable when `immutable` is set
+```
+
+最后需要注意的是，在上面提到的四种使用configmap的方式中，只有挂载volume和调用k8s
+API的方式会收到configmap的更新影响，其余两种则需要重启Pod才能看到更新。
+
+### 10.2 Secret
+
+Secret用于存储敏感信息，例如密码、Token、（证书）密钥等，在使用上与ConfigMap会如以下差别。
+- `data`的value部分必须是base64字符串（**会执行base64解码检查**），但Pod中获取到的仍然是明文；
+- 模板语法上有不同
+  - Secret 支持的是`stringData`而不是`binaryData`，它的value可以是任何UTF8字符
+  - 额外支持`type`字段，用来在创建时检查资源合法性
+
+#### 10.2.1 Secret的类型
+
+创建 Secret 时，还可以使用 Secret 资源的 type 字段（可选），它用来告诉k8s我要创建何种类型的secret，并根据类型对其进行基础的合法性检查。
+当前支持的类型如下：
+
+| 类型                                  | 描述                             |
+|-------------------------------------|--------------------------------|
+| Opaque                              | 用户定义的任意数据（默认）                  |
+| kubernetes.io/service-account-token | 服务账号令牌                         |
+| kubernetes.io/dockercfg             | ~/.dockercfg 文件的序列化形式          |
+| kubernetes.io/dockerconfigjson      | ~/.docker/config.json 文件的序列化形式 |
+| kubernetes.io/basic-auth            | 用于基本身份认证的凭据                    |
+| kubernetes.io/ssh-auth              | 用于 SSH 身份认证的凭据                 |
+| kubernetes.io/tls                   | 用于 TLS 客户端或者服务器端的数据            |
+| bootstrap.kubernetes.io/token       | 启动引导令牌数据                       |
+
+比如type为`kubernetes.io/tls`时，k8s要求secret中必须包含`tls.crt`和`tls.key`两个字段（data或stringData都可），
+但这里不会对值进行任何检查，并且这个类型也限制了创建后再修改，只能删除重建。
+[secret-hellok8s-cert.yaml](secret-hellok8s-cert.yaml) 是一个合法的`kubernetes.io/tls`类型的Secret。其他类型的要求查看[官方文档](https://kubernetes.io/zh-cn/docs/concepts/configuration/secret/#secret-types)。
+
+#### 10.2.2 引用时设置可选key
+
+正常情况下，如果引用Secret的某个字段不存在，则启动Pod时会报错，比如：
+```yaml
+...
+- name: LOG_LEVEL
+  valueFrom:
+    secretKeyRef:
+      name: hellok8s-secret # name必须是有效且存在的
+      key: not_found_key
+#      optional: true
+```
+k8s允许在其他位置引用Secret时添加`optional: true`属性，以允许Secret中的字段不存在时不会影响Pod启动（但Secret本身必须存在）。
+
+#### 10.2.3 拉取私有镜像使用Secret
+如果你尝试从私有仓库拉取容器镜像，你需要一种方式让每个节点上的 kubelet 能够完成与镜像库的身份认证。
+你可以配置 `imagePullSecrets`字段来实现这点。 Secret 是在 Pod 层面来配置的。
+
+有两种方式来配置 `imagePullSecrets`：
+
+1. [直接在 Pod 上指定 `ImagePullSecrets`](https://kubernetes.io/zh-cn/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod)；
+2. [向 ServiceAccount 添加 `ImagePullSecrets`](https://kubernetes.io/zh-cn/docs/tasks/configure-pod-container/configure-service-account/#add-imagepullsecrets-to-a-service-account)；
+
+第一种方式需要对使用私有仓库的每个 Pod 执行以上操作，如果App较多，可能比较麻烦。
+第二种方式是推荐的方式，因为 ServiceAccount 是一个集群范围内的概念，所以只需要在 ServiceAccount 上添加 Secret，
+所有引用该 ServiceAccount 的 Pod 都会自动使用该 Secret。
+
+完整演示这一步需要私有镜像仓库，此节测试略过。
+
+#### 10.2.4 在Pod内测试
+笔者提供测试通过的模板和代码供读者自行测试：
+- [secret-hellok8s-misc.yaml](secret-hellok8s-misc.yaml)
+- [deployment-use-secret.yaml](deployment-use-secret.yaml)
+- [main_read_secret.go](main_read_secret.go)
+
+测试结果：
+```shell
+$ curl 10.0.2.3:3000/hello
+[v4] Hello, Kubernetes! From host: hellok8s-go-http-869d4548dc-vtmcr, Get Database Passwd: pass123
+
+some.txt:hello world
+cert.key:-----BEGIN OPENSSH PRIVATE KEY-----
+J1a9V50zOAl0k2Fpmy+RDvCy/2LeCZHyWY9MR248Ah2Ko3VywDrevdPIz8bxg9zxqy0+xy
+jbu09sNix9b0IZuZQbbGkw4C4RcAN5HZ4UnWWRfzv2KgtXSdJCPp38hsWH2j9hmlNXLZz0
+EqqtXGJpxjV67NAAAACkxlaWdnQEx1eWk=
+-----END OPENSSH PRIVATE KEY-----
+config.yaml:username: hellok8s
+password: pass123
+```
 ## TODO
 
 ## 参考
