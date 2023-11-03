@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox
+  labels:
+    app: busybox
+spec:
+  containers:
+    - name: write # 负责写
+      image: busybox
+      command: [ "sh", "-c" ]
+      args: [ "echo 'hellok8s!' > /write_dir/data; sleep infinity" ]
+      volumeMounts:
+        - mountPath: /write_dir
+          name: temp-dir
+    - name: read # 负责读
+      image: busybox
+      command: [ "sh", "-c" ]
+      args: [ "cat /read_dir/data; sleep infinity" ]
+      volumeMounts:
+      - mountPath: /read_dir
+        name: temp-dir
+        readOnly: true # 可选
+  volumes:
+    - name: temp-dir
+      emptyDir: {}

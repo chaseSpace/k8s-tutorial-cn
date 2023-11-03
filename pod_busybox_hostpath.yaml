@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox-hostpath
+  labels:
+    app: busybox
+spec:
+  containers:
+    - name: write
+      image: busybox
+      command: [ "sh", "-c" ]
+      args: [ "echo 'hellok8s!' > /write_dir/data; sleep infinity" ]
+      volumeMounts:
+        - mountPath: /write_dir
+          name: temp-dir
+  volumes:
+    - name: temp-dir
+      hostPath:
+        path: /home/middle/host-temp-dir # 不允许使用 ~，会提示找不到目录。必须先手动在节点创建目录，否则pod无法启动
+        type: DirectoryOrCreate
