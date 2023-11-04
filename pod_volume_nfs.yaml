@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox-nfs
+  labels:
+    app: busybox
+spec:
+  containers:
+    - name: write
+      image: busybox
+      command: [ "sh", "-c" ]
+      args: [ "echo 'hellok8s!' > /write_dir/data; sleep infinity" ]
+      volumeMounts:
+        - mountPath: /write_dir
+          name: nfs-dir
+  volumes:
+    - name: nfs-dir
+      nfs:
+        path: /data/k8s-nfs
+        server: my-nfs-server.example.com # 或者一个IP地址
