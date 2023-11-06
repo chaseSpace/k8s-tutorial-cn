@@ -378,9 +378,9 @@ parameters:
 使用第三方存储后端时不需要。
 
 使用 StorageClass 的时候，每个Pod使用的空间由 StorageClass 进行管理，它会在存储后端中为每个Pod划分一个单独的空间（目录）。
->注意：使用hostpath作为存储后端是一个特例，它不会为节点上的每个Pod划分单独的目录，它们共享同一个目录。
+>注意：使用hostpath作为存储后端是一个特例，它不会为节点上的每个Pod划分单独的目录，而是共享同一个目录。
 
-使用第三方存储后端时如何填写 StorageClass 的`parameters`参考[官方文档](https://kubernetes.io/zh-cn/docs/concepts/storage/storage-classes/#parameters)。
+使用第三方存储后端时如何填写 StorageClass 的`parameters`参考[官方文档](https://kubernetes.io/zh-cn/docs/concepts/storage/storage-classes/#parameters) 。
 
 #### 1.3.7 使用StatefulSet
 TODO
