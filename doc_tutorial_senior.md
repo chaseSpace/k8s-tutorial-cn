@@ -382,5 +382,8 @@ parameters:
 
 使用第三方存储后端时如何填写 StorageClass 的`parameters`参考[官方文档](https://kubernetes.io/zh-cn/docs/concepts/storage/storage-classes/#parameters) 。
 
+**设置默认的StorageClass**  
+可以在集群上启用动态卷制备，以便在未指定存储类的情况下动态设置所有PVC。具体步骤参考[官方文档](https://kubernetes.io/zh-cn/docs/concepts/storage/dynamic-provisioning/#defaulting-behavior) 。
+
 #### 1.3.7 使用StatefulSet
 TODO
