@@ -387,3 +387,8 @@ parameters:
 
 #### 1.3.7 使用StatefulSet
 TODO
+
+## 参考
+
+- [Kubernetes从入门到实践 @赵卓](https://www.epubit.com/bookDetails?id=UB72096269c1157)
+- [Kubernetes修炼手册 @Nigel Poulton](https://book.douban.com/subject/35486781/)
