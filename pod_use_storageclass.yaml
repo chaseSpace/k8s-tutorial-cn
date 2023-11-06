@@ -1,0 +1,64 @@
+# 按顺序定义 sc，pvc，pod
+# https://kubernetes.io/zh-cn/docs/concepts/storage/storage-classes/#local
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: sc-hostpath
+provisioner: kubernetes.io/no-provisioner # 使用hostpath作为存储后端
+volumeBindingMode: WaitForFirstConsumer
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: sc-pv-hostpath
+spec:
+  capacity:
+    storage: 500Gi # 创建时并不会验证实际有这么多空间
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain # 手动创建本地卷时，仅支持Retain
+  storageClassName: sc-hostpath # 匹配上面的metadata.name
+  local:
+    path: /home/host-sc-pv-dir # 必须在节点手动创建
+  nodeAffinity: # 创建本地卷的必须字段，k8s会在匹配下面条件的节点上创建PV，如果没有匹配的节点，则引用的Pod和PV都会一直pending（通过describe可以查看原因）
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - k8s-node1
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sc-pvc-hostpath
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: sc-hostpath
+  resources:
+    requests:
+      storage: 500Gi
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox-use-sc-pvc
+  labels:
+    app: busybox
+spec:
+  containers:
+    - name: write
+      image: busybox
+      command: [ "sh", "-c" ]
+      args: [ "echo 'hellok8s, pvc used!' > /write_dir/data; sleep infinity" ]
+      volumeMounts:
+        - mountPath: /write_dir
+          name: pvc-dir
+  volumes:
+    - name: pvc-dir
+      persistentVolumeClaim:
+        claimName: sc-pvc-hostpath

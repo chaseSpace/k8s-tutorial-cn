@@ -14,7 +14,7 @@ spec:
   capacity:
     storage: 1Ti # 此卷容量，单位支持 Ti T Gi G Mi M Ki K，可以改小，但强烈不建议
   accessModes:
-    - ReadWriteMany # 允许多个客户端读写，还有ReadWriteOnce（允许单个节点读写），ReadOnlyMany（允许多个节点只读）
+    - ReadWriteMany # 允许多个客户端读写，还有ReadWriteOnce（允许单个节点读写），ReadOnlyMany（允许多个节点只读）,单个节点可以包含多个Pod
   persistentVolumeReclaimPolicy: Retain # 删除pvc时，pv的回收策略，这里为保留。还有 Delete（删除）
   storageClassName: node-local # 存储分类定义，会被pvc引用
   hostPath: # 可换为 nfs 等其他存储
@@ -28,7 +28,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteMany # 必须和PV一致才能匹配
-  storageClassName: "node-local" # 存储分类定义，对应pv定义
+  storageClassName: node-local # 存储分类定义，对应pv定义
   resources:
     requests:
       storage: 500Mi # pvc一旦创建，若要修改申请的空间大小，只能增加不能减少!

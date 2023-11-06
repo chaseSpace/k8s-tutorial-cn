@@ -8,4 +8,4 @@ spec:
   storageClassName: "node-local" # 存储分类定义，对应pv定义
   resources:
     requests:
-      storage: 500Mi # pvc一旦创建，若要修改申请的空间大小，只能增加不能减少!
+      storage: 100Mi # pvc一旦创建，若要修改申请的空间大小，只能增加不能减少!
