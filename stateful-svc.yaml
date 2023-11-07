@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: stateful-svc
+spec:
+  selector:
+    app: stateful
+  clusterIP: None
+  ports:
+    - port: 8080
+      targetPort: 80
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: statefulset
+spec: # 这部分字段类似 Deployment
+  replicas: 2
+  serviceName: stateful-svc # 匹配上面的 metadata.name
+  updateStrategy:
+    type: RollingUpdate # 默认是RollingUpdate，还支持 OnDelete
+    rollingUpdate:
+      partition: 0
+  selector:
+    matchLabels:
+      app: stateful
+  template:
+    metadata:
+      labels:
+        app: stateful
+    spec:
+      containers:
+        - name: python-svc-stateful
+          image: python:3.7
+          command: [ 'sh', '-c' ]
+          # 先写一句包含Pod主机名的文字到 /dir/data，同样方式生成 index.html，再使用这个index.html在80端口启动一个web服务器
+          args: [ 'echo "This host is $(hostname)"! >> /dir/data; echo "<p> The host is $(hostname)</p>" > index.html; python -m http.server 80' ]
+          volumeMounts:
+            - mountPath: /dir
+              name: stateful-data
+          ports:
+            - containerPort: 80
+  volumeClaimTemplates: # StatefulSet特有字段
+    - metadata:
+        name: stateful-data
+      spec:
+        accessModes: [ "ReadWriteMany" ]
+        storageClassName: sc-hostpath # 匹配下面的 StorageClass
+        resources:
+          requests:
+            storage: 200Mi
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: sc-hostpath
+provisioner: kubernetes.io/no-provisioner # 使用hostpath作为存储后端
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# 因为示例使用 hostpath，所以才手动创建PV。由于要启动两个Pod，所以还需要创建两个PV给两个Pod使用。
+# PV0 给 pod0用
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-hostpath-0
+spec:
+  capacity:
+    storage: 500Gi # 创建时并不会验证实际有这么多空间
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain # 手动创建本地卷时，仅支持Retain
+  storageClassName: sc-hostpath # 匹配上面的metadata.name
+  local:
+    path: /home/host-sts-pv-dir # 必须在节点手动创建
+  nodeAffinity: # 创建本地卷的必须字段，k8s会在匹配下面条件的节点上创建PV，如果没有匹配的节点，则引用的Pod和PV都会一直pending（通过describe可以查看原因）
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - k8s-node1
+---
+# PV1 给 pod1用
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-hostpath-1
+spec:
+  capacity:
+    storage: 500Gi # 创建时并不会验证实际有这么多空间
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain # 手动创建本地卷时，仅支持Retain
+  storageClassName: sc-hostpath # 匹配上面的metadata.name
+  local:
+    path: /home/host-sts-pv-dir # 必须在节点手动创建
+  nodeAffinity: # 创建本地卷的必须字段，k8s会在匹配下面条件的节点上创建PV，如果没有匹配的节点，则引用的Pod和PV都会一直pending（通过describe可以查看原因）
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - k8s-master
