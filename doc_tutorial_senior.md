@@ -518,12 +518,14 @@ This host is statefulset-0!
 但 StatefulSet控制器 确实拥有这个功能，读者可以使用其他存储系统（如NFS）进行验证。
 
 **StatefulSet的伸缩与更新**  
-和Deployment一样，StatefulSet也支持动态伸缩，当StatefulSet的Replicas数量发生变化时（或直接通过`kubectl scale`指令），StatefulSet控制器会确保Pod数量最终符合预期。
+和Deployment一样，StatefulSet也支持动态伸缩，当StatefulSet的Replicas数量发生变化时（或直接通过`kubectl scale`
+指令），StatefulSet控制器会确保Pod数量最终符合预期。
 但不同的是，StatefulSet执行的是有序伸缩，具体来说是在扩容时从编号较小的开始逐个创建，而缩容时则是倒序进行。
 
 StatefulSet有两种更新策略，可以通过`.spec.updateStrategy`字段进行控制。
 
-- **OnDelete**：当 `.spec.updateStrategy.type` 设置为 OnDelete 时， 它的控制器将不会自动更新 StatefulSet 中的 Pod。 用户必须手动删除
+- **OnDelete**：当 `.spec.updateStrategy.type` 设置为 OnDelete 时， 它的控制器将不会自动更新 StatefulSet 中的 Pod。
+  用户必须手动删除
   Pod 以便让控制器创建新的 Pod；
 - **RollingUpdate**：当 `.spec.updateStrategy.type` 设置为 RollingUpdate 时，对 StatefulSet 中的 Pod 执行自动的滚动更新。这是默认的更新策略。
     - 这种情况下，StatefulSet 控制器会从Pod序号大到小的顺序进行逐个更新（当Pod进入`Running`时再更新下一个）；
@@ -532,9 +534,14 @@ StatefulSet有两种更新策略，可以通过`.spec.updateStrategy`字段进�
           Pod（如果大于replicas，则不会更新任何Pod）。当你需要进行分阶段（金丝雀）更新时才会用到这个参数。
 
 **PVC的保留**  
-默认情况下，当Pod被删除时，StatefulSet控制器不会删除这个Pod使用的PVC，在 k8s v1.27版本中，可以 [进行配置](https://kubernetes.io/zh-cn/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention)。
+默认情况下，当Pod被删除时，StatefulSet控制器不会删除这个Pod使用的PVC，在 k8s
+v1.27版本中，可以 [进行配置](https://kubernetes.io/zh-cn/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention)。
+
+**删除StatefulSet应用**  
+需要特别说明的是，PVC虽然是自动创建的，但不会跟随StatefulSet应用自动删除，需要进行手动删除（确定数据不再需要）。
 
 ## TODO
+
 ## 参考
 
 - [Kubernetes从入门到实践 @赵卓](https://www.epubit.com/bookDetails?id=UB72096269c1157)
