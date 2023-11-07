@@ -403,15 +403,15 @@ StatefulSet 是与Deployment同级的一种 **有状态**
 控制器，与无状态部署的Deployment控制器不同的是，StatefulSet可以保证Pod的顺序和唯一性。当有与部署顺序、持久数据或固定网络等有关等特殊应用需求时，
 可以上使用 StatefulSet 来部署应用。它可以提供的功能特性如下：
 
-- 有序性：严格按照定义的顺序部署和扩展Pod（正序部署/扩展，倒序删除），每个 Pod 都有一个唯一的索引，从 0 开始；
+- 有序性：严格按照定义的顺序部署和扩展Pod，每个 Pod 都有一个唯一的索引，从 0 开始；
 - 稳定的网络标识符：Pod重新调度后其PodName和Hostname不变，这基于无头Service实现；
 - 持久性存储：StatefulSet 通常与 PersistentVolumeClaim (PVC) 配合使用，以提供持久性存储。每个 Pod 可以绑定到一个独立的
   PVC，以确保数据在 Pod 重新调度或故障恢复时不会丢失；
 
 StatefulSet 控制器由3个部分组成：
 
-- 无头Service：用于为Pod资源标识符生成可解析度DNS记录；
-- volumeClaimTemplate：基于静态或动态PV供给方式为Pod提供独立的固定存储；
+- 无头Service：用于为Pod资源标识符生成可解析的DNS记录；
+- volumeClaimTemplate：基于静态或动态PV供给方式为Pod提供独立的固定存储卷；
 - StatefulSet：用于控制Pod的创建和销毁。
 
 考虑这样一种场景，我们需要在集群中部署3个mysql实例，由于是数据库服务，每个实例都需要一个独立的存储空间，而且它们保存的数据各不相同，
