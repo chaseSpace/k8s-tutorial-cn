@@ -191,6 +191,7 @@ PVC通过`storageClass`、`accessModes`和存储空间这几个属性来为PVC�
 `storageClass`和`accessModes`属性必须一致，而且PVC的`storage`不能超过PV的`capacity`。
 
 另外，这里需要说明一下上述输出中`ACCESS MODES`即访问模式属性，它们的含义如下：
+
 - ReadWriteOnce（RWO）：允许**单个集群节点**以读写模式挂载一个PV
 - ReadOnlyMany（ROX）：允许多个集群节点以只读模式挂载一个PV
 - ReadWriteMany（RWX）：允许多个集群节点以读写模式挂载一个PV
@@ -307,7 +308,9 @@ Kubernetes 对象的属性，
 
 #### 1.3.4 预留PV
 
-有些时候，我们在创建PV时希望将其预留给指定的PVC（可能尚未创建），以便在需要时可以快速创建PVC并绑定到PV上。这主要通过模板中的`claimRef`字段来实现：
+有些时候，我们在创建PV时希望将其预留给指定的PVC（可能尚未创建），以便在需要时可以快速创建PVC并绑定到PV上。这主要通过模板中的`claimRef`
+字段来实现：
+
 ```yaml
 apiVersion: v1
 kind: PersistentVolume
@@ -329,7 +332,8 @@ spec:
 - PVC的容量不能缩小，但PV可以，虽然不建议这样做。
 - hostPath类型的PV资源一般只用于开发和测试环境，其目的是使用节点上的文件或目录来模拟网络附加存储。在生产集群中，你不会使用
   hostPath。 集群管理员会提供网络存储资源，比如 Google Compute Engine 持久盘卷、NFS 共享卷或 Amazon Elastic Block Store 卷。
-- k8s通过一个插件层来连接各种第三方存储系统，这个插件层核心是一套接口叫CSI（Container Storage Interface），存储提供商可以自行实现这个接口来对接k8s。
+- k8s通过一个插件层来连接各种第三方存储系统，这个插件层核心是一套接口叫CSI（Container Storage
+  Interface），存储提供商可以自行实现这个接口来对接k8s。
 
 #### 1.3.6 使用StorageClass
 
@@ -343,11 +347,13 @@ spec:
 绑定成功就会自动创建一个目标大小的PV（并绑定PVC），这个PV由存储类进行自动管理。
 
 **定义StorageClass**  
-每个 StorageClass 都包含 `provisioner`、`parameters` 和 `reclaimPolicy` 字段， 这些字段会在 StorageClass 需要动态制备 PV 时会使用到。
+每个 StorageClass 都包含 `provisioner`、`parameters` 和 `reclaimPolicy` 字段， 这些字段会在 StorageClass 需要动态制备 PV
+时会使用到。
 
 每个 StorageClass 都有一个制备器（Provisioner），用来决定使用哪个卷插件制备 PV。 该字段必须指定。
 不同的存储后端（如 AWS EBS、GCE PD、Azure Disk 等）都有不同的卷插件，因此需要根据所使用的存储后端指定对应的制备器，以及配置相应的参数。
 比如使用NFS作为的存储后端的存储类定义是：
+
 ```yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -359,7 +365,9 @@ parameters:
   path: /share
   readOnly: "false"
 ```
+
 而使用AWS EBS作为存储后端的存储类定义是：
+
 ```yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -371,6 +379,7 @@ parameters:
   iopsPerGB: "10"
   fsType: ext4
 ```
+
 可以看到`provisioner`是不同的，而`parameters`更是大相径庭。不过，配置和管理StorageClass的工作是交给专门的运维人员来完成，开发人员不需要清楚其中细节。
 
 [pod_use_storageclass.yaml](pod_use_storageclass.yaml) 是一个使用 StorageClass 的完整模板定义。需要特别说明的是，
@@ -378,16 +387,154 @@ parameters:
 使用第三方存储后端时不需要。
 
 使用 StorageClass 的时候，每个Pod使用的空间由 StorageClass 进行管理，它会在存储后端中为每个Pod划分一个单独的空间（目录）。
->注意：使用hostpath作为存储后端是一个特例，它不会为节点上的每个Pod划分单独的目录，而是共享同一个目录。
+> 注意：使用hostpath作为存储后端是一个特例，它不会为节点上的每个Pod划分单独的目录，而是共享同一个目录。
 
-使用第三方存储后端时如何填写 StorageClass 的`parameters`参考[官方文档](https://kubernetes.io/zh-cn/docs/concepts/storage/storage-classes/#parameters) 。
+使用第三方存储后端时如何填写 StorageClass 的`parameters`
+参考[官方文档](https://kubernetes.io/zh-cn/docs/concepts/storage/storage-classes/#parameters) 。
 
 **设置默认的StorageClass**  
 可以在集群上启用动态卷制备，以便在未指定存储类的情况下动态设置所有PVC。具体步骤参考[官方文档](https://kubernetes.io/zh-cn/docs/concepts/storage/dynamic-provisioning/#defaulting-behavior) 。
 
-#### 1.3.7 使用StatefulSet
-TODO
+> 开始下一节之前，请先删除本节创建的资源：`kk delete -f pod_use_storageclass.yaml`
 
+#### 1.3.7 使用StatefulSet
+
+StatefulSet 是与Deployment同级的一种 **有状态**
+控制器，与无状态部署的Deployment控制器不同的是，StatefulSet可以保证Pod的顺序和唯一性。当有与部署顺序、持久数据或固定网络等有关等特殊应用需求时，
+可以上使用 StatefulSet 来部署应用。它可以提供的功能特性如下：
+
+- 有序性：严格按照定义的顺序部署和扩展Pod（正序部署/扩展，倒序删除），每个 Pod 都有一个唯一的索引，从 0 开始；
+- 稳定的网络标识符：Pod重新调度后其PodName和Hostname不变，这基于无头Service实现；
+- 持久性存储：StatefulSet 通常与 PersistentVolumeClaim (PVC) 配合使用，以提供持久性存储。每个 Pod 可以绑定到一个独立的
+  PVC，以确保数据在 Pod 重新调度或故障恢复时不会丢失；
+
+StatefulSet 控制器由3个部分组成：
+
+- 无头Service：用于为Pod资源标识符生成可解析度DNS记录；
+- volumeClaimTemplate：基于静态或动态PV供给方式为Pod提供独立的固定存储；
+- StatefulSet：用于控制Pod的创建和销毁。
+
+考虑这样一种场景，我们需要在集群中部署3个mysql实例，由于是数据库服务，每个实例都需要一个独立的存储空间，而且它们保存的数据各不相同，
+就不能相互替代，如果使用Deployment部署，Pod在重建后，volume虽然没有删除，但没有一种机制让新的Pod实例继续使用之前的volume提供服务，而且重建后的Pod名称也是随机的，
+客户端无法知晓新的Pod实例名以读取之前的数据。而使用 StatefulSet 部署就可以提供所需要这些功能。
+
+此外，StatefulSet控制器可以在其模板中配置`volumeClaimTemplate`来为Pod提供存储卷，不需要专门定义PVC。
+
+[stateful-svc.yaml](stateful-svc.yaml)
+是一个完整的示例，下面是具体的测试步骤（在开始前，为了让Pod调度到master，请先执行 [删除master污点](https://www.cnblogs.com/zouhong/p/17351418.html)）：
+
+```yaml
+$ kk apply -f stateful-svc.yaml
+service/stateful-svc created
+statefulset.apps/statefulset created
+storageclass.storage.k8s.io/sc-hostpath created
+persistentvolume/pv-hostpath-0 created
+persistentvolume/pv-hostpath-1 created
+
+  # sts代指statefulset
+$ kk get svc,sc,pv,pvc,pod,sts -o wide
+NAME                   TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)    AGE     SELECTOR
+service/kubernetes     ClusterIP   20.1.0.1     <none>        443/TCP    44h     <none>
+service/stateful-svc   ClusterIP   None         <none>        8080/TCP   2m24s   app=stateful
+
+NAME                                      PROVISIONER                    RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+storageclass.storage.k8s.io/sc-hostpath   kubernetes.io/no-provisioner   Delete          WaitForFirstConsumer   false                  2m24s
+
+NAME                             CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                                 STORAGECLASS   REASON   AGE     VOLUMEMODE
+persistentvolume/pv-hostpath-0   500Gi      RWX            Retain           Bound    default/stateful-data-statefulset-0   sc-hostpath             2m24s   Filesystem
+persistentvolume/pv-hostpath-1   500Gi      RWX            Retain           Bound    default/stateful-data-statefulset-1   sc-hostpath             2m24s   Filesystem
+
+NAME                                                STATUS   VOLUME          CAPACITY   ACCESS MODES   STORAGECLASS   AGE    VOLUMEMODE
+persistentvolumeclaim/stateful-data-statefulset-0   Bound    pv-hostpath-0   500Gi      RWX            sc-hostpath    103s   Filesystem
+persistentvolumeclaim/stateful-data-statefulset-1   Bound    pv-hostpath-1   500Gi      RWX            sc-hostpath    101s   Filesystem
+
+NAME                READY   STATUS    RESTARTS            AGE    IP             NODE         NOMINATED NODE   READINESS GATES
+pod/statefulset-0   1/1     Running   0                   103s   20.2.36.83     k8s-node1    <none>           <none>
+pod/statefulset-1   1/1     Running   0                   4s     20.2.235.196   k8s-master   <none>           <none>
+
+NAME                           READY   AGE     CONTAINERS            IMAGES
+statefulset.apps/statefulset   2/2     2m24s   python-svc-stateful   python:3.7
+```
+
+观察测试结果，可以看到：
+
+- 稳定的网络ID：StatefulSet 中的每个 Pod 根据 StatefulSet 的名称和 Pod 的序号派生出它的主机名。
+  组合主机名的格式为`$(StatefulSet 名称)-$(序号)`
+- Pod是按0开始的序号逐个启动，且要求前一个`Running`后才会启动下一个
+- StatefulSet为每个Pod自动创建了PVC资源
+- 名为`statefulset`的StatefulSet已经部署到集群中的两个节点且正常运行（删除污点后可以允许Pod调度到Master）
+
+> 在示例模板中存在关于PV资源的定义，在前一小节中已经讲到，这是在为了方便演示使用hostpath作为存储后端而导致必须手动创建PV，在使用其他第三方存储系统时不需要手动创建PV。
+
+现在我们开始进一步验证：
+
+```shell
+# 在master执行
+[root@k8s-master ~]# cat /home/host-sts-pv-dir/data             
+This host is statefulset-1!
+
+# 在node1上执行
+[root@k8s-node1 ~]# cat /home/host-sts-pv-dir/data 
+This host is statefulset-0!
+
+# 在master启动curl Pod，访问无头Service
+$ kk apply -f pod_curl.yaml           
+pod/curl created
+
+$ kk exec -it curl --  sh     
+/ # nslookup stateful-svc
+nslookup: can't resolve '(null)': Name does not resolve
+
+Name:      stateful-svc
+Address 1: 20.2.235.201 statefulset-1.stateful-svc.default.svc.cluster.local
+Address 2: 20.2.36.84 statefulset-0.stateful-svc.default.svc.cluster.local
+
+/ # curl statefulset-0.stateful-svc.default.svc.cluster.local
+<p> The host is statefulset-0</p>
+/ # curl statefulset-1.stateful-svc.default.svc.cluster.local
+<p> The host is statefulset-1</p>
+```
+
+这里，我们验证了两个 StatefulSet Pod对节点本地卷的写入，然后部署一个curl容器来查询部署的 StatefulSet无头服务的DNS信息，
+得到了两个由`$(StatefulSet 名称)-$(序号)`组成的稳定虚拟ID（statefulset-1和statefulset-0），
+并且通过curl访问了两个Pod的本地服务，得到了预期结果。客户端可以在**集群内**使用这个虚拟ID来访问服务。
+当然，也可以使用无头服务的总域名`statefulset-svc.default.svc.cluster.local`来访问，但这样访问的服务是随机的，当我们使用
+StatefulSet 部署应用时，说明我们有需要**指定实例ID**进行访问的需求，否则使用Deployment就足够了。
+
+**Pod的重建**  
+StatefulSet会确保Pod重建后，Pod使用的存储卷保持不变，以保证Pod重建后仍然能够访问同一份数据。下面通过手动删除Pod模拟故障进行验证：
+
+```shell
+$ kk delete pod statefulset-0        
+pod "statefulset-0" deleted
+
+# 稍等几秒 Pod 进行重建，由于之前 0号Pod是在node1上允许的，所以在node1上查看重建时写入的数据                                                                                                                                                                               
+[root@k8s-node1 ~]# cat /home/host-sts-pv-dir/data                                
+This host is statefulset-0!
+This host is statefulset-0!
+```
+
+可以看到，Pod重建后仍然能够在之前的节点写入相同的数据。虽然这里使用hostpath作为存储后端来验证这个功能不太严谨（因为Pod-1占用了另一个节点的本地卷，所以0号Pod一定会在原来的节点重建），
+但 StatefulSet控制器 确实拥有这个功能，读者可以使用其他存储系统（如NFS）进行验证。
+
+**StatefulSet的伸缩与更新**  
+和Deployment一样，StatefulSet也支持动态伸缩，当StatefulSet的Replicas数量发生变化时（或直接通过`kubectl scale`指令），StatefulSet控制器会确保Pod数量最终符合预期。
+但不同的是，StatefulSet执行的是有序伸缩，具体来说是在扩容时从编号较小的开始逐个创建，而缩容时则是倒序进行。
+
+StatefulSet有两种更新策略，可以通过`.spec.updateStrategy`字段进行控制。
+
+- **OnDelete**：当 `.spec.updateStrategy.type` 设置为 OnDelete 时， 它的控制器将不会自动更新 StatefulSet 中的 Pod。 用户必须手动删除
+  Pod 以便让控制器创建新的 Pod；
+- **RollingUpdate**：当 `.spec.updateStrategy.type` 设置为 RollingUpdate 时，对 StatefulSet 中的 Pod 执行自动的滚动更新。这是默认的更新策略。
+    - 这种情况下，StatefulSet 控制器会从Pod序号大到小的顺序进行逐个更新（当Pod进入`Running`时再更新下一个）；
+    - 分区滚动更新：通过声明 `.spec.updateStrategy.rollingUpdate.partition` 的方式，RollingUpdate 更新策略可以实现分区。
+        - 比如，当 partition 设置为 1 时，StatefulSet 控制器只会更新序号大于等于 1 的
+          Pod（如果大于replicas，则不会更新任何Pod）。当你需要进行分阶段（金丝雀）更新时才会用到这个参数。
+
+**PVC的保留**  
+默认情况下，当Pod被删除时，StatefulSet控制器不会删除这个Pod使用的PVC，在 k8s v1.27版本中，可以 [进行配置](https://kubernetes.io/zh-cn/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention)。
+
+## TODO
 ## 参考
 
 - [Kubernetes从入门到实践 @赵卓](https://www.epubit.com/bookDetails?id=UB72096269c1157)
