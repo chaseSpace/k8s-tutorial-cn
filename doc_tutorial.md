@@ -1701,7 +1701,7 @@ $ kubectl get pods -n dev
 
 ConfigMap 和 Secret 用来保存配置数据和敏感数据，在模板定义和使用上没有大太差别。
 
-### 10.1  ConfigMap
+### 10.1 ConfigMap
 
 K8s 使用 ConfigMap 来将你的配置数据和应用程序代码分开，将非机密性的数据保存到键值对中。ConfigMap 在设计上不是用来保存大量数据的。
 在 ConfigMap 中保存的数据不可超过 1 MiB。如果你需要保存超出此尺寸限制的数据，你需要考虑挂载存储卷。
@@ -1856,6 +1856,76 @@ config.yaml:username: hellok8s
 password: pass123
 ```
 
+### 10.3 Downward API
+
+有时候，容器需要获得关于自身的信息，但不能与k8s过于耦合，Downward API就是用来解决这个问题的。 Downward API 允许容器在不使用
+Kubernetes 客户端或 API 服务器的情况下获得自己或集群的信息，具体通过下面两种方式实现：
+
+- 作为环境变量
+- 作为 `downwardAPI` 卷中的文件
+
+这两种暴露 Pod 和容器字段的方式统称为 Downward API。
+
+**可用字段**  
+只有部分 Kubernetes API 字段可以通过 Downward API 使用。本节列出了你可以使用的字段。
+你可以使用 `fieldRef` 传递来自可用的 Pod 级字段的信息。
+
+- metadata.name：Pod名称
+- metadata.namespace：Pod 的命名空间
+- metadata.uid：Pod 的唯一 ID
+- metadata.annotations['<KEY>']：Pod 的注解 <KEY> 的值
+- metadata.labels['<KEY>']：Pod 的标签 <KEY> 的值
+
+以下信息可以通过环境变量获得，但**不能作为 `downwardAPI` 卷`fieldRef`** 获得：
+
+- spec.serviceAccountName：Pod 的服务账号名称
+- spec.nodeName：Pod 运行时所处的节点名称
+- status.hostIP：Pod 所在节点的主 IP 地址
+- status.hostIPs：这组 IP 地址是 status.hostIP 的双协议栈版本，第一个 IP 始终与 status.hostIP 相同。 该字段在启用了
+  PodHostIPs 特性门控后可用。
+- status.podIP：Pod 的主 IP 地址（通常是其 IPv4 地址）
+
+以下信息可以通过 downwardAPI卷`fieldRef` 获得，但**不能作为环境变量**获得：
+
+- metadata.labels：Pod 的所有标签，格式为 标签键名="转义后的标签值"，每行一个标签
+- metadata.annotations：Pod 的全部注解，格式为 注解键名="转义后的注解值"，每行一个注解
+
+可通过 resourceFieldRef 获得的信息:
+
+- limits.cpu：容器的 CPU 限制值
+- requests.cpu：容器的 CPU 请求值
+- limits.memory：容器的内存限制值
+- requests.memory：容器的内存请求值
+- limits.hugepages-*：容器的巨页限制值
+- requests.hugepages-*：容器的巨页请求值
+- limits.ephemeral-storage：容器的临时存储的限制值
+- requests.ephemeral-storage：容器的临时存储的请求值
+
+如果没有为容器指定 CPU 和内存限制时尝试使用 Downward API 暴露该信息，那么 kubelet
+默认会根据 [节点可分配资源](https://kubernetes.io/zh-cn/docs/tasks/administer-cluster/reserve-compute-resources/#node-allocatable)
+计算并暴露 CPU 和内存的最大可分配值。
+
+下面使用 [pod_use_downwardAPI.yaml](pod_use_downwardAPI.yaml) 进行测试：
+```shell
+$ kk apply -f pod_use_downwardAPI.yaml
+pod/busybox-use-downwardapi created
+
+$ kk get pod                                                  
+NAME                      READY   STATUS    RESTARTS             AGE
+busybox-use-downwardapi   1/1     Running   0                    59s
+
+$ kk logs busybox-use-downwardapi            
+hellok8s, downwardAPI! PodName=busybox-use-downwardapi LIMITS_CPU=1 POD_IP=20.2.36.86
+
+$ kk exec -it busybox-use-downwardapi --  sh
+/ # ls /config/downward_api_info/
+LABELS    POD_NAME
+/ # cat /config/downward_api_info/LABELS 
+app="busybox"
+label_test="some_value"
+/ # cat /config/downward_api_info/POD_NAME 
+busybox-use-downwardapi
+```
 ## 参考
 
 - [guangzhengli的k8s教程](https://github.com/guangzhengli/k8s-tutorials/blob/main/docs/pre.md)
