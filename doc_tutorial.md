@@ -9,9 +9,8 @@
 10.0.2.3 k8s-node1
 ```
 
-可参考下面的教程来搭建Kubernetes集群：
+可参考下面的教程来搭建Kubernetes多节点集群：
 
-- [使用minikube安装k8s单节点集群](install_by_minikube/install.md)
 - [使用kubeadm搭建k8s多节点集群](install_by_kubeadm/install.md)
 - [使用k8s playground](https://labs.play-with-k8s.com/)
 
