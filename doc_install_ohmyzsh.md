@@ -25,8 +25,9 @@ git clone https://gitee.com/jsharkc/zsh-syntax-highlighting.git $ZSH_CUSTOM/plug
 
 # 配置插件
 sed -i 's/plugins=(git)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' ~/.zshrc
-# 设置kubectl别名
+# 设置别名
 echo 'alias kk="kubectl"' >> ~/.zshrc
+echo 'alias m="minikube"' >> ~/.zshrc # 如果安装了minikube
 
 # 生效
 source ~/.zshrc
