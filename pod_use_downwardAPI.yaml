@@ -1,0 +1,44 @@
+# 此模板演示了如何使用 环境变量和存储卷 方式注入Pod信息到Pod内部
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox-use-downwardapi
+  labels:
+    app: busybox
+    label_test: some_value
+spec:
+  containers:
+    - name: write
+      image: busybox
+      command: [ "sh", "-c" ]
+      # 通过命令行可以读取环境变量
+      args: [ 'echo "hellok8s, downwardAPI! PodName=${POD_NAME} LIMITS_CPU=${LIMITS_CPU} POD_IP=${POD_IP}"; sleep infinity' ]
+      resources:
+        limits:
+          cpu: "0.1"
+      env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: LIMITS_CPU
+          valueFrom:
+            resourceFieldRef:
+              resource: limits.cpu
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+      volumeMounts:
+        - mountPath: /config/downward_api_info
+          name: volume-downward
+  volumes:
+    - name: volume-downward
+      downwardAPI:
+        items:
+          - path: "POD_NAME"
+            fieldRef:
+              fieldPath:  metadata.name
+          - path: "LABELS"
+            fieldRef:
+              fieldPath: metadata.labels
