@@ -2,7 +2,7 @@
 
 ### 主要内容
 
-- [Kubernetes 使用教程](doc_tutorial.md)
+- [Kubernetes 基础教程](doc_tutorial.md)
 - [Kubernetes 进阶教程（持续更新中···）](doc_tutorial_senior.md)
 
 ### 其他链接
