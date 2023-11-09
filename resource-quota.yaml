@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota-default
+#  namespace: default # 管理哪个命名空间下的资源配额
+spec:
+  hard:
+    # 计算资源配额
+    limits.cpu: "10" # 所有非终止状态的 Pod，其 CPU 限额总量不能超过该值
+    limits.memory: "1Gi" # 所有非终止状态的 Pod，其内存限额总量不能超过该值
+    requests.cpu: "10" # 所有非终止状态的 Pod，其 CPU 需求总量不能超过该值
+    requests.memory: "500Mi" # 所有非终止状态的 Pod，其内存需求总量不能超过该值
+#    hugepages-<size>: "10Gi"    #对于所有非终止状态的 Pod，针对指定尺寸的巨页请求总数不能超过此值
+    cpu: "10" # 同 requests.cpu
+    memory: "500Mi" # 同  requests.memory
+
+    # 存储资源配额
+    requests.storage: "10Gi"    #所有 PVC，存储资源的需求总量不能超过该值
+    persistentvolumeclaims: "10"     # 在该命名空间中所允许的 PVC 总量
+    #    <storage-class-name>.storageclass.storage.k8s.io/requests.storage: 10Gi	在所有与 <storage-class-name> 相关的持久卷申领中，存储请求的总和不能超过该值
+    #    <storage-class-name>.storageclass.storage.k8s.io/persistentvolumeclaims: 10	在与 storage-class-name 相关的所有持久卷申领中，命名空间中可以存在的持久卷申领总数
+
+    # 对象数量配额
+    configmaps: "10" # 在该命名空间中允许存在的 ConfigMap 总数上限
+    pods: "50"    # 在该命名空间中允许存在的非终止状态的 Pod 总数上限Pod 终止状态等价于 Pod 的 .status.phase in (Failed, Succeeded) 为真（Pod数量过多可能耗尽IP）
+    replicationcontrollers: "20"    # 在该命名空间中允许存在的 ReplicationController 总数上限
+    resourcequotas: "5"    # 在该命名空间中允许存在的 ResourceQuota 总数上限
+    services: "10" #	在该命名空间中允许存在的 Service 总数上限
+    services.loadbalancers: "5"    # 在该命名空间中允许存在的 LoadBalancer 类型的 Service 总数上限
+    services.nodeports: "5"    # 在该命名空间中允许存在的 NodePort 类型的 Service 总数上限
+    secrets: "10" #	在该命名空间中允许存在的 Secret 总数上限

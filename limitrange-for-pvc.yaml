@@ -1,0 +1,19 @@
+#➜ kk describe limits
+#Name:       limitrange-for-pvc
+#Namespace:  default
+#  Type                   Resource  Min    Max  Default Request  Default Limit  Max Limit/Request Ratio
+#  ----                   --------  ---    ---  ---------------  -------------  -----------------------
+#  PersistentVolumeClaim  storage   100Mi  1Gi  -                -              -
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: limitrange-for-pvc
+  namespace: default
+spec:
+  limits:
+    - type: PersistentVolumeClaim  # 限制Pod的计算资源（Pod内容器的资源总和）
+      # 一旦设置 max/min项，再配置PVC资源时，就不能超过这个范围，否则无法创建
+      max:
+        storage: 1Gi
+      min:
+        storage: 100Mi

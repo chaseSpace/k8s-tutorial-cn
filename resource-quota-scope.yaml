@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota-default-scope
+#  namespace: default # 管理哪个命名空间下的资源配额
+spec:
+  hard:
+    limits.cpu: "10" # 所有非终止状态的 Pod，其 CPU 限额总量不能超过该值
+    limits.memory: "1Gi" # 所有非终止状态的 Pod，其内存限额总量不能超过该值
+    requests.cpu: "10" # 所有非终止状态的 Pod，其 CPU 需求总量不能超过该值
+    requests.memory: "500Mi" # 所有非终止状态的 Pod，其内存需求总量不能超过该值
+    #    hugepages-<size>: "10Gi"    #对于所有非终止状态的 Pod，针对指定尺寸的巨页请求总数不能超过此值
+    cpu: "10" # 同 requests.cpu
+    memory: "500Mi" # 同  requests.memory
+    pods: "1"
+
+  # 配额作用域
+  scopeSelector:
+    matchExpressions:
+      - scopeName: Terminating # 匹配所有 spec.activeDeadlineSeconds 不小于 0 的 Pod
+        operator: Exists
+      - scopeName: BestEffort # 匹配所有 Qos 是 BestEffort 的 Pod
+        operator: Exists

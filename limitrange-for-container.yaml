@@ -1,0 +1,36 @@
+#➜ kk describe limits
+#Name:       limitrange-for-container
+#Namespace:  default
+#  Type        Resource  Min    Max    Default Request  Default Limit  Max Limit/Request Ratio
+#  ----        --------  ---    ---    ---------------  -------------  -----------------------
+#  Container   cpu       100m   200m   100m             150m           -
+#  Container   memory    100Mi  300Mi  100Mi            200Mi          -
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: limitrange-for-container
+  namespace: default
+spec:
+  limits:
+    - type: Container # 限制容器的计算资源
+      # 一旦设置 max/min项，再配置Pod内容器的计算资源时，就不能超过这个范围，否则无法创建
+      max:
+        cpu: "200m"
+        memory: "300Mi"
+      min:
+        cpu: "100m"
+        memory: "100Mi"
+      default:
+        cpu: "150m"
+        memory: "200Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "100Mi"
+      # 同时可以设置limit与requests资源的最大比例
+      # 对于容器，这个比例（cpu）的计算方式为：
+      #    metadata.namespace 命名空间下：
+      #    所有非终止Pod内容器的`resources.limits.cpu`  /  所有非终止Pod内容器的`resources.requests.cpu`
+      # memory同理，所以这个值必须大于等于1。
+      maxLimitRequestRatio:
+        memory: "2"
+        cpu: "2"

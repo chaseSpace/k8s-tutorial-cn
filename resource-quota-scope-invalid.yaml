@@ -1,0 +1,22 @@
+#此模板无法通过验证
+# kk apply -f resource-quota-scope-invalid.yaml
+#The ResourceQuota "quota-default-error" is invalid: spec.scopeSelector.matchExpressions:
+#  Invalid value:
+#     core.ScopeSelector{MatchExpressions:[]core.ScopedResourceSelectorRequirement{core.ScopedResourceSelectorRequirement{ScopeName:"Terminating", Operator:"Exists", Values:[]string(nil)}}}:
+#     unsupported scope applied to resource
+
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota-default-scope-invalid
+#  namespace: default # 管理哪个命名空间下的资源配额
+spec:
+  hard:
+    pods: "1"
+    requests.storage: "10Gi" # 不能被 Terminating 跟踪，所以此模板无法通过验证
+
+  # 配额作用域
+  scopeSelector:
+    matchExpressions:
+      - scopeName: Terminating # 匹配所有 spec.activeDeadlineSeconds 不小于 0 的 Pod
+        operator: Exists

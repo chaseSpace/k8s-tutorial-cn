@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-limit-resource
+spec:
+  containers:
+    - name: busybox-container
+      image: vish/stress
+      # -mem-total 表示容器启动一会儿后占用的内存总量，-mem-alloc-size 表示每次分配的内存大小，-mem-alloc-sleep 表示每次分配内存后休眠的时间
+      # 启动大概20s多后，内存占用量便会超过下面的限额100Mi，Pod被终止
+      args: ['-mem-total', '150Mi', '-mem-alloc-size', '5Mi', '-mem-alloc-sleep', '1s']
+      resources:
+        limits: # 最多能用的额度，超过则Pod被终止
+          cpu: "0.1" # 也可以使用 “100m”，1=1000m=1个cpu内核，可以大于1
+          memory: "100Mi"
+        requests: # 最少需要的额度
+          cpu: "0.05" # 也可以使用 “100m”，1=1000m
+          memory: "50Mi"
