@@ -540,6 +540,286 @@ v1.27版本中，可以 [进行配置](https://kubernetes.io/zh-cn/docs/concepts
 **删除StatefulSet应用**  
 需要特别说明的是，PVC虽然是自动创建的，但不会跟随StatefulSet应用自动删除，需要进行手动删除（确定数据不再需要）。
 
+## 2. 管理集群资源的使用
+
+在k8s集群中，资源分为以下几种：
+
+- 计算资源：如CPU、内存、存储、网络等物理资源，也包含节点本身；
+- 资源对象：如Pod、Service、Deployment等抽象资源；
+- 外部引用资源：如在使用PV/PVC时，实际上使用的是第三方存储资源，它们归类为外部引用资源。
+
+在一个节点达到几十上百的大规模k8s集群中，资源数量也会达到一个不易维护的量级，此时集群会由多个管理人员甚至是不同团队共同维护，
+在这种情况下，如何管控k8s资源的使用，就显得尤为重要。
+
+k8s提供了多种资源管理方式，如：
+
+- 资源配额（ResourceQuota）：对集群中所有资源进行统一管理，如CPU、内存、存储等；
+- 命名空间（Namespace）：将集群中的资源进行逻辑隔离，如不同团队使用不同的命名空间。然后就可以管理整个命名空间的整体资源使用和单个资源使用规则；
+- 标签、选择器和注解：在命名空间下，使用标签、选择器和注解，可以进一步对资源进行管理
+    - 标签（labels）：可以用来标识资源身份，如标识Pod的镜像、环境、应用分类等
+    - 选择器（selector）：高层资源（如Deployment）可以通过选择器关联低层资源（如Pod）
+    - 注解（annotations）：类似标签，但它更灵活，可以存储结构化数据。一般用于向对象添加元数据，实现对对象行为的进一步控制。
+
+### 2.1 控制Pod对计算资源的消耗
+
+容器运行时通常会提供一些机制来限制容器能够使用的资源大小，如果容器超额使用了资源，则容器会被终止。例如在Docker中，
+通过`docker run`命令中的`--cpu-shares/--cpu-quota/--memory`等参数进行资源限额控制。
+
+同样的，k8s的Pod模板也提供这个功能，
+[pod_limit_resource.yaml](pod_limit_resource.yaml) 是一个完整的示例（其中包含字段解释），下面是测试情况：
+
+```shell
+$ kk apply -f pod_limit_resource.yaml       
+pod/test-limit-resource created
+
+$ kk get pod                         
+NAME                      READY   STATUS    RESTARTS         AGE
+test-limit-resource       1/1     Running   0                10s
+
+# 等候20s 观察到Pod由于内存使用超额被终止
+$ kk get pod
+NAME                      READY   STATUS      RESTARTS         AGE
+test-limit-resource       0/1     OOMKilled   0                35s
+
+# 再等候几秒，观察到无法再次启动
+$ kk get pod                           
+NAME                  READY   STATUS             RESTARTS        AGE
+test-limit-resource   0/1     CrashLoopBackOff   3 (6d17h ago)   2m32s
+```
+
+如果模板中`requests`部分的配额直接超过集群最大单节点可分配额度，则Pod将无法启动（处于Pending状态），因为节点上没有足够的资源来满足Pod的资源请求。
+
+### 2.2 使用命名空间管理资源
+
+k8s中，命名空间（namespace）是k8s中一种逻辑分组资源，可以用来对k8s集群中的资源进行隔离。在使用k8s的用户增多以后，这个功能会十分有用。
+
+命名空间可以通过命令来创建：
+
+```shell
+$ kk create namespace test-namespace
+namespace/test-namespace created
+```
+
+也可以通过模板创建：
+
+```shell
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-namespace2
+```
+
+查看所有命名空间：
+
+```shell
+$ kk get namespace
+NAME              STATUS   AGE
+default           Active   12d  # 所有未指定namespace属性的对象会分配到这里
+kube-node-lease   Active   12d  # 存放各节点的Lease对象，用于节点的心跳检测
+kube-public       Active   12d  # 此空间下的所有资源可以被所有人访问
+kube-system       Active   12d  # 存放集群内建资源
+test-namespace    Active   5m
+test-namespace2   Active   86s
+```
+
+上面解释了集群创建之初就存在的命名空间用途。
+
+在有了命名空间后，创建**大部分资源**时都可以指定namespace属性，这样资源就会分配到对应的命名空间下。比如常见的Pod：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: go-http
+  namespace: test-namespace
+...
+```
+
+其他资源都是类似的方式。然后可以通过在kubectl命令（如get/describe/logs/delete等）后加`-n或--namespace`参数查询指定空间下的资源，
+不指定就是查询默认空间下的资源。
+
+**少部分不在命名空间中的资源**  
+比如命名空间资源本身，还有低级别资源如节点/持久存储卷等都不在命名空间中。通过下面命令可以查看存在命名空间中的资源：
+
+```yaml
+$ kk api-resources --namespaced=true
+NAME                        SHORTNAMES   APIVERSION                     NAMESPACED   KIND
+bindings                                 v1                             true         Binding
+configmaps                  cm           v1                             true         ConfigMap
+endpoints                   ep           v1                             true         Endpoints
+events                      ev           v1                             true         Event
+limitranges                 limits       v1                             true         LimitRange
+persistentvolumeclaims      pvc          v1                             true         PersistentVolumeClaim
+pods                        po           v1                             true         Pod
+podtemplates                             v1                             true         PodTemplate
+replicationcontrollers      rc           v1                             true         ReplicationController
+resourcequotas              quota        v1                             true         ResourceQuota
+secrets                                  v1                             true         Secret
+serviceaccounts             sa           v1                             true         ServiceAccount
+services                    svc          v1                             true         Service
+controllerrevisions                      apps/v1                        true         ControllerRevision
+daemonsets                  ds           apps/v1                        true         DaemonSet
+deployments                 deploy       apps/v1                        true         Deployment
+replicasets                 rs           apps/v1                        true         ReplicaSet
+statefulsets                sts          apps/v1                        true         StatefulSet
+localsubjectaccessreviews                authorization.k8s.io/v1        true         LocalSubjectAccessReview
+horizontalpodautoscalers    hpa          autoscaling/v2                 true         HorizontalPodAutoscaler
+cronjobs                    cj           batch/v1                       true         CronJob
+jobs                                     batch/v1                       true         Job
+leases                                   coordination.k8s.io/v1         true         Lease
+networkpolicies                          crd.projectcalico.org/v1       true         NetworkPolicy
+networksets                              crd.projectcalico.org/v1       true         NetworkSet
+endpointslices                           discovery.k8s.io/v1            true         EndpointSlice
+events                      ev           events.k8s.io/v1               true         Event
+ingresses                   ing          networking.k8s.io/v1           true         Ingress
+networkpolicies             netpol       networking.k8s.io/v1           true         NetworkPolicy
+poddisruptionbudgets        pdb          policy/v1                      true         PodDisruptionBudget
+rolebindings                             rbac.authorization.k8s.io/v1   true         RoleBinding
+roles                                    rbac.authorization.k8s.io/v1   true         Role
+csistoragecapacities                     storage.k8s.io/v1              true         CSIStorageCapacity
+```
+
+类似的，使用参数`--namespaced=false`查看不在命名空间中的资源。
+
+**命名空间与集群DNS的关系**
+
+命名空间是集群资源的逻辑分组，集群DNS是负责集群**命名空间**范围中的服务发现。在 [Kubernetes 基础教程](doc_tutorial.md)
+中提到了Service的DNS，
+其具体访问方式为`<service-name>.<namespace-name>.svc.<cluster-domain>`，其中就包含了命名空间的名称。
+
+#### 2.2.1 配置整体资源配额
+
+在本节开头讲过，k8s可以针对整个命名空间进行资源配额限制，这个功能可以避免某个命名空间中滥用集群资源进而影响整个集群。
+当然，也支持针对命名空间中单个资源对象的资源配额限制。
+
+k8s通过`ResourceQuota`资源对象来管理命名空间中各类资源的配额，一个命名空间下允许配置多个`ResourceQuota`资源对象。
+资源配额分为3种类型：
+
+- 计算资源配额：如总CPU或内存等
+- 存储资源配额：如PVC总数等
+- 对象数量配额：如Pod或Service总数等
+
+资源配额的工作方式如下：
+
+- 不同的团队可以在不同的命名空间下工作。这可以通过 RBAC 强制执行。
+- 集群管理员可以为每个命名空间创建一个或多个 ResourceQuota 对象。
+- 当用户在命名空间下创建资源（如 Pod、Service 等）时，Kubernetes 的配额系统会跟踪集群的资源使用情况， 以确保使用的资源用量不超过
+  ResourceQuota 中定义的硬性资源限额。
+- 如果资源创建或者更新请求违反了配额约束，那么该请求会报错（HTTP 403 FORBIDDEN）， 并在消息中给出有可能违反的约束。
+- 如果命名空间下的计算资源 （如 cpu 和 memory）的配额被启用， 则用户必须为这些资源设定请求值（request）和约束值（limit），否则配额系统将拒绝
+  Pod 的创建。 （但可使用 `LimitRanger` 准入控制器来为没有设置计算资源需求的 Pod 设置默认值，后面会讲到）
+
+在集群容量小于各命名空间配额总和的情况下，可能存在资源竞争。资源竞争时，Kubernetes 系统会遵循先到先得的原则。
+不管是资源竞争还是配额的修改，都不会影响已经创建的资源使用对象。
+
+[resource-quota.yaml](resource-quota.yaml) 是一个较为完整的示例，下面是测试情况:
+
+```shell
+$ kk apply -f resource-quota.yaml
+  resourcequota/quota-default created
+
+# 查看空间下的资源配额，可以看到创建的 quota-default 对象配置
+$ kk describe namespace default
+Name:         default
+Labels:       kubernetes.io/metadata.name=default
+Annotations:  <none>
+Status:       Active
+
+  Resource Quotas
+Name:                   quota-default
+  Resource                Used   Hard
+  --------                ---    ---
+  configmaps              2      10
+  cpu                     50m    10
+  limits.cpu              100m   10
+  limits.memory           100Mi  1Gi
+  memory                  50Mi   500Mi
+  persistentvolumeclaims  0      10
+  pods                    1      50
+  replicationcontrollers  0      20
+  requests.cpu            50m    10
+  requests.memory         50Mi   500Mi
+  requests.storage        0      10Gi
+  resourcequotas          1      5
+  secrets                 2      10
+  services                1      10
+  services.loadbalancers  0      5
+  services.nodeports      0      5
+
+  No LimitRange resource.
+```
+
+#### 2.2.3 配额作用域
+
+每个配额都有一组相关的 scope（作用域），配额只会对作用域内的资源生效。 配额机制仅统计所列举的作用域的交集中的资源用量。
+当一个作用域被添加到配额中后，它会对作用域相关的资源数量作限制。下面是支持的作用域详情：
+
+| 作用域            | 描述                                           |
+|----------------|----------------------------------------------|
+| Terminating    | 匹配所有 spec.activeDeadlineSeconds 不小于 0 的 Pod。 |
+| NotTerminating | 匹配所有 spec.activeDeadlineSeconds 是 nil 的 Pod。 |
+| BestEffort     | 匹配所有 QoS 是 BestEffort 的 Pod。                 |
+| NotBestEffort  | 匹配所有 QoS 不是 BestEffort 的 Pod。                |
+| PriorityClass  | 匹配所有引用了所指定的优先级类的 Pods。                       |
+
+关于每个作用域支持的资源类型，请参考 [配额作用域-官方文档](https://kubernetes.io/zh-cn/docs/concepts/policy/resource-quotas/#quota-scopes)。
+
+如配额中指定了允许（作用域）集合之外的资源，会导致验证错误。下面提供两个模板示例，演示了作用域的配置方式。
+
+- [resource-quota-scope.yaml](resource-quota-scope.yaml)：正确的配置
+- [resource-quota-scope-invalid.yaml](resource-quota-scope-invalid.yaml)：无效的配置
+
+关于作用域还有一些限制需要注意，比如`Terminating`和`NotTerminating`不能同时出现在一个命名空间中的同一个资源配额对象中，因为它们是互斥的；
+同理，`BestEffort`和`NotBestEffort`也是互斥的。
+
+#### 2.2.4 配置个体资源配额
+
+前面讲了如何限制命名空间下的总资源配额限制，但很多时候，我们需要对单个资源进行配额限制，否则会出现单个Pod或容器过多占用资源的情况，从而影响命名空间下其他Pod。
+
+k8s通过`LimitRange`来实现对单个资源对象的配额限制。具体支持以下功能：
+
+- 设置单个Pod或容器的最小和最大计算资源用量
+- 设置单个PVC的最小和最大存储用量
+- 设置请求资源和上限资源的用量比例
+- 设置命名空间下**默认**的计算资源请求和上线，并在运行时自动注入容器
+
+在前面**资源配额的工作方式**处我们提到，如果命名空间下的计算资源 （如 cpu 和 memory）的配额被启用， 则用户必须为这些资源设定请求值（request）和约束值（limit），否则配额系统将拒绝
+Pod 的创建（之前创建的Pod不受影响）。但如果每个Pod都手动设置未免有些麻烦，所以使用`LimitRange`可以减少一部分工作量。
+
+这里提供以下模板示例供读者参考：
+- [limitrange-for-container.yaml](limitrange-for-container.yaml)：限制单个容器的计算资源用量
+- [limitrange-for-pod.yaml](limitrange-for-pod.yaml)：限制单个Pod的计算资源用量
+- [limitrange-for-pvc.yaml](limitrange-for-pvc.yaml)：限制单个PVC的存储需求量
+
+查询LimitRange配置：
+```shell
+$ kk describe limits  # limits是limitrange的缩写
+Name:       limitrange-for-container
+Namespace:  default
+Type        Resource  Min    Max    Default Request  Default Limit  Max Limit/Request Ratio
+----        --------  ---    ---    ---------------  -------------  -----------------------
+Container   cpu       100m   200m   100m             150m           2
+Container   memory    100Mi  300Mi  100Mi            200Mi          2
+
+
+Name:       limitrange-for-pod
+Namespace:  default
+Type        Resource  Min    Max    Default Request  Default Limit  Max Limit/Request Ratio
+----        --------  ---    ---    ---------------  -------------  -----------------------
+Pod         memory    100Mi  300Mi  -                -              1
+Pod         cpu       100m   200m   -                -              1
+
+
+Name:                  limitrange-for-pvc
+Namespace:             default
+Type                   Resource  Min    Max  Default Request  Default Limit  Max Limit/Request Ratio
+----                   --------  ---    ---  ---------------  -------------  -----------------------
+PersistentVolumeClaim  storage   100Mi  1Gi  -                -              -
+```
+当再次（于这个命名空间中）创建Pod或PVC时，配置的资源必须符合配额限制，否则无法创建。
+
+### 2.3 标签、选择器和注解
+TODO
 ## TODO
 
 ## 参考
