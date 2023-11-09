@@ -19,23 +19,24 @@
 <!-- TOC -->
 
 为了提高命令行使用效率，建议先 [安装ohmyzsh](../doc_install_ohmyzsh.md)。
+
 ## 1. 准备资源
 
 ```
 10.0.2.2 k8s-master
 10.0.2.3 k8s-node1
 ```
+
 两台机，最低配置如下：
+
 - cpu: 2c+
 - mem: 2g+
 - disk: 20g+
 - network: 同属一个子网
 
-> 在实战中，master节点配置通常是较低配，不需要较多cpu核心和内存，因为k8s不会调度pod到master上运行。
-> 它的角色非常重要，在master上运行pod可能导致节点资源被耗尽进而导致集群不可用。但如果将node节点从集群中全部删除，
-> 则pod会自动调度到master上。
->
-> master的主要任务是作为管理者的角色来调度集群内的各项资源到其他工作节点上。
+在实战中，master节点配置通常是**中高配置**（如4c8g，8c16g），虽然k8s不会调度pod到master上运行，但由于Master是整个 Kubernetes
+集群的核心部分，负责协调、管理和调度所有工作负载。并且Master节点上运行着各种关键组件（如
+etcd、kube-apiserver、kube-controller-manager 和 kube-scheduler），这些组件都需要处理大量的网络流量和计算任务。
 
 ## 2. 安装容器运行时
 
@@ -79,6 +80,7 @@ systemctl status containerd
 即 kubeadm、kubelet 和 kubectl
 
 在centos上安装：
+
 ```shell
 # 设置阿里云为源
 cat <<EOF > /etc/yum.repos.d/kubernetes.repo
@@ -109,6 +111,7 @@ crictl config runtime-endpoint unix:///var/run/containerd/containerd.sock
 ```
 
 在ubuntu上安装：
+
 ```shell
 apt-get update && apt-get install -y apt-transport-https
 
@@ -160,7 +163,6 @@ hostnamectl set-hostname k8s-node1
 ```
 
 logout后再登录可见。
-
 
 ```shell
 # 关闭swap：
@@ -267,6 +269,7 @@ reboot
 ```
 
 k8s组件的日志文件位置（当集群故障时查看）：
+
 ```shell
 $ ls /var/log/containers/
 etcd-k8s-master_kube-system_etcd-64d58a06aaf9417d406fd335f26eec0f8c51ed9d10e3713c3b553977e4bc6b6e.log@                                      
@@ -281,12 +284,14 @@ kube-scheduler-k8s-master_kube-system_kube-scheduler-55ce404921d20a4a05c7dea8098
 以便用户可以使用 kubectl 工具与 Kubernetes 集群进行通信，下面的操作只需要在**master节点**执行一次。
 
 若是root用户，执行：
+
 ```shell
 echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /etc/profile
 source /etc/profile
 ```
 
 不是root用户，执行：
+
 ```shell
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
