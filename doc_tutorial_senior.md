@@ -910,25 +910,9 @@ $ kubectl get pods -l 'env in (prod,dev), tier notin (frontend,backend)'
 ```shell
 $ kubectl get pods -l 'tier, !env' # 带tier标签 且不带env标签的资源
 ```
-**在API对象中设置引用**  
-一些 Kubernetes 对象，例如 `services` 和 `replicationcontrollers`， 在模板中使用了标签选择算符去指定了其他资源的集合，例如 pods。
-下面是一个基于等值筛选的示例：
-```yaml
-selector:
-  component: redis  # 等价于 component=redis 或 component in (redis)
-```
-另外一些资源，例如 Job、 Deployment、 ReplicaSet 和 DaemonSet，它们还支持基于集合的筛选:
-```yaml
-selector:
-  # matchLabels 和 matchExpressions 需要同时满足
-  matchLabels:
-    component: redis
-  matchExpressions:
-    # operator 支持 In、NotIn、Exists 和 DoesNotExist
-    - { key: tier, operator: In, values: [cache] }
-    - { key: environment, operator: NotIn, values: [dev] }
-```
-**对查询结果进行切片**  
+
+**查询结果显示标签**
+
 ```shell
 # 查询标签键包含app、tier、role的资源，并且在输出中包含标签信息
 $ kubectl get pods -Lapp -Ltier -Lrole
@@ -943,8 +927,131 @@ my-nginx-divi2                 1/1    Running   0          29m   nginx       <no
 my-nginx-o0ef1                 1/1    Running   0          29m   nginx       <none>     <none>
 ```
 
+**先过滤再标记**
+
+```shell
+$ kubectl label pods -l app=nginx tier=fe
+pod/my-nginx-2035384211-j5fhi labeled
+pod/my-nginx-2035384211-u2c7e labeled
+pod/my-nginx-2035384211-u3t6x labeled
+```
+
+**在API对象中设置引用**  
+一些 Kubernetes 对象，例如 `services` 和 `replicationcontrollers`， 在模板中使用了标签选择算符去指定了其他资源的集合，例如
+pods。
+下面是一个基于等值筛选的示例：
+
+```yaml
+selector:
+  component: redis  # 等价于 component=redis 或 component in (redis)
+```
+
+另外一些资源，例如 Job、 Deployment、 ReplicaSet 和 DaemonSet，它们还支持基于集合的筛选:
+
+```yaml
+selector:
+  # matchLabels 和 matchExpressions 需要同时满足
+  matchLabels:
+    component: redis
+  matchExpressions:
+    # operator 支持 In、NotIn、Exists 和 DoesNotExist
+    - { key: tier, operator: In, values: [ cache ] }
+    - { key: environment, operator: NotIn, values: [ dev ] }
+```
+
 #### 2.3.3 注解
-TODO
+
+注解也是一种类似标签的机制。但它比标签更自由，可以包含少量结构化数据，主要用来给资源对象添加非标识的元数据。
+
+注解和标签一样的是，它也是键值对形式，但它的键和值都只能是字符串。对于注解键的要求和限制和标签键一致。对于每一种资源对象，都可以设置标签。方法是在模板的`metadata`
+中使用`labels`字段进行设置，例如：
+
+```yaml
+metadata:
+  annotations:
+    key1: "value1_string"
+    key2: "value2_string"
+    # 允许跨行，实际内容不含换行符
+    description: Annotations is a set of key value pairs that
+      give extra information about the rule
+    # yaml允许使用管道符，它会忽略开头结尾的换行符，但保留内容中的换行符，实际内容是 "123\n456"
+    xxx: |-
+      123
+      456
+```
+
+下面是一些可能使用注解来说明的场景：
+
+1. 描述性信息： 提供有关资源的详细描述，帮助用户理解资源的用途、配置和其他关键方面。例如：
+
+```yaml
+annotations:
+description: "Web server serving the main application."
+```
+
+2. 版本控制： 标记资源的版本信息，特别是对于应用程序和服务的不同版本。
+3. 监控和度量： 添加与监控系统集成所需的信息，例如 Prometheus 或 Grafana 所需的标签。例如:
+
+```yaml
+annotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+```
+
+4. 自动化工具信息： 由自动化工具（如CI/CD系统）添加的信息，以便跟踪部署历史和构建信息。例如：
+
+```yaml
+annotations:
+  pipeline/build-number: "123"
+  pipeline/deployed-by: "jenkins"
+```
+
+5. 构建、发布或镜像信息。例如：
+
+```yaml
+annotations:
+  build-timestamp: "2023-11-10T14:30:00Z"
+  git-branch: "main"
+  image-hash: "sha256:abcdef123456"
+```
+
+6. 负责人员联系信息。例如：
+
+```yaml
+annotations:
+  contact-person: "John Doe (john@example.com)"
+```
+
+下面演示如何查看Pod [pod_curl.yaml](pod_curl.yaml) 的注解信息：
+
+```shell
+$ kk describe pod curl                                      
+Name:             curl
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             k8s-node1/192.168.31.3
+Start Time:       Fri, 03 Nov 2023 12:38:14 +0800
+Labels:           app=curl
+Annotations:      cni.projectcalico.org/containerID: afb1e9f94f02d8f293b48fabe028623063159b7b7cd35ccd20726ee7e19ed63b
+                  cni.projectcalico.org/podIP: 20.2.36.91/32
+                  cni.projectcalico.org/podIPs: 20.2.36.91/32
+                  description:
+                    The `curl` command is a powerful tool used to make HTTP requests from the command line. It is versatile and supports various protocols, in...
+                  key1: value1
+...
+                                                                                                                                                                                       
+$ kubectl get pod curl -o=jsonpath='{.metadata.annotations}'     
+{"cni.projectcalico.org/containerID":"afb1e9f94f02d8f293b48fabe028623063159b7b7cd35ccd20726ee7e19ed63b","cni.projectcalico.org/podIP":"20.2.36.91/32","cni.projectcalico.org/podIPs":"20.2.36.91/32","description":"The `curl` command is a powerful tool used to make HTTP requests from the command line. It is versatile and supports various protocols, including HTTP, HTTPS, FTP, FTPS, and more.","key1":"value1","kubectl.kubernetes.io/last-applied-configuration":"{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{\"description\":\"The `curl` command is a powerful tool used to make HTTP requests from the command line. It is versatile and supports various protocols, including HTTP, HTTPS, FTP, FTPS, and more.\",\"key1\":\"value1\"},\"labels\":{\"app\":\"curl\"},\"name\":\"curl\",\"namespace\":\"default\"},\"spec\":{\"containers\":[{\"command\":[\"sh\",\"-c\",\"sleep 1h\"],\"image\":\"appropriate/curl\",\"name\":\"curl-container\"}]}}\n"}#
+
+$ kubectl get pod curl -o=jsonpath='{.metadata.annotations.key1}'
+value1
+
+$ kubectl get pod curl -o=jsonpath='{.metadata.annotations.description}'
+The `curl` command is a powerful tool used to make HTTP requests from the command line. It is versatile and supports various protocols, including HTTP, HTTPS, FTP, FTPS, and more.
+```
+
+这里需要注意的是，除了我们手动在模板中添加的注解之外，k8s还自动添加了关于Pod自身网络的注解信息。
 
 ## TODO
 
