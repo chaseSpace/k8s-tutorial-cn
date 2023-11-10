@@ -963,19 +963,17 @@ selector:
 
 注解也是一种类似标签的机制。但它比标签更自由，可以包含少量结构化数据，主要用来给资源对象添加非标识的元数据。
 
-注解和标签一样的是，它也是键值对形式，但它的键和值都只能是字符串。对于注解键的要求和限制和标签键一致。对于每一种资源对象，都可以设置标签。方法是在模板的`metadata`
-中使用`labels`字段进行设置，例如：
+注解和标签一样的是，它也是键值对形式，但它的键和值都只能是字符串。对于注解键的要求和限制和标签键一致。对于每一种资源对象，都可以设置标签。方法是在模板的`metadata.annotations`字段下进行设置，例如：
 
 ```yaml
 metadata:
   annotations:
     key1: "value1_string"
-    key2: "value2_string"
-    # 允许跨行，实际内容不含换行符
-    description: Annotations is a set of key value pairs that
+    # 允许跨行，实际内容不含换行符，可不加双引号
+    key2: Annotations is a set of key value pairs that
       give extra information about the rule
     # yaml允许使用管道符，它会忽略开头结尾的换行符，但保留内容中的换行符，实际内容是 "123\n456"
-    xxx: |-
+    key3: |-
       123
       456
 ```
@@ -1022,7 +1020,7 @@ annotations:
   contact-person: "John Doe (john@example.com)"
 ```
 
-下面演示如何查看Pod [pod_curl.yaml](pod_curl.yaml) 的注解信息：
+下面演示如何查看 [pod_curl.yaml](pod_curl.yaml) 的注解信息：
 
 ```shell
 $ kk describe pod curl                                      
@@ -1088,6 +1086,9 @@ kubectl get pods --field-selector status.phase=Running
 ```
 字段选择器的内容不算多，建议直接查看官方文档 [Kubernetes对象—字段选择器](https://kubernetes.io/zh-cn/docs/concepts/overview/working-with-objects/field-selectors/) 。
 ## 3. 资源调度
+在 Kubernetes 中，**调度** 是指将 Pod 放置到合适的节点上，以便对应节点上的 Kubelet 能够运行这些 Pod。
+
+
 
 ## TODO
 
