@@ -4,6 +4,10 @@ metadata:
   name: curl
   labels:
     app: curl
+  annotations:
+    key1: "value1"
+    description: The `curl` command is a powerful tool used to make HTTP requests from the command line.
+      It is versatile and supports various protocols, including HTTP, HTTPS, FTP, FTPS, and more.
 spec:
   containers:
     - name: curl-container
