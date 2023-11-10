@@ -749,7 +749,7 @@ Name:                   quota-default
   No LimitRange resource.
 ```
 
-#### 2.2.3 配额作用域
+#### 2.2.2 配额作用域
 
 每个配额都有一组相关的 scope（作用域），配额只会对作用域内的资源生效。 配额机制仅统计所列举的作用域的交集中的资源用量。
 当一个作用域被添加到配额中后，它会对作用域相关的资源数量作限制。下面是支持的作用域详情：
@@ -772,7 +772,7 @@ Name:                   quota-default
 关于作用域还有一些限制需要注意，比如`Terminating`和`NotTerminating`不能同时出现在一个命名空间中的同一个资源配额对象中，因为它们是互斥的；
 同理，`BestEffort`和`NotBestEffort`也是互斥的。
 
-#### 2.2.4 配置个体资源配额
+#### 2.2.3 配置个体资源配额
 
 前面讲了如何限制命名空间下的总资源配额限制，但很多时候，我们需要对单个资源进行配额限制，否则会出现单个Pod或容器过多占用资源的情况，从而影响命名空间下其他Pod。
 
@@ -1052,6 +1052,42 @@ The `curl` command is a powerful tool used to make HTTP requests from the comman
 ```
 
 这里需要注意的是，除了我们手动在模板中添加的注解之外，k8s还自动添加了关于Pod自身网络的注解信息。
+
+#### 2.3.4 对象名称和ID
+
+集群中的每一个对象都有一个名称（由用户提供）来标识在同类资源中的唯一性。
+
+每个 Kubernetes 对象也有一个 UID 来标识在整个集群中的唯一性。比如，在同一个名字空间 中只能有一个名为 `myapp-1234` 的
+Pod，但是可以命名一个 Pod 和一个 Deployment 同为 `myapp-1234`。
+
+名称在同一资源的所有 API 版本中必须是唯一的。
+
+**UID**  
+Kubernetes 系统生成的字符串，唯一标识对象。
+
+在 Kubernetes 集群的整个生命周期中创建的每个对象都有一个不同的 UID，它旨在区分类似实体的历史事件。
+
+Kubernetes UID 是全局唯一标识符（也叫 UUID）。 UUID 是标准化的，见 ISO/IEC 9834-8 和 ITU-T X.667。
+查看对象UID的命令是：`kubectl get <object-type> <object-name> -o=jsonpath='{.metadata.uid}'`，
+比如查看Pod的uid：
+```shell
+$ kubectl get pod curl -o=jsonpath='{.metadata.uid}'                    
+37ea632b-2adc-4c0c-9133-5c2229480206
+```
+
+#### 2.3.5 字段选择器
+“字段选择器（Field selectors）”允许你根据一个或多个资源字段的值筛选 Kubernetes 对象。 下面是一些使用字段选择器查询的例子：
+
+- metadata.name=my-service
+- metadata.namespace!=default
+- status.phase=Pending
+
+下面这个 kubectl 命令将筛选出 status.phase 字段值为 Running 的所有 Pod：
+```shell
+kubectl get pods --field-selector status.phase=Running
+```
+字段选择器的内容不算多，建议直接查看官方文档 [Kubernetes对象—字段选择器](https://kubernetes.io/zh-cn/docs/concepts/overview/working-with-objects/field-selectors/) 。
+## 3. 资源调度
 
 ## TODO
 
