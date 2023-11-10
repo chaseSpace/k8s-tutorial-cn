@@ -783,15 +783,18 @@ k8s通过`LimitRange`来实现对单个资源对象的配额限制。具体支�
 - 设置请求资源和上限资源的用量比例
 - 设置命名空间下**默认**的计算资源请求和上线，并在运行时自动注入容器
 
-在前面**资源配额的工作方式**处我们提到，如果命名空间下的计算资源 （如 cpu 和 memory）的配额被启用， 则用户必须为这些资源设定请求值（request）和约束值（limit），否则配额系统将拒绝
+在前面**资源配额的工作方式**处我们提到，如果命名空间下的计算资源 （如 cpu 和 memory）的配额被启用，
+则用户必须为这些资源设定请求值（request）和约束值（limit），否则配额系统将拒绝
 Pod 的创建（之前创建的Pod不受影响）。但如果每个Pod都手动设置未免有些麻烦，所以使用`LimitRange`可以减少一部分工作量。
 
 这里提供以下模板示例供读者参考：
+
 - [limitrange-for-container.yaml](limitrange-for-container.yaml)：限制单个容器的计算资源用量
 - [limitrange-for-pod.yaml](limitrange-for-pod.yaml)：限制单个Pod的计算资源用量
 - [limitrange-for-pvc.yaml](limitrange-for-pvc.yaml)：限制单个PVC的存储需求量
 
 查询LimitRange配置：
+
 ```shell
 $ kk describe limits  # limits是limitrange的缩写
 Name:       limitrange-for-container
@@ -816,10 +819,133 @@ Type                   Resource  Min    Max  Default Request  Default Limit  Max
 ----                   --------  ---    ---  ---------------  -------------  -----------------------
 PersistentVolumeClaim  storage   100Mi  1Gi  -                -              -
 ```
+
 当再次（于这个命名空间中）创建Pod或PVC时，配置的资源必须符合配额限制，否则无法创建。
 
 ### 2.3 标签、选择器和注解
+
+前面讲的命名空间是用来实现多租户的资源隔离的。在同一个命名空间下，还可以进一步实现资源的划分，对各个资源的身份进行标识。
+这里主要用到的是下面三种方法：
+
+- 标签：是用于标识和组织资源的键值对。它们可以附加到各种Kubernetes对象（如Pod、Service、Node等），用于对它们进行分类和过滤；
+- 选择器：是用于按照标签进行筛选和选择资源的机制。在Pod或其他对象的定义中指定标签选择器，可以将特定标签的资源组合在一起；
+- 注解： 注解是Kubernetes对象上的键值对，用于存储与对象相关的任意非标识性信息。相对于标签，注解更适合存储元数据信息、文档、或其他与对象关联的描述性信息。
+
+#### 2.3.1 标签
+
+标签（Labels） 在 Kubernetes 中是一种关键的元数据，用于标识和组织各种资源。与名称和 UID 不同，
+标签没有唯一性限制，允许多个资源携带相同的标签键值对。以下是标签的一些关键特性和用途：
+
+- **灵活性**： 标签是键值对的形式，键和值都是用户定义的，因此它们非常灵活。这使得用户可以根据自己的需求为资源添加任意数量和类型的标签。
+- **资源分类**： 通过使用标签，用户可以轻松地对资源进行分类。例如，一个标签可以是"env: prod"，另一个可以是"app: WebServer"
+  。这使得在庞大的集群中更容易找到和管理相关资源。
+- **资源选择**： 标签的一个主要用途是通过选择器（selectors）筛选资源。选择器允许用户根据标签的键值对来选择一组匹配的资源。这在定义服务、控制器以及其他需要特定资源的地方非常有用。
+- **多维度标识**： 标签支持多维度标识，因此可以同时使用多个标签来描述资源。这样，用户可以根据多个标签的组合来精确地选择特定的资源，从而更细粒度地管理它们。
+- **动态更新**： 标签是可以动态更新的，这意味着用户可以根据资源的状态或其他变化来修改标签。这使得在不停机的情况下对资源进行动态调整和管理成为可能。
+
+总体而言，标签为 Kubernetes 提供了一种强大的机制，用于组织、分类和选择资源。通过充分利用标签，用户可以更灵活地管理其容器化应用程序和整个集群。
+
+对于每一种资源对象，都可以设置标签。方法是在模板的`metadata`中使用`labels`字段进行设置，例如：
+
+```yaml
+metadata:
+  labels:
+    k1: v1
+    k2: v2
+    ...
+```
+
+对于已有资源，可以通过命令为其添加或删除标签：
+
+```shell
+# 添加
+kubectl label <资源类型> <资源名称> <key>=<value>
+
+# 删除
+kubectl label <资源类型> <资源名称> <key>-
+```
+
+下面是标签的常用场景：
+
+- 根据发布版本划分：release: beta/stable
+- 根据环境划分：env: prod/pre/test
+- 根据应用层级划分：tier: frontend/backend/cache/db
+- 根据维护频率划分：track: daily/weekly/monthly
+- 根据部署区域划分：zone: us-east-1/us-west-1/eu-west-1
+- 根据部署优先级划分：class: low/medium/high
+
+需要注意的是，**标签的键值对格式是有所限制的**，对于**标签键**，必须符合下列要求：
+
+- 标签键必须要包含一个名称段，这个名称段只能以字母数字字符（[a-z0-9A-Z]）开头和结尾，可以包含`-_.`，总长度必须小于等于63个字符
+- 允许在名称段前面加一个前缀，使用`/`连接前缀和名称段
+    - 如果指定，前缀必须是 DNS 子域：由点（.）分隔的一系列 DNS 标签，总共不超过 253 个字符
+- 如果省略前缀，则标签Key被假定为用户私有
+- 向自动化系统组件（例如kube-scheduler、kube-controller-manager、kube-apiserver、kubectl或其他第三方自动化）添加标签时，必须指定前缀
+- `kubernetes.io/` 和 `k8s.io/` 前缀是为 Kubernetes 核心组件保留的
+
+对于**标签值**，必须符合下列要求：
+
+- 必须为 63 个字符或更少（可以为空）
+- 除非标签值为空，必须以字母数字字符（[a-z0-9A-Z]）开头和结尾
+- 可以包含破折号（-）、下划线（_）、点（.）和字母或数字
+
+#### 2.3.2 选择器
+
+选择器是 Kubernetes 中的一种机制，用于在集群中查找资源。选择器允许用户根据标签的键值对选择一组符合条件的资源。
+在查询时可以使用`=`,`==`,`!=`操作符进行**基于等值的查询**，以及逗号（相当于逻辑与`&&`）分割多个表达式以进行匹配，示例如下：
+
+```shell
+# 如果表达式包含空格，则需要放在单引号内
+$ kubectl get pods -l env!=dev,tier=frontend
+```
+
+并且还支持in, notin等方式进行**基于集合的查询**，使用这种方式时需要将整个表达式放在单引号内，在单引号内同样适用逗号连接多个表达式，例如：
+
+```shell
+$ kubectl get pods -l 'env in (prod,dev), tier notin (frontend,backend)'
+```
+
+其他示例：
+
+```shell
+$ kubectl get pods -l 'tier, !env' # 带tier标签 且不带env标签的资源
+```
+**在API对象中设置引用**  
+一些 Kubernetes 对象，例如 `services` 和 `replicationcontrollers`， 在模板中使用了标签选择算符去指定了其他资源的集合，例如 pods。
+下面是一个基于等值筛选的示例：
+```yaml
+selector:
+  component: redis  # 等价于 component=redis 或 component in (redis)
+```
+另外一些资源，例如 Job、 Deployment、 ReplicaSet 和 DaemonSet，它们还支持基于集合的筛选:
+```yaml
+selector:
+  # matchLabels 和 matchExpressions 需要同时满足
+  matchLabels:
+    component: redis
+  matchExpressions:
+    # operator 支持 In、NotIn、Exists 和 DoesNotExist
+    - { key: tier, operator: In, values: [cache] }
+    - { key: environment, operator: NotIn, values: [dev] }
+```
+**对查询结果进行切片**  
+```shell
+# 查询标签键包含app、tier、role的资源，并且在输出中包含标签信息
+$ kubectl get pods -Lapp -Ltier -Lrole
+NAME                           READY  STATUS    RESTARTS   AGE   APP         TIER       ROLE
+guestbook-fe-4nlpb             1/1    Running   0          1m    guestbook   frontend   <none>
+guestbook-fe-ght6d             1/1    Running   0          1m    guestbook   frontend   <none>
+guestbook-fe-jpy62             1/1    Running   0          1m    guestbook   frontend   <none>
+guestbook-redis-master-5pg3b   1/1    Running   0          1m    guestbook   backend    master
+guestbook-redis-replica-2q2yf  1/1    Running   0          1m    guestbook   backend    replica
+guestbook-redis-replica-qgazl  1/1    Running   0          1m    guestbook   backend    replica
+my-nginx-divi2                 1/1    Running   0          29m   nginx       <none>     <none>
+my-nginx-o0ef1                 1/1    Running   0          29m   nginx       <none>     <none>
+```
+
+#### 2.3.3 注解
 TODO
+
 ## TODO
 
 ## 参考
