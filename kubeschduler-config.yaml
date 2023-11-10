@@ -1,0 +1,12 @@
+# v1版本适用于 Kubernetes v1.25+
+apiVersion: kubescheduler.config.k8s.io/v1
+kind: KubeSchedulerConfiguration
+profiles:
+  - plugins:
+      score:
+        disabled:
+          - name: ImageLocality
+          - name: PodTopologySpread
+        enabled:
+          - name: CinderLimits
+            weight: 2
