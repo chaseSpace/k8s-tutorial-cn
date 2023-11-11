@@ -963,7 +963,8 @@ selector:
 
 注解也是一种类似标签的机制。但它比标签更自由，可以包含少量结构化数据，主要用来给资源对象添加非标识的元数据。
 
-注解和标签一样的是，它也是键值对形式，但它的键和值都只能是字符串。对于注解键的要求和限制和标签键一致。对于每一种资源对象，都可以设置标签。方法是在模板的`metadata.annotations`字段下进行设置，例如：
+注解和标签一样的是，它也是键值对形式，但它的键和值都只能是字符串。对于注解键的要求和限制和标签键一致。对于每一种资源对象，都可以设置标签。方法是在模板的`metadata.annotations`
+字段下进行设置，例如：
 
 ```yaml
 metadata:
@@ -1068,12 +1069,14 @@ Kubernetes 系统生成的字符串，唯一标识对象。
 Kubernetes UID 是全局唯一标识符（也叫 UUID）。 UUID 是标准化的，见 ISO/IEC 9834-8 和 ITU-T X.667。
 查看对象UID的命令是：`kubectl get <object-type> <object-name> -o=jsonpath='{.metadata.uid}'`，
 比如查看Pod的uid：
+
 ```shell
 $ kubectl get pod curl -o=jsonpath='{.metadata.uid}'                    
 37ea632b-2adc-4c0c-9133-5c2229480206
 ```
 
 #### 2.3.5 字段选择器
+
 “字段选择器（Field selectors）”允许你根据一个或多个资源字段的值筛选 Kubernetes 对象。 下面是一些使用字段选择器查询的例子：
 
 - metadata.name=my-service
@@ -1081,14 +1084,144 @@ $ kubectl get pod curl -o=jsonpath='{.metadata.uid}'
 - status.phase=Pending
 
 下面这个 kubectl 命令将筛选出 status.phase 字段值为 Running 的所有 Pod：
+
 ```shell
 kubectl get pods --field-selector status.phase=Running
 ```
+
 字段选择器的内容不算多，建议直接查看官方文档 [Kubernetes对象—字段选择器](https://kubernetes.io/zh-cn/docs/concepts/overview/working-with-objects/field-selectors/) 。
+
 ## 3. 资源调度
-在 Kubernetes 中，**调度** 是指将 Pod 放置到合适的节点上，以便对应节点上的 Kubelet 能够运行这些 Pod。
 
+在 Kubernetes 中，**资源调度** 是指将 Pod 放置到合适的节点上，以便对应节点上的 Kubelet 能够运行这些 Pod。
 
+调度器通过 Kubernetes 的监测（Watch）机制来发现集群中新创建且尚未被调度到节点上的 Pod。 调度器会将所发现的每一个未调度的
+Pod 调度到一个合适的节点上来运行。 调度器会依据下文的调度原则来做出调度选择。
+
+**kube-scheduler**  
+集群资源的调度工作都是由kube-scheduler来完成的，可以称其为调度器。所有Pod都要经过调度器才能分配到具体节点上运行。
+调度时，kube-scheduler会考虑资源需求、节点负载情况以及用户设定的硬性/软性条件限制来完成调度工作。kube-scheduler执行的各项工作都是基于API
+Server进行的，比如它会通过API Server的Watch接口监听新建的Pod，再进行合适的节点分配，调度完成后，再通过API
+Server将调度结果写入etcd中。
+
+如果调度成功，Pod会绑定到目标节点上。如果调度失败，kube-scheduler会重新进行调度，直到成功或超出重试次数，在此期间
+Pod 处于Pending状态。
+
+### 3.1 调度阶段
+
+调度主要分为3个阶段，分别如下：
+
+1. 预选：调度器会过滤掉任何不满足 Pod 调度需求的节点（比如不满足Pod指定的CPU/内存要求，或者Pod指定了节点，或者污点等）；
+2. 优选：调度器会根据优选策略给预选出的节点打分，并选择分值最高的节点（影响打分的因素可能有节点（反）亲和性、节点负载情况如硬件资源剩余/Pod运行数量等）；
+3. 绑定：选择分值最高的节点作为Pod运行的目标节点进行绑定（如有多个，则随机一个）。
+
+#### 3.1.1 预选阶段
+
+预选阶段使用了3大类策略，分别如下：
+
+**1. 资源性预选策略**
+
+- PodFitsResources：节点空闲资源是否满足Pod的资源需求（`requests.cpu/memory`）；
+- PodFitsHostPorts：节点上是否已经有Pod或其他服务占用了待调度Pod想要使用的节点端口（`hostPort`）；
+
+CheckNodeMemoryPressure：判断节点是否已经进入内存压力状态。如果进入，则只允许调度内存标记为0的Pod（未设置`requests.memory`）；
+
+- CheckNodePIDPressure：判断节点是否存在进程ID资源紧张状态；
+- CheckNodeDiskPressure：判断节点是否已经进入磁盘压力状态（已满或快满）；
+- CheckNodeCondition：判断节点各项基本状态是否正常，比如磁盘是否可用、网络是否可用、节点的Ready状态是否为True等；
+
+**2. 指定性预选策略**  
+这是用户主动设置的策略。
+
+- PodFitsHost：挑选满足Pod对象的`spec.nodeName`条件的节点（若设置）；
+- PodMatchNodeSelector：挑选满足Pod对象的`spec.nodeSelector`以及`spec.affinity.nodeAffinity`条件的节点（若设置）；
+- MatchInterPodAffinity：挑选满足Pod对象的亲和性和反亲和性条件的节点（若设置）。
+- PodToleratesNodeTaints：挑选满足Pod对象的`spec.tolerations`（污点容忍）条件的节点（若设置）。
+
+**3. 存储卷预选策略**
+
+- CheckVolumeBinding：检查Pod是否能适配到它请求的存储卷（PVC），不要求PVC必须绑定了PV；
+- NoDiskConflict：检查Pod所需的卷是否和节点已存在的卷冲突。如果冲突，则Pod不能调度到该节点上（目前支持的卷包括：AWS EBS、GCE
+  PD、ISCSI和Ceph RBD）；
+- NoVolumeZoneConflict：在给定区域限制前提下，检查在此节点上部署的Pod是否存在卷冲突（前提是存储卷没有区域调度约束）；
+- MaxCSI/MaxEBS/MaxGCEPD/MaxAzureDisk/MaxCinderVolumeCount：检查需要挂载的卷数量是否超过限制。
+
+#### 3.1.2 优选阶段
+
+优选阶段使用了4大类策略,分别如下:
+
+**1. 资源性预选策略**
+
+- LeastRequestedPriority：计算Pod需要的CPU和内存在节点上空闲资源中的比例，比例最低的节点最优；
+- BalanceResourceAllocation：优先选择在部署Pod后各项资源更均衡的机器，避免出现CPU/内存消耗不均的情况；
+- ResourceLimitsPriority：优先选择满足Pod中容器的CPU/内存需求的节点；
+
+**2. 容灾性优选策略**
+
+- SelectorSpreadPriority：优先选择节点上属于同一个Service或控制器的Pod数量最少的节点，出于容灾考虑；
+- ImageLocalityPriority：尽量将使用大镜像的容器调度到已经拉取了镜像的节点上，以减少节点上镜像拉取的开销；
+
+**3. 指定性优选策略**  
+这是用户主动设置的策略。
+
+- NodeAffinityPriority：优先选择与Pod中定义的与**节点的（反）亲和性条件**最大限度匹配的节点（若设置）；
+- InterPodAffinityPriority：优先选择与Pod中定义的与**Pod的（反）亲和性条件**最大限度匹配的节点（若设置）；
+- TaintTolerationPriority：优先选择与Pod中定义的与**节点的污点容忍条件**最大限度匹配（匹配污点最少）的节点（若设置）。
+
+**4. 特殊优选策略（通常只用于测试或特殊场景）**
+
+- NodePreferAvoidPodsPriority：若节点设置了注解`scheduler.alpha.kubernetes.io/preferAvoidPods: 任意值`，则忽略其他优选策略，将此节点的优先级
+  **降到最低**；
+- MostRequestedPriority：在使用率最高的主机节点上优先调度Pod，一般用于缩减集群节点；
+- EqualPriorityMap：将所有节点设置相同的优先级。
+- EvenPodsSpreadPriority：实现最优的**pod的拓扑扩展约束**
+
+#### 3.1.3 自定义调度器
+
+你可以通过编写配置文件，并将其路径传给 kube-scheduler 的命令行参数，定制 kube-scheduler 的行为。调度模板（Profile）允许你配置
+kube-scheduler 中的不同调度阶段。每个阶段都暴露于某个扩展点中。插件通过实现一个或多个扩展点来提供调度行为。
+
+具体请参考 [官方文档-调度器配置](https://kubernetes.io/zh-cn/docs/reference/scheduling/config) 。
+
+在k8s源码中，每一个**扩展点**都是一个Interface，比如 Score：
+
+```go
+package framework
+
+import "context"
+
+/*
+省略部分。。
+*/
+
+// ScorePlugin is an interface that must be implemented by "Score" plugins to rank
+// nodes that passed the filtering phase.
+type ScorePlugin interface {
+	Plugin
+	// Score is called on each filtered node. It must return success and an integer
+	// indicating the rank of the node. All scoring plugins must return success or
+	// the pod will be rejected.
+	Score(ctx context.Context, state *CycleState, p *v1.Pod, nodeName string) (int64, *Status)
+
+	// ScoreExtensions returns a ScoreExtensions interface if it implements one, or nil if does not.
+	ScoreExtensions() ScoreExtensions
+}
+
+```
+
+实现Score的插件有 [ImageLocality](https://github.com/kubernetes/kubernetes/blob/master/pkg/scheduler/framework/plugins/imagelocality/image_locality.go)
+，[TaintToleration](https://github.com/kubernetes/kubernetes/blob/master/pkg/scheduler/framework/plugins/tainttoleration/taint_toleration.go)
+等。
+
+所有插件名称都简明地在 [pkg/scheduler/framework/plugins/names/names.go](https://sourcegraph.com/github.com/kubernetes/kubernetes/-/blob/pkg/scheduler/framework/plugins/names/names.go)
+文件中列出。
+
+熟悉Go的读者可以以 [k8s源码中 scheduler 的扩展点部分](https://github.com/kubernetes/kubernetes/blob/master/pkg/scheduler/framework/interface.go)
+为入口剖析其原理。
+
+### 3.2 节点选择调度
+
+TODO
 
 ## TODO
 
