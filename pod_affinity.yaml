@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: go-http
+  labels:
+    app: go
+    version: v1
+spec:
+  containers:
+    - name: go-http
+      image: leigg/hellok8s:v1
+#  nodeSelector: 如果和亲和性同时配置，则必须都满足
+  affinity:
+    nodeAffinity: # 不会绕过污点机制
+      # 下面两项可以二选一，也可以同时存在
+      # - requiredDuringSchedulingIgnoredDuringExecution
+      # - preferredDuringSchedulingIgnoredDuringExecution
+      requiredDuringSchedulingIgnoredDuringExecution: # 硬性调度
+        nodeSelectorTerms: # 多个 matchExpressions 之间的关系是【或】关系
+          - matchExpressions: # 单个 matchExpressions 中的多个表达式是【且】关系
+              # operator 支持 In、NotIn、Exists、DoesNotExist、Gt 和 Lt
+              - {key: disktype, operator: In, values: ["ssd"]}
+#      preferredDuringSchedulingIgnoredDuringExecution: # 软性调度
+#        - weight: 1 # 相比其他 软性调度 策略的权重，范围是1-100
+#          preference:
+#            - matchExpressions:
+#                - { key: disktype, operator: In, values: [ "ssd" ] }
+#        - weight: 5
+#          preference:
+#            - matchExpressions:
+#                - { key: cpu, operator: In, values: [ "4core" ] }
