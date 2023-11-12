@@ -1123,9 +1123,8 @@ Pod 处于Pending状态。
 
 - PodFitsResources：节点空闲资源是否满足Pod的资源需求（`requests.cpu/memory`）；
 - PodFitsHostPorts：节点上是否已经有Pod或其他服务占用了待调度Pod想要使用的节点端口（`hostPort`）；
-
+-
 CheckNodeMemoryPressure：判断节点是否已经进入内存压力状态。如果进入，则只允许调度内存标记为0的Pod（未设置`requests.memory`）；
-
 - CheckNodePIDPressure：判断节点是否存在进程ID资源紧张状态；
 - CheckNodeDiskPressure：判断节点是否已经进入磁盘压力状态（已满或快满）；
 - CheckNodeCondition：判断节点各项基本状态是否正常，比如磁盘是否可用、网络是否可用、节点的Ready状态是否为True等；
@@ -1219,7 +1218,176 @@ type ScorePlugin interface {
 熟悉Go的读者可以以 [k8s源码中 scheduler 的扩展点部分](https://github.com/kubernetes/kubernetes/blob/master/pkg/scheduler/framework/interface.go)
 为入口剖析其原理。
 
-### 3.2 节点选择调度
+### 3.2 硬性调度-指定节点标签（nodeSelector）
+
+这种方式是指将Pod调度到匹配**指定的一个或多个标签**的节点上运行，对应预选阶段中的 PodMatchNodeSelector 策略。这是一种*
+*硬性调度要求**。具体通过Pod或Deployment模板配置实现：
+
+```yaml
+# ...省略部分
+spec:
+  containers:
+    - name: go-http
+      image: leigg/hellok8s:v1
+  nodeSelector:
+    disktype: ssd
+```
+
+实现步骤比较简单，直接通过命令进行说明（使用 [pod_nodeLabel.yaml](pod_nodeLabel.yaml) ）：
+
+```shell
+# 1. 首先设置master节点标签
+$ kk label nodes k8s-master disktype=ssd
+node/k8s-master labeled
+
+# 2. 查看master节点标签，确认标记成功
+$ kk describe node k8s-master |grep Labels -A 8
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/os=linux
+                    disktype=ssd
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=k8s-master
+                    kubernetes.io/os=linux
+                    node-role.kubernetes.io/control-plane=
+                    node.kubernetes.io/exclude-from-external-load-balancers=
+# 2.1 换个命令查看
+$ kubectl get nodes --show-labels |grep k8s-master
+k8s-master   Ready    control-plane   14d   v1.25.14   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,disktype=ssd,kubernetes.io/arch=amd64,kubernetes.io/hostname=k8s-master,kubernetes.io/os=linux,node-role.kubernetes.io/control-plane=,node.kubernetes.io/exclude-from-external-load-balancers=
+
+# 3. 删除master节点 NoSchedule的污点，省略
+
+# 4. 部署和观察
+$ kk apply -f pod_nodeLabel.yaml 
+pod/go-http created
+$ kk get po go-http -o wide     
+NAME      READY   STATUS    RESTARTS   AGE   IP             NODE         NOMINATED NODE   READINESS GATES
+go-http   1/1     Running   0          3s    20.2.235.209   k8s-master   <none>           <none>
+
+# 删除pod
+$ kk delete po go-http
+```
+
+使用这种方式需要注意的是，它**不会绕过污点机制**（所以上面有删除节点污点的步骤）。换句话说，如果Pod无法容忍目标节点存在的污点，也没有其他可调度的节点，则Pod调度失败。
+
+### 3.3 硬性调度-指定节点名称（nodeName）
+
+这是一种**最高优先级**的**硬性调度要求**，对应预选阶段中的 PodFitsHost 策略。它要求Pod必须调度到指定节点上运行。
+它的优先级高于使用 `nodeSelector` 或亲和性/反亲和性要求，同时也会**无视污点机制**。
+
+具体通过Pod或Deployment模板配置实现：
+
+```yaml
+# ...省略部分
+spec:
+  containers:
+    - name: go-http
+      image: leigg/hellok8s:v1
+  nodeName: k8s-master
+```
+
+现在部署 [pod_nodeName.yaml](pod_nodeName.yaml) ，然后观察其部署节点应当部署到`k8s-master`
+节点：
+
+```yaml
+$ kk apply -f pod_nodeName.yaml
+pod/go-http created
+
+$ kk get po go-http -o wide
+NAME      READY   STATUS    RESTARTS   AGE     IP             NODE         NOMINATED NODE   READINESS GATES
+go-http   1/1     Running   0          2m16s   20.2.235.205   k8s-master   <none>           <none>
+
+  # 删除pod
+$ kk delete po go-http
+```
+
+使用这个规则需要注意几点：
+
+- 如果指定的节点不存在，则调度失败，某些情况下可能会被自动删除；
+- 如果指定的节点无法提供足够的资源，则调度失败，同时在Pod事件中给出原因；
+- 在云环境中的节点名称不总是可预测的，这也会导致调度失败。
+
+注意，这种调度干预方式因为不够灵活所以不会经常被用到。如果要进行硬性调度，建议使用**指定节点标签**或下面的**节点亲和性**。
+
+### 3.4 软硬皆可-节点亲和性（affinity）
+
+通过在模板的`spec.affinity.nodeAffinity`部分进行亲和性配置，我们可以将**硬性或软性**要求Pod调度到具备某些特征的节点上，软性是非强制性调度。
+这对应预选阶段的 PodMatchNodeSelector 策略。
+
+> 注意：它不会绕过污点机制。
+
+[pod_affinity.yaml](pod_affinity.yaml) 是一个测试通过的完整亲和性模板示例，不再演示。
+
+节点亲和性配置是一种比较常见的调度干预方式。
+
+此外，你还可以通过使用定义调度器配置模板的方式来抽离出节点亲和性的配置，
+然后在Pod/Deployment模板中引用定义的配置，具体请参考 [官方文档—逐个调度方案中设置节点亲和性](https://kubernetes.io/zh-cn/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity-per-scheduling-profile) 。
+
+### 3.5 软硬皆可-Pod亲和性和反亲和性
+
+某些时候，我们希望将Pod与正在运行的具有某些**标签特征**的Pod调度到一起，或者反过来，使Pod远离这些节点。
+这对应预选阶段的 MatchInterPodAffinity 策略。它仍然是一种软硬皆可的调度干预方式。
+
+> 注意：它不会绕过污点机制，下面的测试已经提前删除master污点。
+
+具体配置方式是通过模板的`spec.affinity.podAffinity`部分进行配置。演示需要用到两个模板：
+
+- [pods_diff_labels.yaml](pods_diff_labels.yaml) （辅助）
+- [pod_affinityPod.yaml](pod_affinityPod.yaml) 是一个完整的Pod亲和性和反亲和性模板示例
+
+下面是具体测试步骤：
+
+```shell
+$ kk apply -f pods_diff_labels.yaml  
+pod/go-http-master created
+pod/go-http-node1 created
+
+$ kk get po -o wide
+NAME             READY   STATUS    RESTARTS   AGE     IP             NODE         NOMINATED NODE   READINESS GATES
+go-http-master   1/1     Running   0          12s     20.2.235.211   k8s-master   <none>           <none>
+go-http-node1    1/1     Running   0          12s     20.2.36.68     k8s-node1    <none>           <none>
+
+$ kk apply -f pod_affinityPod.yaml 
+pod/go-http-podaffinity created
+$ kk get po -o wide               
+NAME                  READY   STATUS    RESTARTS   AGE   IP             NODE         NOMINATED NODE   READINESS GATES
+go-http-master        1/1     Running   0          40m   20.2.235.211   k8s-master   <none>           <none>
+go-http-node1         1/1     Running   0          31m   20.2.36.68     k8s-node1    <none>           <none>
+go-http-podaffinity   1/1     Running   0          3s    20.2.235.212   k8s-master   <none>           <none>
+```
+
+上述测试情况符合预期（请根据两个模板中的配置来理解）。
+
+> 官方提示：Pod 间亲和性和反亲和性都需要相当的计算量，因此会在大规模集群中显著降低调度速度。 我们不建议在包含数百个节点的集群中使用这类设置。
+
+### 3.6 污点和容忍度
+
+前面提到的亲和性是指将Pod吸引到一类特定的节点上，而污点相反——它使节点能够排斥一类特定的 Pod。
+污点（Taints）一般和节点绑定，如果节点存在某个污点，那表示该节点不适合允许Pod，一个节点可以有多个污点。
+
+容忍度（Toleration） 是应用于 Pod 上的。容忍度允许调度器调度带有对应污点的 Pod。 一个Pod可以配置多个容忍度。
+
+污点和容忍度（Toleration）相互配合，可以用来避免 Pod 被分配到不合适的节点上。 每个节点上都可以应用一个或多个污点，这表示对于那些不能容忍这些污点的
+Pod， 是不会被该节点接受的。
+
+> 污点会被 [指定节点名称（nodeName）](###3-3-硬性调度-指定节点名称-nodeName-) 的Pod调度方式无视。
+
+#### 3.6.1 污点的影响方式
+
+污点是以类似标签的键值对形式存在节点上的。它的影响一共有三种：
+
+- NoExecute：最严格的影响，当该具有该影响的污点被应用到节点上时，Pod 会被立即驱逐（包括正在运行的Pod）；
+    - 如果 Pod 不能容忍这类污点，会马上被驱逐。
+    - 如果 Pod 能够容忍这类污点，但是在容忍度定义中没有指定 tolerationSeconds， 则 Pod 还会一直在这个节点上运行。
+    - 如果 Pod 能够容忍这类污点，而且指定了 tolerationSeconds， 则 Pod 还能在这个节点上继续运行这个指定的时间长度。
+      这段时间过去后，节点生命周期控制器从节点驱除这些 Pod。
+- NoSchedule：
+  除非具有匹配的容忍度配置，否则新的 Pod 不会被调度到带有污点的节点上。 当前正在节点上运行的 Pod 不会被驱逐。
+- PreferNoSchedule：
+  是“软性”的 NoSchedule。 调度器将尝试避免将不能容忍该污点的 Pod 调度到节点上，但不能保证完全避免。
+
+前两种影响对应预选阶段的 PodToleratesNodeTaints 策略，最后一种影响对应优选阶段的 TaintTolerationPriority 策略。
+
+#### 3.6.2 污点管理
 
 TODO
 
