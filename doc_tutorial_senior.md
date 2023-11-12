@@ -1124,7 +1124,9 @@ Pod 处于Pending状态。
 - PodFitsResources：节点空闲资源是否满足Pod的资源需求（`requests.cpu/memory`）；
 - PodFitsHostPorts：节点上是否已经有Pod或其他服务占用了待调度Pod想要使用的节点端口（`hostPort`）；
 -
+
 CheckNodeMemoryPressure：判断节点是否已经进入内存压力状态。如果进入，则只允许调度内存标记为0的Pod（未设置`requests.memory`）；
+
 - CheckNodePIDPressure：判断节点是否存在进程ID资源紧张状态；
 - CheckNodeDiskPressure：判断节点是否已经进入磁盘压力状态（已满或快满）；
 - CheckNodeCondition：判断节点各项基本状态是否正常，比如磁盘是否可用、网络是否可用、节点的Ready状态是否为True等；
@@ -1220,8 +1222,8 @@ type ScorePlugin interface {
 
 ### 3.2 硬性调度-指定节点标签（nodeSelector）
 
-这种方式是指将Pod调度到匹配**指定的一个或多个标签**的节点上运行，对应预选阶段中的 PodMatchNodeSelector 策略。这是一种*
-*硬性调度要求**。具体通过Pod或Deployment模板配置实现：
+这种方式是指将Pod调度到匹配**指定的一个或多个标签**的节点上运行，对应预选阶段中的 PodMatchNodeSelector 策略。
+这是一种**硬性调度要求**。具体在Pod或Deployment模板中配置：
 
 ```yaml
 # ...省略部分
@@ -1233,7 +1235,7 @@ spec:
     disktype: ssd
 ```
 
-实现步骤比较简单，直接通过命令进行说明（使用 [pod_nodeLabel.yaml](pod_nodeLabel.yaml) ）：
+操作步骤比较简单，下面是测试步骤（使用 [pod_nodeLabel.yaml](pod_nodeLabel.yaml) ）：
 
 ```shell
 # 1. 首先设置master节点标签
@@ -1250,7 +1252,7 @@ Labels:             beta.kubernetes.io/arch=amd64
                     kubernetes.io/os=linux
                     node-role.kubernetes.io/control-plane=
                     node.kubernetes.io/exclude-from-external-load-balancers=
-# 2.1 换个命令查看
+# 2.1 换个命令查看标签
 $ kubectl get nodes --show-labels |grep k8s-master
 k8s-master   Ready    control-plane   14d   v1.25.14   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,disktype=ssd,kubernetes.io/arch=amd64,kubernetes.io/hostname=k8s-master,kubernetes.io/os=linux,node-role.kubernetes.io/control-plane=,node.kubernetes.io/exclude-from-external-load-balancers=
 
@@ -1285,7 +1287,7 @@ spec:
   nodeName: k8s-master
 ```
 
-现在部署 [pod_nodeName.yaml](pod_nodeName.yaml) ，然后观察其部署节点应当部署到`k8s-master`
+现在部署 [pod_nodeName.yaml](pod_nodeName.yaml) ，然后观察应当部署到`k8s-master`
 节点：
 
 ```yaml
@@ -1304,9 +1306,8 @@ $ kk delete po go-http
 
 - 如果指定的节点不存在，则调度失败，某些情况下可能会被自动删除；
 - 如果指定的节点无法提供足够的资源，则调度失败，同时在Pod事件中给出原因；
-- 在云环境中的节点名称不总是可预测的，这也会导致调度失败。
 
-注意，这种调度干预方式因为不够灵活所以不会经常被用到。如果要进行硬性调度，建议使用**指定节点标签**或下面的**节点亲和性**。
+这种调度干预方式因为不够灵活所以不会被经常用到。如果要进行硬性调度，建议使用**指定节点标签**或下面的**节点亲和性**。
 
 ### 3.4 软硬皆可-节点亲和性（affinity）
 
@@ -1317,9 +1318,7 @@ $ kk delete po go-http
 
 [pod_affinity.yaml](pod_affinity.yaml) 是一个测试通过的完整亲和性模板示例，不再演示。
 
-节点亲和性配置是一种比较常见的调度干预方式。
-
-此外，你还可以通过使用定义调度器配置模板的方式来抽离出节点亲和性的配置，
+节点亲和性配置是一种比较常见的调度干预方式。此外，你还可以通过使用定义调度器配置模板的方式来抽离出节点亲和性的配置，
 然后在Pod/Deployment模板中引用定义的配置，具体请参考 [官方文档—逐个调度方案中设置节点亲和性](https://kubernetes.io/zh-cn/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity-per-scheduling-profile) 。
 
 ### 3.5 软硬皆可-Pod亲和性和反亲和性
@@ -1329,7 +1328,7 @@ $ kk delete po go-http
 
 > 注意：它不会绕过污点机制，下面的测试已经提前删除master污点。
 
-具体配置方式是通过模板的`spec.affinity.podAffinity`部分进行配置。演示需要用到两个模板：
+具体配置方式是通过模板的`spec.affinity.podAffinity`部分进行配置。测试需要用到两个模板：
 
 - [pods_diff_labels.yaml](pods_diff_labels.yaml) （辅助）
 - [pod_affinityPod.yaml](pod_affinityPod.yaml) 是一个完整的Pod亲和性和反亲和性模板示例
@@ -1357,7 +1356,7 @@ go-http-podaffinity   1/1     Running   0          3s    20.2.235.212   k8s-mast
 
 上述测试情况符合预期（请根据两个模板中的配置来理解）。
 
-> 官方提示：Pod 间亲和性和反亲和性都需要相当的计算量，因此会在大规模集群中显著降低调度速度。 我们不建议在包含数百个节点的集群中使用这类设置。
+> 官方提示：Pod 间亲和性和反亲和性都需要相当的计算量，因此会在大规模集群中显著降低调度速度。不建议在包含数百个节点的集群中使用这类设置。
 
 ### 3.6 污点和容忍度
 
@@ -1369,11 +1368,11 @@ go-http-podaffinity   1/1     Running   0          3s    20.2.235.212   k8s-mast
 污点和容忍度（Toleration）相互配合，可以用来避免 Pod 被分配到不合适的节点上。 每个节点上都可以应用一个或多个污点，这表示对于那些不能容忍这些污点的
 Pod， 是不会被该节点接受的。
 
-> 污点会被 [指定节点名称（nodeName）](###3-3-硬性调度-指定节点名称-nodeName-) 的Pod调度方式无视。
+> 污点会被 [指定节点名称（nodeName）](#33-硬性调度-指定节点名称nodename) 的Pod调度方式无视。
 
 #### 3.6.1 污点的影响方式
 
-污点是以类似标签的键值对形式存在节点上的。它的影响一共有三种：
+污点是以类似标签的键值对形式存在节点上的。它通过绑定`effect`（影响）来排斥Pod，一共有三种`effect`：
 
 - NoExecute：最严格的影响，当该具有该影响的污点被应用到节点上时，Pod 会被立即驱逐（包括正在运行的Pod）；
     - 如果 Pod 不能容忍这类污点，会马上被驱逐。
