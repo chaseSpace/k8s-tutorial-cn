@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: go-http-tolerance
+spec:
+  containers:
+    - name: go-http
+      image: leigg/hellok8s:v1
+  affinity:  # 使Pod尽量调度到master上
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - preference:
+            matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                  - "k8s-master"
+          weight: 1
+  tolerations:
+    - key: "role/log"
+      operator: "Equal"
+      effect: "NoExecute"
