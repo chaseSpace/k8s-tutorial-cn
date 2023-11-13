@@ -1541,6 +1541,148 @@ go-http-tolerance   1/1     Running   0          2s    20.2.36.122   k8s-node1  
 
 ### 3.7 优先级与抢占式调度
 
+当集群资源（CPU、内存、磁盘）不足时，新创建的Pod将无法被调度到节点上，直到有资源足够的节点可用前，Pod会一直处于Pending状态。
+为了让新的Pod能够被调度，Kubernetes提供了PriorityClass和Pod优先级抢占式调度机制。
+
+默认情况下，每个Pod的优先级为0，此时如果新创建的Pod优先级被设置为1000，则调度器可能会驱逐某个节点上正在运行的一个或多个Pod，以腾出资源运行高优先级的Pod。
+这种行为称为抢占式调度。
+
+如果要使用抢占式调度，需要先创建 PriorityClass 以设置优先级，后续在Pod或Deployment模板中引用该优先级配置。
+
+**优先级会影响Pod调度的顺序**  
+当启用 Pod 优先级时，调度器会按优先级对`Pending`状态的Pod 进行降序排列，然后按序一一调度。如果高优先级的Pod调度失败（因为某些原因），调度器会继续调度其他低优先级的Pod。
+
+#### 3.7.1 PriorityClass
+
+PriorityClass 是一个无命名空间对象，它定义了一个优先级类名称到优先级整数值的映射关系。值越大，优先级越高。PriorityClass
+对象的名称必须是有效的 DNS 子域名， 并且它不能以 `system-` 为前缀。
+
+PriorityClass 对象可以设置任何小于或等于 10 亿的 32 位整数值。 这意味着 PriorityClass 对象的值范围是从 -2,147,483,648 到
+1,000,000,000（含），更大的数值被系统组件所使用，以确保它们在任何时候被优先调度。
+
+新创建的 PriorityClass 对象只影响引用它的Pod，不会影响其他Pod。在配置中还有一个`globalDefault`bool字段表示是否设置全局默认，此类
+PriorityClass 的值也仅用于添加 PriorityClass 后创建的 Pod。删除 PriorityClass 对象也不会影响正在运行的引用它的Pod的优先级，删除后不能再被新创建的Pod引用。
+
+[pod_use_priorityClass.yaml](pod_use_priorityClass.yaml) 是一个 PriorityClass 的使用示例，下面是命令演示情况：
+
+```shell
+$ kk apply -f pod_priorityClass.yaml                                                
+priorityclass.scheduling.k8s.io/high-priority created
+pod/nginx created
+
+$ kk get po                      
+NAME    READY   STATUS    RESTARTS   AGE
+nginx   1/1     Running   0          33s
+
+$ kubectl get pod nginx -o=jsonpath='{.spec.priorityClassName}'
+high-priority
+
+$ kk describe po nginx |grep Priority
+Priority:             1000000
+Priority Class Name:  high-priority
+
+$ kk get pc high-priority            
+NAME            VALUE     GLOBAL-DEFAULT   AGE
+high-priority   1000000   false            7m19s
+```
+
+查看k8s组件内置的优先级类：
+
+```shell
+$ kk get pc system-cluster-critical                                 
+NAME                      VALUE        GLOBAL-DEFAULT   AGE
+system-cluster-critical   2000000000   false            15d
+$ kk get pc system-node-critical                      
+NAME                   VALUE        GLOBAL-DEFAULT   AGE
+system-node-critical   2000001000   false            15d
+```
+
+#### 3.7.2 设置非抢占式
+
+此特性在 Kubernetes v1.24 中稳定。
+
+配置了 `preemptionPolicy: Never` 的 Pod 将被放置在调度队列中较低优先级 Pod 之前， 但它们不能抢占其他 Pod，直到有足够的可用资源，
+它才可以被调度。
+preemptionPolicy 默认值为 `PreemptLowerPriority`。
+
+其他以下行为与抢占式Pod一致：
+
+- 如果尝试调度非抢占式Pod失败，则它们将以更低的频率被重试，从而允许其他优先级较低的 Pod 排在它们之前；
+- 非抢占式 Pod 仍可能被其他高优先级 Pod 抢占；
+
+#### 3.7.3 抢占原理
+
+Pod 被创建后会进入队列等待调度，调度器从队列中挑选一个 Pod 并尝试将它调度到某个节点上。 如果没有找到满足 Pod
+的所指定的所有要求的节点，则触发对 Pod 的抢占逻辑：
+
+- 调度器尝试找到一个节点，**评估**将该节点上的部分Pod驱逐后能否腾出足够的资源给高优先级的Pod运行
+- 如果可以找到这样的节点，则以**节点压力驱逐**的方式驱逐正在运行的部分Pod，然后运行高优先级的Pod
+
+**与低优先级 Pod 之间的 Pod 间亲和性**  
+只有当节点上存在与待调度Pod具有亲和性的低优先级Pod时，才会抢占这个节点上的低优先级Pod。
+
+**让牺牲者体面地终止**  
+当 Pod 被抢占时，它们会体面地完成终止（默认30s的终止时间，通过在PodSpec中设置`terminationGracePeriodSeconds`可以设置这个时间）。
+
+**支持PDB**  
+抢占时，k8s支持PodDisruptionBudget (PDB)，但对 PDB 的支持是基于尽力而为原则的。当实在找不到不会违反PDB的牺牲者时，仍会发生违背PDB约束的抢占行为。
+
+PodDisruptionBudget（PDB）是另一个话题，你可以在 [官方文档](https://kubernetes.io/zh-cn/docs/concepts/workloads/pods/disruptions/)
+中详细了解。
+
+**不会跨节点抢占**  
+比如集群中有2个属于同一个Zone的节点，节点A上运行了PodA，节点B上运行了PodB，现在想要调度一个高优先级的PodC，
+但PodC与PodB具有Zone级别（`topologyKey:topology.kubernetes.io/zone`）的反亲和性。这种情况下，调度器在对节点A进行评估时会认为其不可抢占（因为违背了Pod间亲和性）。
+当然，调度器会继续评估节点B，如果Zone中的其他Pod与PodC没有任何反亲和性设置，则可能会抢占节点B上的PodB或其他Pod。
+
+**nominatedNodeName 字段**  
+当Pending的高优先级 Pod（假定名称为P） 抢占节点 N 上的一个或多个 Pod 时， Pod P 状态的 `nominatedNodeName` 字段被设置为节点
+N 的名称。
+该字段帮助调度程序跟踪为 Pod P 保留的资源，并为用户提供有关其集群中抢占的信息。但在绑定最终节点之前，这个字段的内容可能会发生多次变化，
+比如调度程序在等待牺牲者 Pod 终止时另一个节点变得可用，则调度程序依旧可以使用另一个节点来调度 Pod P。
+
+查看该字段信息的命令为：`kubectl get pod <pod-name> -o=jsonpath='{.spec.nominatedNodeName}'`
+
+#### 3.7.4 限制特定优先级类的使用
+
+在一个并非所有用户都是可信的集群中，恶意用户可能以最高优先级创建 Pod， 导致其他 Pod 被驱逐或者无法被调度。 管理员可以使用
+`ResourceQuota` 来阻止用户创建高优先级的 Pod。
+
+首先，需要为 `kube-apiserver` 设置标志 `--admission-control-config-file` 指向如下配置文件（其中假定已经创建了一个名为`cluster-services`的PriorityClass）：
+```yaml
+apiVersion: apiserver.config.k8s.io/v1
+kind: AdmissionConfiguration
+plugins:
+- name: "ResourceQuota"
+  configuration:
+    apiVersion: apiserver.config.k8s.io/v1
+    kind: ResourceQuotaConfiguration
+    limitedResources:
+    - resource: pods
+      matchScopes:
+      - scopeName: PriorityClass
+        operator: In
+        values: ["cluster-services"]
+```
+然后假定要限制只有`kube-system`命名空间可以使用`cluster-services`这个PriorityClass对象，就在`kube-system`命名空间中创建一个资源配额对象：
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: pods-cluster-services
+  namespace: kube-system
+spec:
+  scopeSelector:
+    matchExpressions:
+      - operator: In
+        scopeName: PriorityClass
+        values: [ "cluster-services" ]
+```
+现在，如果要创建Pod必须完全满足以下条件：
+- Pod 未设置 `priorityClassName`
+- Pod 的 `priorityClassName` 设置值不是 `cluster-services`
+- Pod 的 `priorityClassName` 设置值为 `cluster-services`，并且它将被创建于 `kube-system` 名字空间中，并且它已经通过了资源配额检查。
+
 TODO
 
 ## TODO
