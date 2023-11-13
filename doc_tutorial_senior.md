@@ -1223,7 +1223,7 @@ type ScorePlugin interface {
 ### 3.2 硬性调度-指定节点标签（nodeSelector）
 
 这种方式是指将Pod调度到匹配**指定的一个或多个标签**的节点上运行，对应预选阶段中的 PodMatchNodeSelector 策略。
-这是一种**硬性调度要求**。具体在Pod或Deployment模板中配置：
+并且它是一种**硬性调度要求**。具体在Pod或Deployment模板中配置：
 
 ```yaml
 # ...省略部分
@@ -1359,6 +1359,9 @@ NAME                  READY   STATUS    RESTARTS   AGE   IP             NODE    
 go-http-master        1/1     Running   0          40m   20.2.235.211   k8s-master   <none>           <none>
 go-http-node1         1/1     Running   0          31m   20.2.36.68     k8s-node1    <none>           <none>
 go-http-podaffinity   1/1     Running   0          3s    20.2.235.212   k8s-master   <none>           <none>
+
+$ kk delete -f pod_affinityPod.yaml && kk delete -f pods_diff_labels.yaml
+
 ```
 
 上述测试情况符合预期（请根据两个模板中的配置来理解）。
@@ -1372,8 +1375,7 @@ go-http-podaffinity   1/1     Running   0          3s    20.2.235.212   k8s-mast
 
 容忍度（Toleration） 是应用于 Pod 上的。容忍度允许调度器调度带有对应污点的 Pod。 一个Pod可以配置多个容忍度。
 
-污点和容忍度（Toleration）相互配合，可以用来避免 Pod 被分配到不合适的节点上。 每个节点上都可以应用一个或多个污点，这表示对于那些不能容忍这些污点的
-Pod， 是不会被该节点接受的。
+通过污点和容忍度，可以灵活地让 Pod 避开某些节点或者将 Pod 从某些节点驱逐。
 
 > 污点会被 [指定节点名称（nodeName）](#33-硬性调度-指定节点名称nodename) 的Pod调度方式无视。
 
@@ -1381,8 +1383,8 @@ Pod， 是不会被该节点接受的。
 
 污点是以类似标签的键值对形式存在节点上的。它通过绑定`effect`（影响）来排斥Pod，一共有三种`effect`：
 
-- NoExecute：最严格的影响，当该具有该影响的污点被应用到节点上时，Pod 会被立即驱逐（包括正在运行的Pod）；
-    - 如果 Pod 不能容忍这类污点，会马上被驱逐。
+- NoExecute：最严重的影响，当该具有该影响的污点被应用到节点上时，会发生以下行为；
+    - 如果 Pod 不能容忍这类污点，会马上被驱逐（驱逐是指从节点上立即删除Pod，**并且不会调度Pod到其他节点**，请牢记这一点）。
     - 如果 Pod 能够容忍这类污点，但是在容忍度定义中没有指定 tolerationSeconds， 则 Pod 还会一直在这个节点上运行。
     - 如果 Pod 能够容忍这类污点，而且指定了 tolerationSeconds， 则 Pod 还能在这个节点上继续运行这个指定的时间长度。
       这段时间过去后，节点生命周期控制器从节点驱除这些 Pod。
@@ -1394,6 +1396,149 @@ Pod， 是不会被该节点接受的。
 前两种影响对应预选阶段的 PodToleratesNodeTaints 策略，最后一种影响对应优选阶段的 TaintTolerationPriority 策略。
 
 #### 3.6.2 污点管理
+
+污点常规是键值对加一个effect的格式，但value可省略，下面的污点都是合法的：
+
+- role/log=true:NoSchedule
+- role/log:NoExecute
+- role/log:NoSchedule
+- role_log:NoSchedule
+
+`role/log`是类似标签键的前缀/名称组成形式。需要注意的是，上面的前三个污点拥有同一个键`role/log`，并且可以同时绑定到一个节点，
+在删除时也会被同时删除。
+
+污点常用管理命令如下：
+
+```shell
+# 查看污点，这个是master自带的污点，表示不接受常规Pod调度
+$ kk get node k8s-master -o=jsonpath='{.spec.taints}'                         
+[{"effect":"NoSchedule","key":"node-role.kubernetes.io/control-plane"}]
+
+# 添加污点，
+$ kubectl taint nodes k8s-master role/log:NoSchedule
+node/k8s-master tainted
+
+$ kk get node k8s-master -o=jsonpath='{.spec.taints}'
+[{"effect":"NoSchedule","key":"role/log"},{"effect":"NoSchedule","key":"node-role.kubernetes.io/control-plane"}]
+
+# 删除污点
+$ kubectl taint nodes k8s-master role/log-                    
+node/k8s-master untainted                                                                                                                     
+```
+
+#### 3.6.3 容忍度设置
+
+容忍度在PodSpec（模板）的`spec.tolerations`部分进行配置：
+
+```yaml
+spec:
+  tolerations:
+    - key: "key1"
+      operator: "Equal"
+      value: "value1"
+      effect: "NoSchedule"
+    - key: "key1"
+      operator: "Equal"
+      value: "value1"
+      effect: "NoExecute"
+      tolerationSeconds: 3600
+```
+
+调度器会将PodSpec中的容忍度配置与节点上的污点进行完全匹配验证（键值对和影响都需要一致），如果节点上的污点都被匹配成功，
+则调度器在预选阶段不会排除该节点。
+
+配置中的`tolerationSeconds`字段是可选的，此字段配合`NoExecute`这个影响使用，表示在给节点添加了具有`NoExecute`影响的污点之后，
+Pod 还能继续在节点上运行的时间。在这个时间之后如果污点仍然存在，则Pod会被驱逐。
+
+容忍度一般用于DaemonSet控制器，因为DaemonSet Pod通常是为节点本身服务的。而且在创建DaemonSet Pod时，
+还会自动为Pod添加一些集群内置容忍度以避免Pod被驱逐：
+
+- node.kubernetes.io/not-ready:NoExecute
+- node.kubernetes.io/unreachable:NoExecute
+- node.kubernetes.io/memory-pressure
+- 等等。
+
+查看Pod的容忍度信息的指令是：`kubectl get pod <daemonset-pod-name> -o=jsonpath='{.spec.tolerations}'`。
+
+#### 3.6.4 集群内置污点
+
+当某种条件为真时，节点控制器会自动给节点添加一个污点。当前内置的污点包括：
+
+- node.kubernetes.io/not-ready：节点未准备好。这相当于节点状况 Ready 的值为 "False"。
+- node.kubernetes.io/unreachable：节点控制器访问不到节点. 这相当于节点状况 Ready 的值为 "Unknown"。
+- node.kubernetes.io/memory-pressure：节点存在内存压力。
+- node.kubernetes.io/disk-pressure：节点存在磁盘压力。
+- node.kubernetes.io/pid-pressure：节点的 PID 压力。
+- node.kubernetes.io/network-unavailable：节点网络不可用。
+- node.kubernetes.io/unschedulable：节点不可调度。
+- node.cloudprovider.kubernetes.io/uninitialized：如果 kubelet 启动时指定了一个“外部”云平台驱动， 它将给当前节点添加一个污点将其标志为不可用。在
+  cloud-controller-manager 的一个控制器初始化这个节点后，kubelet 将删除这个污点。
+
+> 不推荐使用`node.kubernetes.io`这个被集群保留的前缀。
+
+在节点被排空（drain）时，节点控制器或者 kubelet 会添加带有 NoExecute 效果的相关污点。 此效果被默认添加到
+node.kubernetes.io/not-ready 和 node.kubernetes.io/unreachable 污点中。 如果异常状态恢复正常，kubelet 或节点控制器能够移除相关的污点。
+> 排空的指令是`kubectl drain k8s-node1`，可以附加--ignore-daemonsets选项。
+
+某些时候，如果节点失联（如网络原因导致），API 服务器无法与节点上的 kubelet 进行通信。在与 API 服务器的通信被重新建立之前，删除
+Pod 的决定无法传递到 kubelet。同时，被调度进行删除的那些 Pod 可能会继续运行在失联（通常叫做Partition）的节点上。
+
+#### 3.6.5 测试
+
+这里只测试污点影响为最为严重的`NoExecute`的场景：
+
+- 首先Pod运行在master节点（已容忍污点`role/log:NoExecute`
+  ，并设置node亲和性为尽量调度到master），然后给master节点设置新的`gpu:NoExecute`
+  污点，观察Pod被立即驱逐（直接消失）。然后再次创建Pod，观察到Pod（因无法容忍新污点）被调度到node1上运行。测试Pod模板为 [pod_tolerance.yaml](pod_tolerance.yaml)
+  ，测试情况如下：
+
+```shell
+# 确认master节点（删除其他污点）
+➜  practice kk taint nodes k8s-master role/log:NoExecute       
+node/k8s-master tainted
+➜  practice kk get node k8s-master -o=jsonpath='{.spec.taints}'
+[{"effect":"NoExecute","key":"role/log"}]
+
+➜  practice kk apply -f pod_tolerance.yaml 
+pod/go-http-tolerance created
+➜  practice kk get po -o wide             
+NAME                READY   STATUS    RESTARTS   AGE   IP           NODE        NOMINATED NODE   READINESS GATES
+go-http-tolerance   1/1     Running   0          6s    20.2.36.98   k8s-master   <none>           <none>
+
+# 给master添加新的污点
+➜  practice kk taint nodes k8s-master gpu:NoExecute
+node/k8s-master tainted
+
+# 观察到pod从master上被驱逐（并且不会调度到node1，所以直接从集群中消失了）
+➜  practice kk get po -o wide                     
+No resources found in default namespace.
+
+# 再次创建Pod
+➜  practice kk apply -f pod_tolerance.yaml
+pod/go-http-tolerance created
+
+# 可以看到被直接调度到node1
+➜  practice kk get po -o wide             
+NAME                READY   STATUS    RESTARTS   AGE   IP            NODE        NOMINATED NODE   READINESS GATES
+go-http-tolerance   1/1     Running   0          2s    20.2.36.122   k8s-node1   <none>           <none>
+```
+
+#### 3.6.6 应用场景
+
+以下是一些污点的应用场景：
+
+- **专用节点**： 某些节点可能具有特殊硬件、软件或资源，只适用于特定类型的工作负载。通过在这些节点上设置污点，可以确保只有符合特定要求的
+  Pod 被调度到这些节点上。
+- **避免特定节点上运行敏感应用**： 某些节点可能具有特殊的配置或安全要求，不适合运行一般的应用程序。通过在这些节点上设置污点，可以确保一般的
+  Pod 不会被调度到这些节点上。
+- **节点维护**： 当节点需要进行维护或升级时，可以先在节点上设置一个带有 NoSchedule 效果的污点，以阻止新的 Pod
+  被调度到该节点上。然后，进行维护完成后，移除污点，允许 Pod 再次被调度到节点上。
+- **资源分隔**： 在具有不同硬件配置或资源限制的节点上设置不同的污点，以确保 Pod 在调度时考虑节点的资源能力，从而实现更好的资源分隔。
+- **故障域隔离**： 污点可以用于在节点上标识故障域，例如在具有相同硬件的一组节点上设置相同的污点，以确保 Pod
+  被调度到同一类节点上，从而实现故障域隔离。
+- **版本控制**： 在进行软件升级或配置更改时，可以设置污点，防止新的 Pod 被调度到尚未升级或配置更改的节点上。
+
+### 3.7 优先级与抢占式调度
 
 TODO
 
