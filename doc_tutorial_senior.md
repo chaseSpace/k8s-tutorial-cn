@@ -1311,24 +1311,31 @@ $ kk delete po go-http
 
 ### 3.4 软硬皆可-节点亲和性（affinity）
 
-通过在模板的`spec.affinity.nodeAffinity`部分进行亲和性配置，我们可以将**硬性或软性**要求Pod调度到具备某些特征的节点上，软性是非强制性调度。
+亲和性是指通过模板配置的方式使得Pod能够**尽可能**调度到具备某一类标签特征的节点上，同时也支持硬性调度配置。
+
+亲和性具体还分节点亲和性和Pod亲和性（下一小节）。
+
+通过在模板的`spec.affinity.nodeAffinity`部分可以进行（反）亲和性配置，我们可以将**硬性或软性**要求Pod调度到具备某些特征的节点上，软性是非强制性调度。
 这对应预选阶段的 PodMatchNodeSelector 策略。
 
-> 注意：它不会绕过污点机制。
+需要注意的是，反亲和性并不是通过`spec.affinity.nodeAntiAffinity`来配置（也没有这个字段），
+而是通过在表达式中应用`NotIn、DoesNotExist`这类Operator来实现。
 
-[pod_affinity.yaml](pod_affinity.yaml) 是一个测试通过的完整亲和性模板示例，不再演示。
+> 注意：亲和性配置不会绕过污点机制。如果你需要调度到具有污点的节点（如master节点），请提前删除节点上的污点。
+
+[pod_affinity.yaml](pod_affinityNode.yaml) 是一个测试通过的完整亲和性模板示例，不再演示。
 
 节点亲和性配置是一种比较常见的调度干预方式。此外，你还可以通过使用定义调度器配置模板的方式来抽离出节点亲和性的配置，
 然后在Pod/Deployment模板中引用定义的配置，具体请参考 [官方文档—逐个调度方案中设置节点亲和性](https://kubernetes.io/zh-cn/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity-per-scheduling-profile) 。
 
 ### 3.5 软硬皆可-Pod亲和性和反亲和性
 
-某些时候，我们希望将Pod与正在运行的具有某些**标签特征**的Pod调度到一起，或者反过来，使Pod远离这些节点。
+某些时候，我们希望将Pod调度到正在运行具有某些标签特征的Pod所在节点上，或者反过来，使Pod远离这些节点。
 这对应预选阶段的 MatchInterPodAffinity 策略。它仍然是一种软硬皆可的调度干预方式。
 
 > 注意：它不会绕过污点机制，下面的测试已经提前删除master污点。
 
-具体配置方式是通过模板的`spec.affinity.podAffinity`部分进行配置。测试需要用到两个模板：
+具体配置字段是模板Spec中`spec.affinity`下面的`podAffinity`和`podAntiAffinity`。测试需要用到两个模板：
 
 - [pods_diff_labels.yaml](pods_diff_labels.yaml) （辅助）
 - [pod_affinityPod.yaml](pod_affinityPod.yaml) 是一个完整的Pod亲和性和反亲和性模板示例
