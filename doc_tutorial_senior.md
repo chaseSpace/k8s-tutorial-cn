@@ -1494,31 +1494,32 @@ Pod 的决定无法传递到 kubelet。同时，被调度进行删除的那些 P
 
 ```shell
 # 确认master节点（删除其他污点）
-➜  practice kk taint nodes k8s-master role/log:NoExecute       
+$ kk taint nodes k8s-master role/log:NoExecute       
 node/k8s-master tainted
-➜  practice kk get node k8s-master -o=jsonpath='{.spec.taints}'
+$ kk get node k8s-master -o=jsonpath='{.spec.taints}'
 [{"effect":"NoExecute","key":"role/log"}]
 
-➜  practice kk apply -f pod_tolerance.yaml 
+# 创建Pod，并且能够在master上运行
+$ kk apply -f pod_tolerance.yaml 
 pod/go-http-tolerance created
-➜  practice kk get po -o wide             
+$ kk get po -o wide             
 NAME                READY   STATUS    RESTARTS   AGE   IP           NODE        NOMINATED NODE   READINESS GATES
 go-http-tolerance   1/1     Running   0          6s    20.2.36.98   k8s-master   <none>           <none>
 
 # 给master添加新的污点
-➜  practice kk taint nodes k8s-master gpu:NoExecute
+$ kk taint nodes k8s-master gpu:NoExecute
 node/k8s-master tainted
 
 # 观察到pod从master上被驱逐（并且不会调度到node1，所以直接从集群中消失了）
-➜  practice kk get po -o wide                     
+$ kk get po -o wide                     
 No resources found in default namespace.
 
 # 再次创建Pod
-➜  practice kk apply -f pod_tolerance.yaml
+$ kk apply -f pod_tolerance.yaml
 pod/go-http-tolerance created
 
 # 可以看到被直接调度到node1
-➜  practice kk get po -o wide             
+$ kk get po -o wide             
 NAME                READY   STATUS    RESTARTS   AGE   IP            NODE        NOMINATED NODE   READINESS GATES
 go-http-tolerance   1/1     Running   0          2s    20.2.36.122   k8s-node1   <none>           <none>
 ```
