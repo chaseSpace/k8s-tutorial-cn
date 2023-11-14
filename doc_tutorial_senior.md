@@ -1389,7 +1389,8 @@ $ kk delete -f pod_affinityPod.yaml && kk delete -f pods_diff_labels.yaml
 污点是以类似标签的键值对形式存在节点上的。它通过绑定`effect`（影响）来排斥Pod，一共有三种`effect`：
 
 - NoExecute：最严重的影响，当该具有该影响的污点被应用到节点上时，会发生以下行为；
-    - 如果 Pod 不能容忍这类污点，会马上被驱逐（驱逐是指从节点上立即删除Pod，归属于控制器管理的Pod将会被调度到其他节点，**没有被任何控制器管理的Pod不会重新调度，而是直接删除**）。
+    - 如果 Pod 不能容忍这类污点，会马上被驱逐（驱逐是指从节点上立即删除Pod，归属于控制器管理的Pod将会被调度到其他节点，*
+      *没有被任何控制器管理的Pod不会重新调度，而是直接删除**）。
     - 如果 Pod 能够容忍这类污点，但是在容忍度定义中没有指定 tolerationSeconds， 则 Pod 还会一直在这个节点上运行。
     - 如果 Pod 能够容忍这类污点，而且指定了 tolerationSeconds， 则 Pod 还能在这个节点上继续运行这个指定的时间长度。
       这段时间过去后，节点生命周期控制器从节点驱除这些 Pod。
@@ -1528,6 +1529,8 @@ $ kk get po -o wide
 NAME                READY   STATUS    RESTARTS   AGE   IP            NODE        NOMINATED NODE   READINESS GATES
 go-http-tolerance   1/1     Running   0          2s    20.2.36.122   k8s-node1   <none>           <none>
 ```
+
+如果被驱逐的Pod是由控制器管理的（例如Deployment），则驱逐会触发对它们的重新调度。
 
 #### 3.6.6 应用场景
 
