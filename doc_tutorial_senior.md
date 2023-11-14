@@ -1388,7 +1388,7 @@ $ kk delete -f pod_affinityPod.yaml && kk delete -f pods_diff_labels.yaml
 污点是以类似标签的键值对形式存在节点上的。它通过绑定`effect`（影响）来排斥Pod，一共有三种`effect`：
 
 - NoExecute：最严重的影响，当该具有该影响的污点被应用到节点上时，会发生以下行为；
-    - 如果 Pod 不能容忍这类污点，会马上被驱逐（驱逐是指从节点上立即删除Pod，**并且不会调度Pod到其他节点**，请牢记这一点）。
+    - 如果 Pod 不能容忍这类污点，会马上被驱逐（驱逐是指从节点上立即删除Pod，归属于控制器管理的Pod将会被调度到其他节点，**没有被任何控制器管理的Pod不会重新调度，而是直接删除**）。
     - 如果 Pod 能够容忍这类污点，但是在容忍度定义中没有指定 tolerationSeconds， 则 Pod 还会一直在这个节点上运行。
     - 如果 Pod 能够容忍这类污点，而且指定了 tolerationSeconds， 则 Pod 还能在这个节点上继续运行这个指定的时间长度。
       这段时间过去后，节点生命周期控制器从节点驱除这些 Pod。
@@ -1493,7 +1493,7 @@ Pod 的决定无法传递到 kubelet。同时，被调度进行删除的那些 P
 
 - 首先Pod运行在master节点（已容忍污点`role/log:NoExecute`
   ，并设置node亲和性为尽量调度到master），然后给master节点设置新的`gpu:NoExecute`
-  污点，观察Pod被立即驱逐（直接消失）。然后再次创建Pod，观察到Pod（因无法容忍新污点）被调度到node1上运行。测试Pod模板为 [pod_tolerance.yaml](pod_tolerance.yaml)
+  污点，观察Pod被立即驱逐（由于不属于任何控制器管理导致直接消失）。然后再次创建Pod，观察到Pod（因无法容忍新污点）被调度到node1上运行。测试Pod模板为 [pod_tolerance.yaml](pod_tolerance.yaml)
   ，测试情况如下：
 
 ```shell
