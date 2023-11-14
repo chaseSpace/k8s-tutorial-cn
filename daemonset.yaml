@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: hellok8s-go-http-daemonset
+  name: daemonset-hellok8s-go-http
 spec:
   selector:
     matchLabels:

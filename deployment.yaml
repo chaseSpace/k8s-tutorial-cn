@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  # deployment唯一名称
+  # deployment 唯一名称
   name: hellok8s-go-http
 spec:
   replicas: 2 # 副本数量
