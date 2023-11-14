@@ -1,11 +1,10 @@
-# Kubernetes 集群维护
+# Kubernetes 维护指南
 
 在当今云原生时代，Kubernetes 已经成为部署、管理和扩展容器化应用程序的事实标准。随着企业对微服务和可伸缩架构的迅速采用，对
 Kubernetes 集群的健壮性和可靠性的需求也日益增加。在这个背景下，对 Kubernetes 集群进行有效的维护变得至关重要，以确保业务连续性、性能优化和安全性。本文将深入探讨
 Kubernetes 集群维护的关键方面，涵盖从备份和恢复、节点管理到安全性和性能优化等多个关键主题。
 
-
-> 如果你在阅读本文时发现了任何错误，请在Github上提交ISSUE或PR，我将由衷地表示感谢。
+如果你在阅读本文时发现了任何错误，请在Github上提交ISSUE（或PR），我将由衷地表示感谢。
 
 为了方便阅读，请点击网页右侧的 ![toc.jpg](img/toc.jpg) 按钮在右侧展开目录以了解全文大纲。
 
@@ -36,14 +35,14 @@ kubeadm join <master-ip>:6443 --token <token-value> --discovery-token-ca-cert-ha
 
 > 完整的操作步骤建议参考 [使用kubeadm搭建k8s多节点集群](./install_by_kubeadm/install.md) 。
 
-### 1.2 删除节点
+### 1.2 维护节点
 
-在对节点执行维护（例如内核升级、硬件维护等）之前，我们需要先从集群中删除这个节点。
+在对节点执行维护（例如内核升级、硬件维护等）之前，我们需要先从集群中排空（drain）这个节点。
 
-在生产环境中删除节点是一项需要谨慎操作的任务，需要确保在删除节点之前，所有在该节点上运行的Pod都被重新调度到其他节点。
-在开始之前，请通知集群的其他维护和使用人员即将此项任务，确保节点删除不会影响生产负载。
+在生产环境中清空某个节点是一项需要谨慎操作的任务，需要确保在清空节点之前，所有在该节点上运行的Pod都被重新调度到其他节点。
+在开始之前，请通知集群的其他维护和使用人员即将此项任务，确保节点清空不会影响生产负载。
 
-本节假定要删除的是普通节点（而非控制平面节点）。使用`kubectl drain`从节点安全地驱逐所有 Pod（这个步骤叫做清空节点）到其他节点。
+本节假定要清空的是普通节点（而非控制平面节点）。使用`kubectl drain`从节点安全地驱逐所有 Pod到其他节点。
 安全的驱逐过程允许Pod的容器体面地终止。
 
 **预留充足的节点资源**  
@@ -54,11 +53,11 @@ kubeadm join <master-ip>:6443 --token <token-value> --discovery-token-ca-cert-ha
 在清空节点期间，如果创建了新的能够容忍`node.kubernetes.io/unschedulable`污点的 Pod，那么这些 Pod 仍然可能会被调度到你已经清空的节点上。
 除了 DaemonSet 之外，请避免容忍此污点。另外，如果某个用户直接为 Pod 设置了`nodeName`字段，那Pod也会绑定到这个节点上，你需要妥善处理之后再进行清空操作。
 
-下面使用实际环境进行演示：
+下面通过实际环境进行演示：
 
 - 当前集群环境中包含`k8s-master`和`k8s-node1`两个节点，在`k8s-node1`
-  上运行了daemonset（calico-node和kube-proxy都是）、deployment、single-pod、stateful四种类型的Pod，尽可能模拟生产环境
-- 现在准备从集群中删除节点`k8s-node1`，下面是实际操作情况
+  上运行了daemonset（calico-node和kube-proxy）、deployment、bare-pod（裸Pod）、stateful四种类型的Pod，尽可能模拟生产环境
+- 现在准备排空节点`k8s-node1`，实际操作情况如下
 
 ```shell
 # 在master查看当前集群中运行的所有Pod信息（-A等价于--all-namespaces）
@@ -315,17 +314,16 @@ docker system prune
 
 ## 3. 使用Velero备份和恢复集群
 
-介绍使用 [Velero](https://github.com/vmware-tanzu/velero/) 来完成（定期）备份集群和恢复集群。
-
-使用前在其Github页面根据你的K8s版本选择Velero相应版本。
-
-- [Velero工作原理](https://velero.io/docs/v1.12/how-velero-works/)
+本节将介绍使用 [Velero](https://github.com/vmware-tanzu/velero/) 来完成（定期）备份集群和恢复集群。
 
 Velero支持按需备份、定时备份、恢复备份、设置备份过期等功能。
 每个Velero操作如按需备份，计划备份，恢复都是一个自定义资源，使用Kubernetes定义 **自定义资源定义**（CRD）并存储在
 etcd。Velero还包括处理自定义资源以执行备份、恢复和所有相关操作的控制器。
 
 你可以备份或还原群集中的所有对象，也可以按类型、命名空间和/或标签筛选对象。
+使用前在其Github页面根据你的K8s版本选择Velero相应版本。
+
+如果你有兴趣，可以了解 [Velero工作原理](https://velero.io/docs/v1.12/how-velero-works/) 。
 
 ### 3.1 备份
 
@@ -419,3 +417,5 @@ Velero支持各种存储提供商，用于不同的备份和快照操作。Veler
 但现在不使用云提供商的存储资源，而是使用本地存储进行测试。
 
 TODO
+
+## TODO
