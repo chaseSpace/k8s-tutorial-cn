@@ -12,8 +12,7 @@ RUN GOPROXY=https://goproxy.cn,direct GOOS=linux CGO_ENABLED=0 GOARCH=amd64 GO11
 
 #FROM scratch as prod
 FROM alpine as prod
-# 关于docker基础镜像：scratc、busybox、alpine
-# http://www.asznl.com/post/48
+# 通过 http://www.asznl.com/post/48 了解docker基础镜像：scratc、busybox、alpine
 
 # alpine设置时区
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories &&  \
