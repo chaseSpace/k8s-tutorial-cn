@@ -207,7 +207,7 @@ Please, check the contents of the $HOME/.kube/config file.
 PDB用于保障应用**在大部分时候**都能够拥有最低可用副本数量，而大部分时候包含了`kubectl drain`发起的驱逐要求这类情况。
 当节点排空操作可能导致受PDB保护的应用违反PDB配置中的`minAvailable`或`maxUnavailable`字段要求时，API Server会阻止排空操作。
 
-### 1.3 节点清理
+### 1.3 清理节点
 
 **删除节点**（不是清空）后，你可能还需要删除一些节点上的容器缓存文件（**操作前请确认节点名称**）：
 
@@ -247,7 +247,12 @@ crictl config runtime-endpoint unix:///var/run/cri-dockerd.sock
 crictl config runtime-endpoint unix:///var/run/containerd/containerd.sock
 ```
 
-查看集群节点已拉取的镜像：
+### 2.1 精简镜像
+
+精简镜像的策略有很多，比如使用Dockerfile的多阶段构建、使用精简镜像如busybox或alpine等。[Dockerfile](Dockerfile)
+是一个使用精简镜像的Go应用的Dockerfile示例，使用它构建的镜像大小约为7MB。
+
+### 2.2 查看镜像列表
 
 ```shell
 # 在具体节点上执行
@@ -266,12 +271,12 @@ registry.aliyuncs.com/google_containers/pause                     3.8           
 registry.cn-hangzhou.aliyuncs.com/google_containers/pause         3.6                 6270bb605e12e       302kB
 ```
 
-清理镜像：
+### 2.3 清理镜像
 
 ```shell
 # 删除单个镜像
-crictl rmi e6e09b2c69433
-# 删除所有未使用到的镜像（用于释放磁盘空间）
+crictl rmi <image-id>
+# 删除所有未被任何容器使用的镜像（用于释放磁盘空间）
 crictl rmi --prune
 ```
 
@@ -290,6 +295,17 @@ Build Cache     58        0         622.9MB   622.9MB
 # 添加 -f 禁用询问
 docker system prune
 ```
+
+### 2.4 镜像更新
+
+在更新应用Pod时，通常是先构建并推送新版本的镜像到仓库中，然后再使用`kubectl set image`命令更新Pod使用的镜像。
+如果新的镜像存在问题，则使用`kubectl rollout undo`命令进行回滚（到上个镜像）。
+
+> 建议在更新容器镜像时使用清晰的语义化的版本标签，例如`v1.1.2-fixPayModule`，以便在任何时候都能够通过镜像版本清晰的了解更新内容。
+> 此外，还可以携带日期信息，例如`v1.1.2-20231010-fixPayModule`。如果仅仅使用`v1.1.2`
+> 这样简洁的版本号，则无法知道更新内容，你必须在其他位置记录版本号对应的更新内容。
+
+通常我们会将新镜像的构建、推送以及更新操作整合到持续集成/持续部署（CI/CD）流水线中，以自动化更新过程。
 
 ## 3. 使用Velero备份和恢复集群
 
