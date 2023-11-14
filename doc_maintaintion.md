@@ -307,6 +307,12 @@ docker system prune
 
 通常我们会将新镜像的构建、推送以及更新操作整合到持续集成/持续部署（CI/CD）流水线中，以自动化更新过程。
 
+### 2.5 镜像存储
+
+在实际生产环境中，我们通常会搭建本地镜像仓库，用于存储和分发镜像。这样做可能出于镜像私有、拉取速度等原因。
+搭建本地镜像仓库的方式有很多，例如Harbor、Docker Registry等。Harbor是VMWare开源的企业级Docker镜像仓库管理项目，
+也是目前主流的企业镜像仓库解决方案；而Docker Registry更适用于个人或小团队。
+
 ## 3. 使用Velero备份和恢复集群
 
 介绍使用 [Velero](https://github.com/vmware-tanzu/velero/) 来完成（定期）备份集群和恢复集群。
