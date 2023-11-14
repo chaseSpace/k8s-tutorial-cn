@@ -1,6 +1,10 @@
 # Kubernetes 进阶教程
 
-为了方便阅读，建议点击网页右侧的 ![toc.jpg](img/toc.jpg) 按钮在右侧展开目录。
+作为 [Kubernetes 基础教程](doc_tutorial.md) 的续篇，本文档将介绍一些进阶内容，包括在集群中使用存储、如何管理集群资源的使用以及集群资源的调度原理等主题。
+每个章节之间没有严格的顺序依赖关系，读者可以选择感兴趣的章节进行阅读。
+>如果你在阅读本文时发现了任何错误，请在Github上提交ISSUE或PR，我将由衷地表示感谢。
+
+为了方便阅读，请点击网页右侧的 ![toc.jpg](img/toc.jpg) 按钮在右侧展开目录以了解全文大纲。
 
 **环境准备**：
 
@@ -1691,6 +1695,10 @@ spec:
 - Pod 未设置 `priorityClassName`
 - Pod 的 `priorityClassName` 设置值不是 `cluster-services`
 - Pod 的 `priorityClassName` 设置值为 `cluster-services`，并且它将被创建于 `kube-system` 名字空间中，并且它已经通过了资源配额检查。
+
+## 4. API Server
+
+TODO
 
 ## TODO
 
