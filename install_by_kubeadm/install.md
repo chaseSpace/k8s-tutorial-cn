@@ -231,7 +231,7 @@ registry.aliyuncs.com/google_containers/pause                     3.8           
 registry.cn-hangzhou.aliyuncs.com/google_containers/pause         3.6                 6270bb605e12e       302kB
 
 # 初始化集群
-# --apiserver-advertise-address 指定 Kubernetes API Server 的宣告地址。这是 Master 节点上的 Kubernetes API Server 的网络地址，
+# --apiserver-advertise-address 指定 Kubernetes API Server 的宣告地址，可以不设置让其自动检测
 # 其他节点和客户端将使用此地址连接到 API Server
 # --image-repository 指定了 Docker 镜像的仓库地址，用于下载 Kubernetes 组件所需的容器镜像。在这里，使用了阿里云容器镜像地址，可以加速镜像的下载。
 #    注意：即使提取拉取了镜像，这里也要指定相同的仓库，否则还是会拉取官方镜像
@@ -257,11 +257,11 @@ $ kubeadm init \
 后面如果想要删除集群，在所有节点执行:
 
 ```shell
-rm -rf /var/lib/kubelet # 删除核心组件目录
-rm -rf /etc/kubernetes # 删除集群配置 
-rm -rf /etc/cni/net.d # 删除容器网络配置
+rm -rf /var/lib/kubelet/* # 删除核心组件目录
+rm -rf /etc/kubernetes/* # 删除集群配置 
+rm -rf /etc/cni/net.d/* # 删除容器网络配置
 rm -rf /var/log/pods && rm -rf /var/log/containers # 删除pod和容器日志
-kubeadm reset -f # 重置集群
+kubeadm reset # 重置集群  -f 强制执行
 # 镜像我们仍然保留，/var/lib/containerd
 # crictl images 
 # 然后可能需要重启master，否则其他节点无法加入新集群
