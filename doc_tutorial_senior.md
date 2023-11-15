@@ -571,10 +571,10 @@ k8s提供了多种资源管理方式，如：
 通过`docker run`命令中的`--cpu-shares/--cpu-quota/--memory`等参数进行资源限额控制。
 
 同样的，k8s的Pod模板也提供这个功能，
-[pod_limit_resource.yaml](pod_limit_resource.yaml) 是一个完整的示例（其中包含字段解释），下面是测试情况：
+[pod_limitResource.yaml](pod_limitResource.yaml) 是一个完整的示例（其中包含字段解释），下面是测试情况：
 
 ```shell
-$ kk apply -f pod_limit_resource.yaml       
+$ kk apply -f pod_limitResource.yaml       
 pod/test-limit-resource created
 
 $ kk get pod                         
