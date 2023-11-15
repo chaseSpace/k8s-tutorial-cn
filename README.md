@@ -15,5 +15,4 @@
 
 - 模板示例
     - [Pod示例集合](example_pod)
-    - [Deployment示例集合](example_deployment)
     - [Job/CronJob示例集合](example_job)
