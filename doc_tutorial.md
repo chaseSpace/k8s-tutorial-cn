@@ -248,14 +248,14 @@ docker push leigg/hellok8s:v1
 
 Pod 是 Kubernetes 中最小的可部署和调度单元，通常包含一个或多个容器。这些紧密耦合容器共享名字空间和文件系统卷，类似运行在同一主机上的应用程序和其辅助进程。
 
-Pod有两种运行方式。一种是单独运行（叫做单例），这种方式运行的Pod没有自愈能力，一旦因为各种原因被删除就不会重新创建。
+Pod有两种运行方式。一种是单独运行（叫做单例），这种方式运行的Pod没有自愈能力，一旦因为各种原因被删除就不会再重新创建。
 另一种则是常见的在控制器管理下运行，控制器会持续监控Pod副本数量是否符合预期，并在Pod异常时重新创建新的Pod进行替换。
 
 在阅读完本章节后，你可以在 [example_pod](example_pod) 目录下查看更多Pod模板示例。
 
 ### 3.1 定义、创建和删除Pod
 
-k8s中的各种资源对象基本都是由yaml文件定义，Pod也不例外。下面是使用nginx最新版本的单容器Pod模板：
+k8s中的各种资源对象基本都是由yaml文件定义，Pod也不例外。下面是使用nginx最新版本的单例Pod模板：
 
 ```yaml
 # nginx.yaml
@@ -313,7 +313,7 @@ $ kk describe po nginx-pod |grep Image
     Image ID:       docker.io/library/nginx@sha256:35779791c05d119df4fe476db8f47c0bee5943c83eba5656a15fc046db48178b
 ```
 
-注意：修改容器的镜像版本或启动参数会触发Pod内的容器重启。
+注意：修改容器配置会触发Pod内的容器重启，Pod本身不会完全重启。
 
 一般是使用第一种方式，第二种方式由于参数复杂仅用于某些时候的临时修改。此外，PodSpec中的大部分参数是创建后不可修改的，例如在尝试修改Pod网络时会得到以下提示：
 
@@ -547,11 +547,12 @@ hellok8s-go-http-55cfd74847-zlf49   1/1     Running   0          68s   20.2.36.7
 
 ```shell
 $ kk get pods --watch
-NAME                                   READY   STATUS    RESTARTS   AGE
+NAME                                READY   STATUS    RESTARTS   AGE
 hellok8s-go-http-58cb496c84-cft9j   1/1     Running   0          4m7s
 
 
-# 在另一个CLI执行 kk apply ...
+# 在另一个终端执行patch命令
+# kk patch deployment deployment-hellok8s-go-http -p '{"spec":{"replicas": 2}}'
 
 hellok8s-go-http-58cb496c84-sdrt2   0/1     Pending   0          0s
 hellok8s-go-http-58cb496c84-sdrt2   0/1     Pending   0          0s
@@ -618,7 +619,9 @@ $ curl http://localhost:3000
 [v2] Hello, Kubernetes!
 ```
 
-这里演示的更新是容器更新，修改deployment.yaml的其他配置也属于更新。
+这里演示的更新是容器更新，修改其他属性也属于更新。
+
+>通过`kk get deploy -o wide`或`kk describe...`命令可以查看Pod内每个容器使用的镜像名称（含版本）。
 
 ### 4.4 回滚部署
 
