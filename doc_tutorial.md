@@ -539,9 +539,7 @@ hellok8s-go-http-55cfd74847-zlf49   1/1     Running   0          68s   20.2.36.7
 
 ### 4.2 修改deployment
 
-修改方式仍然包括修改模板和`patch`两种。Deployment在创建后允许修改的字段有`replicas`、`spec.template.spec`
-部分，修改会触发Pod重启（默认以滚动更新方式）。
-
+修改方式仍然支持修改模板文件和使用`patch`命令两种。
 现在以修改模板中的`replicas=3`为例进行演示。为了能够观察pod数量变化过程，提前打开一个终端执行`kk get pods --watch`命令。
 下面是演示情况：
 
@@ -553,7 +551,7 @@ hellok8s-go-http-58cb496c84-cft9j   1/1     Running   0          4m7s
 
 
 # 在另一个终端执行patch命令
-# kk patch deployment hellok8s-go-http -p '{"spec":{"replicas": 2}}'
+# kk patch deployment hellok8s-go-http -p '{"spec":{"replicas": 3}}'
 
 hellok8s-go-http-58cb496c84-sdrt2   0/1     Pending   0          0s
 hellok8s-go-http-58cb496c84-sdrt2   0/1     Pending   0          0s
@@ -565,7 +563,9 @@ hellok8s-go-http-58cb496c84-pjkp9   1/1     Running             0          1s
 hellok8s-go-http-58cb496c84-sdrt2   1/1     Running             0          1s
 ```
 
-最后，你可以通过`kk get pods`命令观察到Deployment管理下的pod的最终数量为3。
+最后，你可以通过`kk get pods`命令观察到Deployment管理下的pod副本数量为3。
+
+>我们可以在Deployment创建后修改它的部分字段，比如标签、副本数以及容器模板。其中修改容器模板会触发Deployment管理的所有Pod更新。
 
 ### 4.3 更新deployment
 
@@ -974,32 +974,47 @@ ReplicaSet。你可以通过 [官方文档](https://kubernetes.io/zh-cn/docs/con
 
 ## 5. 使用DaemonSet
 
-DaemonSet是一种特殊的控制器，它会在每个node上**只会**运行一个pod，
+DaemonSet是一种特殊的控制器，它确保会在集群的**每个节点**（或大部分）上都运行 **一个**
+Pod副本。在节点加入或退出集群时，DaemonSet也会在相应节点增加或删除Pod。
 因此常用来部署那些为节点本身提供服务或维护的Pod（如日志收集和转发、监控等）。
 
-正因为它的特殊，所以DaemonSet的pod通常会在配置中直接指定映射到指定node端口，并且可以绕过污点限制从而可以被调度到Master上运行（需要在yaml中配置）。
+因为这一特性，DaemonSet应用通常会在模板中直接指定映射容器端口到节点端口，不用担心同一个节点会运行多个Pod副本而导致端口冲突。
 
-DaemonSet的yaml文件示例 [daemonset-elasticsearch.yaml](daemonset-elasticsearch.yaml)
+DaemonSet通常会运行在每个节点上，但不包括master节点。因为master节点默认存在不允许调度Pod的 **污点**
+，所以一般会在模板中为Pod配置污点容忍度来实现在master节点上运行DaemonSet Pod（如果不需要在master节点运行则无需配置）。
 
-操作步骤如下：
+> 关于污点，会在 [Kubernetes 进阶教程—污点和容忍度](doc_tutorial_senior.md#36-污点和容忍度) 一节中讲到，此处可以先不用深究。
+
+[daemonset.yaml](daemonset.yaml) 是一个DaemonSet的模板示例。常用命令与Deployment没有较大差别，只是DaemonSet不基于ReplicaSet。
+具体演示如下：
 
 ```shell
-kk create -f daemonset-elasticsearch.yaml
+$ kk apply -f daemonset.yaml 
+daemonset.apps/daemonset-hellok8s-go-http created
+$ kk get daemonset          
+NAME                         DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+daemonset-hellok8s-go-http   2         2         2       2            2           <none>          8s
 
-# 会看到每个node上都运行一个pod，包含master
-kk get pods -n kube-system -o wide
+$ kk get po -o wide|grep daemonset 
+daemonset-hellok8s-go-http-gwbsh    1/1     Running   0                    51s     20.2.36.75   k8s-node1    <none>           <none>
+daemonset-hellok8s-go-http-v44jm    1/1     Running   0                    51s     20.2.36.74   k8s-master   <none>           <none>
 
-# 所有pod正常运行后，编辑pod配置(编辑语法同vi)
-kk edit ds/fluentd-elasticsearch -n kube-system
+$ kk set image daemonset/daemonset-hellok8s-go-http hellok8s=leigg/hellok8s:v2 
+daemonset.apps/daemonset-hellok8s-go-http image updated
 
-# 观察pod数量和状态
-kk get pods -n kube-system -o wide
+$ kk rollout status daemonset/daemonset-hellok8s-go-http                             
+daemon set "daemonset-hellok8s-go-http" successfully rolled out
 
-# 观察控制器状态信息
-kk get daemonset -n kube-system
+$ kk rollout history daemonset/daemonset-hellok8s-go-http
+daemonset.apps/daemonset-hellok8s-go-http 
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+
+$ kk get daemonset -o wide                               
+NAME                         DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS   IMAGES              SELECTOR
+daemonset-hellok8s-go-http   2         2         2       2            2           <none>          15m   hellok8s     leigg/hellok8s:v2   app=hellok8s
 ```
-
-对于Daemonset控制器管理的Pod的更新，都是先（手动或自动）删除再创建，不会进行滚动更新。
 
 ## 6. 使用Job和CronJob
 
