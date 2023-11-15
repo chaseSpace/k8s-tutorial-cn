@@ -621,7 +621,7 @@ $ curl http://localhost:3000
 
 这里演示的更新是容器更新，修改其他属性也属于更新。
 
->通过`kk get deploy -o wide`或`kk describe...`命令可以查看Pod内每个容器使用的镜像名称（含版本）。
+> 通过`kk get deploy -o wide`或`kk describe...`命令可以查看Pod内每个容器使用的镜像名称（含版本）。
 
 ### 4.4 回滚部署
 
@@ -921,6 +921,18 @@ kk rollout undo deployment hellok8s-go-http --to-revision=N
 # 若要继续更新
 kk rollout resume deploy hellok8s-go-http
 ```
+
+### 4.10 底层控制器ReplicaSet
+
+实际上，Pod的副本集功能并不是由Deployment直接提供的，而是由Deployment管理的 **ReplicaSet** 控制器来提供的。
+
+ReplicaSet 是一个相比Deployment更低级的控制器，它负责维护一组在任何时候都处于运行状态且符合预期数量的 Pod 副本的稳定集合。
+然而由于 ReplicaSet 不具备滚动更新和回滚等一些业务常用的流水线功能，所以通常情况下，我们更推荐使用
+Deployment或DaemonSet等其他控制器 而不是直接使用
+ReplicaSet。你可以通过 [官方文档](https://kubernetes.io/zh-cn/docs/concepts/workloads/controllers/replicaset)
+了解更多ReplicaSet细节。
+
+[replicaset.yaml](replicaset.yaml) 是一个可参考的示例。
 
 ## 5. 使用DaemonSet
 
