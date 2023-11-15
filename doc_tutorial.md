@@ -246,83 +246,160 @@ docker push leigg/hellok8s:v1
 
 ## 3. 使用Pod
 
-Pod 是 Kubernetes 最小的可部署单元，**通常包含一个或多个容器**。
-它们可以容纳紧密耦合的容器，例如运行在同一主机上的应用程序和其辅助进程。但是，在生产环境中，通常使用其他资源来更好地管理和扩展服务。
+Pod 是 Kubernetes 中最小的可部署和调度单元，通常包含一个或多个容器。这些紧密耦合容器共享名字空间和文件系统卷，类似运行在同一主机上的应用程序和其辅助进程。
 
-Pod是 Kubernetes 中创建和管理的、最小的可部署的计算单元。
+Pod有两种运行方式。一种是单独运行（叫做单例），这种方式运行的Pod没有自愈能力，一旦因为各种原因被删除就不会重新创建。
+另一种则是常见的在控制器管理下运行，控制器会持续监控Pod副本数量是否符合预期，并在Pod异常时重新创建新的Pod进行替换。
 
-### 3.1 创建nginx pod
+在阅读完本章节后，你可以在 [example_pod](example_pod) 目录下查看更多Pod模板示例。
+
+### 3.1 定义、创建和删除Pod
+
+k8s中的各种资源对象基本都是由yaml文件定义，Pod也不例外。下面是使用nginx最新版本的单容器Pod模板：
 
 ```yaml
 # nginx.yaml
 apiVersion: v1
 kind: Pod  # 资源类型=pod
 metadata:
-  name: nginx-pod  # 需要唯一
+  name: nginx-pod  # 需要在当前命名空间中唯一
+  namespace: default # 默认是default，可省略
 spec:
   containers: # pod内的容器组
     - name: nginx-container
       image: nginx  # 镜像默认来源 DockerHub
 ```
 
-### 3.2 创建pod
-
 运行第一条k8s命令创建pod：
 
 ```shell
-kubectl apply -f nginx.yaml
+kk apply -f nginx.yaml
 ```
 
-### 3.3 查看nginx-pod状态
+查看nginx-pod状态：
 
 ```shell
-kubectl get po nginx-pod
+kk get pod nginx-pod
 ```
 
-查看全部pods：`kubectl get pods`
+查看全部pods：
 
-### 3.4 与pod交互
+```shell
+kk get pods
+```
 
-添加端口转发，然后就可以在宿主机访问nginx-pod
+命令中的`pods`可以简写为`po`。
+
+如果要删除Pod，可以执行：
+
+```shell
+kk delete pod nginx-pod
+```
+
+### 3.2 修改Pod
+
+在创建Pod后，我们可能会修改Pod的部分配置，比如修改镜像版本，修改容器启动参数等。修改方式有两种：
+
+- 直接修改yaml文件然后再次apply即可
+- 通过patch命令修改
+
+第一种方式比较简单，就不再演示。这里演示第二种方式:
+
+```shell
+$ kk patch pod nginx-pod -p '{"spec":{"containers":[{"name":"nginx-container","image":"nginx:1.10.1"}]}}'
+pod/nginx-pod patched
+$ kk describe po nginx-pod |grep Image
+    Image:          nginx:1.10.1
+    Image ID:       docker.io/library/nginx@sha256:35779791c05d119df4fe476db8f47c0bee5943c83eba5656a15fc046db48178b
+```
+
+注意：修改容器的镜像版本或启动参数会触发Pod内的容器重启。
+
+一般是使用第一种方式，第二种方式由于参数复杂仅用于某些时候的临时修改。此外，PodSpec中的大部分参数是创建后不可修改的，例如在尝试修改Pod网络时会得到以下提示：
+
+```shell
+$ kk apply -f nginx.yaml                                                                                 
+The Pod "nginx-pod" is invalid: spec: Forbidden: pod updates may not change fields other than 
+    `spec.containers[*].image`, `spec.initContainers[*].image`, `spec.activeDeadlineSeconds`, 
+    `spec.tolerations` (only additions to existing tolerations) or 
+    `spec.terminationGracePeriodSeconds` (allow it to be set to 1 if it was previously negative)
+...
+```
+
+可见允许修改的有镜像相关、`activeDeadlineSeconds`、`tolerations`和`terminationGracePeriodSeconds`这几个字段。
+如果想要修改其他字段，只能在删除Pod后重新创建。
+
+### 3.3 与Pod交互
+
+添加端口转发，然后就可以在宿主机访问`nginx-pod`
 
 ```shell
 # 宿主机4000映射到pod的80端口
 # 这条命令是阻塞的，仅用来调试pod服务是否正常运行
-kubectl port-forward nginx-pod 4000:80
+kk port-forward nginx-pod 4000:80
 
 # 打开另一个控制台
 curl http://127.0.0.1:4000
 ```
 
-其他命令：
+进入Pod Shell：
 
 ```shell
-kubectl delete pod nginx-pod # 删除pod
-kubectl delete -f nginx.yaml  # 删除配置文件内的全部资源
- 
-kubectl exec -it nginx-pod -- /bin/bash   # 进入pod shell
+kk exec -it nginx-pod -- /bin/bash
 
-# 支持 --tail LINES_NUM
-kubectl logs -f nginx-pod  # 查看日志（stdout/stderr）
+# 当Pod内存在多个容器时，通过-c指定进入哪个容器
+kk exec -it nginx-pod -c nginx-container -- /bin/bash
 ```
 
-### 3.5 Pod 与 Container 的不同
+其他Pod常用命令：
 
-在刚刚创建的资源里，在最内层是我们的服务 nginx，运行在 container 容器当中， container (容器) 的**本质是进程**，而 pod
+```shell
+kk delete pod nginx-pod # 删除pod
+kk delete -f nginx.yaml  # 删除配置文件内的全部资源
+kk logs -f nginx-pod  # 查看日志（stdout/stderr）,支持 --tail <lines>
+kk logs -f nginx-pod -c container-2 # 指定查看某个容器的日志
+```
+
+### 3.4 Pod与Container的不同
+
+在刚刚创建的资源里，在最内层是我们的服务 nginx，运行在 Container 当中， Container (容器) 的**本质是进程**，而 Pod
 是管理这一组进程的资源。
 
-所以 pod 可以管理多个 container，在某些场景例如服务之间需要文件交换(日志收集)，本地网络通信需求(使用 localhost 或者 Socket
-文件进行本地通信)，
-在这些场景中使用 pod 管理多个 container 就非常的推荐。而这，也是 k8s 如何处理服务之间复杂关系的第一个例子。
+**Sidecar模式**  
+Pod 可以管理多个 Container。例如在某些场景服务之间需要文件交换(日志收集)，本地网络通信需求(使用 localhost 或者 Socket
+文件进行本地通信)，这时候就会部署多容器Pod。
+这是一种常见的容器设计模式，它有个名称叫做Sidecar。Sidecar模式中主要包含两类容器，一类是主应用容器，另一类是辅助容器（称为
+sidecar 容器）提供额外的功能，它们共享相同的网络和存储空间。这个模式的灵感来自于摩托车上的辅助座位，因此得名 "Sidecar"。
 
-**Pod定义**  
-Pod 是 Kubernetes 最小的可部署/调度单元，通常包含一个或多个容器。它们可以容纳紧密耦合的容器，例如运行在同一主机上的应用程序和其辅助进程。但是，在生产环境中，通常使用其他资源来更好地管理和扩展服务。
+### 3.5 Init容器
 
-### 3.6 创建go程序的pod
+Init 容器是一种特殊容器，在 Pod 内的应用容器启动之前运行。Init 容器可以包括一些应用镜像中不存在的实用工具和安装脚本。
+
+Init容器有一些特点如下：
+
+- 允许定义一个或多个Init容器
+- 它们会先于Pod内其他普通容器启动
+- 它们总会在运行短暂时间后进入`Completed`状态
+- 它们会严格按照定义的顺序启动，每个容器成功运行结束后才会启动下一个
+- 任意一个Init容器运行失败都会导致Pod进入异常状态，这会引起Pod重启，除非PodSpec中设置的`restartPolicy`策略为`Never`
+- 当Init容器正常终止时（exitCode=0），即使PodSpec中设置的`restartPolicy`策略为`Always`，Pod也不会重启
+- 修改Init容器的镜像会导致Pod重启
+- Init 容器支持普通容器的全部字段和特性，除了`lifecycle、livenessProbe、readinessProbe 和 startupProbe`
+- Pod 重启会导致 Init 容器重新执行
+
+Init 容器具有与应用容器分离的单独镜像，我们可以使用它来完成一些常规的脚本任务，比如需要`sed、awk、python 或 dig`
+这样的工具完成的任务，而没必要在应用容器中去安装这些命令。
+
+> 说明：包含常用工具的镜像有busybox，appropriate/curl等。
+
+[pod_initContainer.yaml](pod_initContainer.yaml) 是一个简单的例子，这个模板中定义了两个Init容器，
+分别的任务是持续等待一个Service启动，等待期间会打印消息，当各自等待的Service都启动后，两个Init容器会自动退出，然后再启动普通容器。
+
+### 3.6 创建Go程序的Pod
 
 定义[pod.yaml](./pod.yaml)，这里面使用了之前已经推送的镜像`leigg/hellok8s:v1`
 
-启动pod：
+创建Pod：
 
 ```shell
 $ kk apply -f pod.yaml
@@ -335,8 +412,8 @@ go-http   1/1     Running   0          17s
 临时开启端口转发（在master节点）：
 
 ```shell
-# 绑定pod端口3000到 master节点的3000端口
-kubectl port-forward go-http 3000:3000
+# 绑定pod端口3000到master节点的3000端口
+kk port-forward go-http 3000:3000
 ```
 
 现在pod提供的http服务可以在master节点上可用。
@@ -348,17 +425,20 @@ $ curl http://localhost:3000
 [v1] Hello, Kubernetes!#
 ```
 
-### 3.7 pod有哪些状态
+### 3.7 Pod的生命周期
 
-- Pending（挂起）： Pod 正在调度中（包含镜像拉取、容器创建和启动）。
-- ContainerCreating（容器创建中）： Pod 已经被调度，但其中的容器尚未完全创建和启动。
+通过`kk get po`看到的`STATUS`字段存在以下情况：
+
+- Pending（挂起）： Pod 正在调度中（主要是节点选择）。
+- ContainerCreating（容器创建中）： Pod 已经被调度，但其中的容器尚未完全创建和启动（包含镜像拉取）。
 - Running（运行中）： Pod 中的容器已经在运行。
-- Completed（已成功）： 所有容器都成功终止，任务或工作完成，特指那些一次性或批处理任务而不是常驻容器。
+- Terminating（正在终止）： 删除或重启Pod会使其进入此状态，Pod默认有一个终止宽限时间是30s，可以在模板中修改（Pod可能由于某些原因会一直停留在此状态）。
+- Succeeded（已成功终止）： 所有容器都成功终止，任务或工作完成，特指那些一次性或批处理任务而不是常驻容器。
 - Failed（已失败）： 至少一个容器以非零退出码终止。
-- Unknown（未知）： 无法获取 Pod 的状态，通常是宿主机通信问题导致。
+- Unknown（未知）： 无法获取 Pod 的状态，通常是与Pod所在节点通信失败导致。
 
 **关于Pod的重启策略**  
-即`restartPolicy`字段，可选值为Always、OnFailure和Never。此策略对Pod内所有容器有效，
+即`spec.restartPolicy`字段，可选值为Always/OnFailure/Never。此策略对Pod内所有容器有效，
 由Pod所在Node上的kubelet执行判断和重启。由kubelet重启的已退出容器将会以递增延迟的方式（10s，20s，40s...）
 尝试重启，上限5min。成功运行10min后这个时间会重置。**一旦Pod绑定到某个节点上，除非节点自身问题或手动调整，
 否则不会再调度到其他节点**。
@@ -376,10 +456,49 @@ $ curl http://localhost:3000
 5. Pod进程收到SIGTERM信号
 6. 到达宽限时间还在运行，kubelet发送SIGKILL信号，设置宽限时间0s，直接删除Pod
 
+尽管可以指定`--force`参数，但有些Pod可能处于某种异常状态仍然不能从节点上被彻底删除，
+即使你通过`kubectl get po`
+看不到对应的Pod。这对于StatefulSet类型的应用可能是灾难性的，通过 [强制删除 StatefulSet 中的 Pod](https://kubernetes.io/zh-cn/docs/tasks/run-application/force-delete-stateful-set-pod/)
+了解更多细节。
+
+**Pod的生命期**  
+Pod是临时性的一次性实体，Pod的调度过程就是将Pod调度到某个节点的过程。Pod创建后获得一个唯一的UID。
+Pod一般只会被调度一次，如果所在节点失效或因为节点资源耗尽等原因驱逐节点上的部分或全部Pod，则这些Pod会在短暂时间后被删除。Pod本身不具有自愈能力，
+所以如果Pod是单实例而不是由控制器管理的话，一旦Pod被删除就不会再被重建。由控制器管理的Pod会被重建，它们的名称（主要部分）不会变化，但会获得一个新的UID。
+
+**容器状态**  
+一旦调度器将 Pod 分派给某个节点，kubelet 就通过容器运行时开始为 Pod 创建容器。容器的状态有三种：Waiting（等待）、Running（运行中）和
+Terminated（已终止）。
+你可以使用 `kubectl describe pod <pod 名称>`来检查每个容器的状态（输出中的`Containers.State`）。
+
+### 3.8 Pod与控制器
+
+在生产环境中，我们很少会直接部署一个单实例Pod。因为Pod被设计为一种临时性的一次性实体，当因为人为或资源不足等情况被删除时，Pod不会自动恢复。
+但是当我们使用控制器来创建Pod时，Pod的生命周期就会受到控制器管理。这种管理具体表现为Pod将拥有**横向扩展以及故障自愈**的能力。
+
+常见的控制器类型如下：
+
+- Deployment
+- StatefulSet
+- DaemonSet
+- Job/CronJob
+
+下文将进一步介绍这些控制器。
+
+### 3.9 Pod联网
+
+每个Pod能够获得一个独立的IP地址，Pod中的容器共享网络命名空间，包括IP地址和网络端口。Pod 内的容器可以使用 localhost
+互相通信，它们也能通过如 SystemV 信号量或 POSIX 共享内存这类标准的进程间通信方式互相通信。Pod间通信或Pod对外暴露服务需要使用
+**Service** 资源，这将在后面的章节中提到。
+
+> Pod默认可以访问外部网络。
+
+Pod 中的容器所看到的系统主机名与为Pod名称相同。
+
 ## 4. 使用Deployment
 
-通常，Pod不会被（通过pod.yaml）直接创建和管理，而是由更高级别的控制器，如Deployment，来创建和管理。
-这是因为Deployment提供了更强大的应用程序管理功能。
+通常，Pod不会被直接创建和管理，而是由更高级别的控制器，例如Deployment来创建和管理。
+这是因为控制器提供了更强大的应用程序管理功能。
 
 - **应用管理**：Deployment是Kubernetes中的一个控制器，用于管理应用程序的部署和更新。它允许你定义应用程序的期望状态，然后确保集群中的副本数符合这个状态。
 
@@ -393,7 +512,7 @@ $ curl http://localhost:3000
 
 ### 4.1 部署deployment
 
-先创建一个[deployment文件](./deployment.yaml)， 用来编排多个pod。
+先创建 [deployment.yaml](./deployment.yaml)， 用来编排多个pod。
 
 ```shell
 $ kk apply -f deployment.yaml
@@ -416,14 +535,18 @@ hellok8s-go-http-55cfd74847-5jw7f   1/1     Running   0          68s   20.2.36.7
 hellok8s-go-http-55cfd74847-zlf49   1/1     Running   0          68s   20.2.36.74   k8s-node1   <none>           <none>
 ```
 
-**删除pod会自动重启一个，确保可用的pod数量与`deployment.yaml`中的`replicas`字段保持一致，不再演示**。
+删除pod会自动重启一个新的Pod，确保可用的pod数量与`deployment.yaml`中的`replicas`字段保持一致，不再演示。
 
 ### 4.2 修改deployment
 
-通过vi修改内容中的replicas=3，再次部署，开始之前，我们使用下面的命令来观察pod数量变化
+修改方式仍然包括修改模板和`patch`两种。Deployment在创建后允许修改的字段有`replicas`、`spec.template.spec`
+部分，修改会触发Pod重启（默认以滚动更新方式）。
+
+现在以修改模板中的`replicas=3`为例进行演示。为了能够观察pod数量变化过程，提前打开一个终端执行`kk get pods --watch`命令。
+下面是演示情况：
 
 ```shell
-$ kubectl get pods --watch
+$ kk get pods --watch
 NAME                                   READY   STATUS    RESTARTS   AGE
 hellok8s-go-http-58cb496c84-cft9j   1/1     Running   0          4m7s
 
@@ -440,9 +563,11 @@ hellok8s-go-http-58cb496c84-pjkp9   1/1     Running             0          1s
 hellok8s-go-http-58cb496c84-sdrt2   1/1     Running             0          1s
 ```
 
+最后，你可以通过`kk get pods`命令观察到Deployment管理下的pod的最终数量为3。
+
 ### 4.3 更新deployment
 
-这一步通过修改main.go来模拟实际项目中的服务更新，修改后的文件是[main2.go](./main2.go)。
+这一步通过修改main.go来模拟实际项目中的服务更新，修改后的文件是 [main2.go](./main2.go)。
 
 重新构建镜像：
 
@@ -459,10 +584,10 @@ docker push leigg/hellok8s:v2
 然后更新deployment：
 
 ```shell
-$ kubectl set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v2
+$ kk set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v2
 
 $ 查看更新过程
-$ kubectl rollout status deployment/hellok8s-go-http
+$ kk rollout status deployment/hellok8s-go-http
 Waiting for deployment "hellok8s-go-http" rollout to finish: 2 out of 3 new replicas have been updated...
 Waiting for deployment "hellok8s-go-http" rollout to finish: 2 out of 3 new replicas have been updated...
 Waiting for deployment "hellok8s-go-http" rollout to finish: 2 out of 3 new replicas have been updated...
@@ -504,9 +629,9 @@ $ curl http://localhost:3000
 1. 修改main.go，将最后监听端口那行先注释，添加一行：panic("something went wrong")
 2. 构建镜像: docker build . -t leigg/hellok8s:v2_problem
 3. push镜像：docker push leigg/hellok8s:v2_problem
-4. 更新deployment使用的镜像：kubectl set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v2_problem
-5. 观察：kubectl rollout status deployment/hellok8s-go-http （会停滞，按 Ctrl-C 停止观察）
-6. 观察pod：kubectl get pods
+4. 更新deployment使用的镜像：kk set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v2_problem
+5. 观察：kk rollout status deployment/hellok8s-go-http （会停滞，按 Ctrl-C 停止观察）
+6. 观察pod：kk get pods
 
 ```shell
 $ kk get pods
@@ -522,7 +647,7 @@ hellok8s-go-http-7c9d684dd-msj2c    0/1     CrashLoopBackOff   1 (4s ago)   6s
 # 查看每个副本集每次更新的pod情况（包含副本数量、上线时间、使用的镜像tag）
 # DESIRED-预期数量，CURRENT-当前数量，READY-可用数量
 # -l 进行标签筛选
-$ kubectl get rs -l app=hellok8s -o wide
+$ kk get rs -l app=hellok8s -o wide
 NAME                          DESIRED   CURRENT   READY   AGE   CONTAINERS   IMAGES                      SELECTOR
 hellok8s-go-http-55cfd74847   0         0         0       76s   hellok8s     leigg/hellok8s:v1           app=hellok8s,pod-template-hash=55cfd74847
 hellok8s-go-http-668c7f75bd   3         3         3       55s   hellok8s     leigg/hellok8s:v2           app=hellok8s,pod-template-hash=668c7f75bd
@@ -556,7 +681,7 @@ Pod Template:
   Volumes:	<none>
 
 # 确认后，回滚（到上个版本）
-$ kubectl rollout undo deployment/hellok8s-go-http  #到指定版本 --to-revision=2          
+$ kk rollout undo deployment/hellok8s-go-http  #到指定版本 --to-revision=2          
 deployment.apps/hellok8s-go-http rolled back
 
 # 检查副本集状态（所处的版本）
@@ -621,17 +746,17 @@ spec:
 这样，我们通过`k apply`命令时会以滚动更新方式进行。
 > 从`maxSurge: 1`可以看出更新时最多会出现4个pod，从`maxUnavailable: 1`可以看出最少会有2个pod正常运行。
 
-注意：无论是通过`kubectl set image ...`还是`kubectl rollout restart deployment xxx`方式更新deployment都会遵循配置进行滚动更新。
+注意：无论是通过`kk set image ...`还是`kk rollout restart deployment xxx`方式更新deployment都会遵循配置进行滚动更新。
 
 ### 4.6 控制Pod水平伸缩
 
 ```shell
 # 指定副本数量
-$ kubectl scale deployment/hellok8s-go-http --replicas=10
+$ kk scale deployment/hellok8s-go-http --replicas=10
 deployment.apps/hellok8s-go-http scaled
 
 # 观察到副本集版本并没有变化，而是数量发生变化
-$ kubectl get rs -l app=hellok8s -o wide                 
+$ kk get rs -l app=hellok8s -o wide                 
 NAME                          DESIRED   CURRENT   READY   AGE   CONTAINERS   IMAGES                      SELECTOR
 hellok8s-go-http-55cfd74847   0         0         0       33m   hellok8s     leigg/hellok8s:v1           app=hellok8s,pod-template-hash=55cfd74847
 hellok8s-go-http-668c7f75bd   10        10        10      33m   hellok8s     leigg/hellok8s:v2           app=hellok8s,pod-template-hash=668c7f75bd
@@ -806,19 +931,19 @@ DaemonSet的yaml文件示例 [daemonset.yaml](./example_deployment/daemonset.yam
 操作步骤如下：
 
 ```shell
-kubectl create -f fluentd-daemonset.yaml
+kk create -f fluentd-daemonset.yaml
 
 # 会看到每个node上都运行一个pod，包含master
-kubectl get pods -n kube-system -o wide
+kk get pods -n kube-system -o wide
 
 # 所有pod正常运行后，编辑pod配置(编辑语法同vi)
-kubectl edit ds/fluentd-elasticsearch -n kube-system
+kk edit ds/fluentd-elasticsearch -n kube-system
 
 # 观察pod数量和状态
-kubectl get pods -n kube-system -o wide
+kk get pods -n kube-system -o wide
 
 # 观察控制器状态信息
-kubectl get daemonset -n kube-system
+kk get daemonset -n kube-system
 ```
 
 对于Daemonset控制器管理的Pod的更新，都是先（手动或自动）删除再创建，不会进行滚动更新。
@@ -841,30 +966,30 @@ Job和CronJob控制器与Deployment、Daemonset都是同级的控制器。它俩
 使用 [job.yaml](example_job/job.yaml) 测试**一次性任务**：
 
 ```shell
-[node1 ~]$ kubectl apply -f job.yaml 
+[node1 ~]$ kk apply -f job.yaml 
 job.batch/pods-job created
 
-[node1 ~]$ kubectl get job
+[node1 ~]$ kk get job
 NAME     COMPLETIONS  DURATION   AGE
 pods-job   0/1           19s     19s
 
 # DURATION 表示job启动到结束耗时
-[node1 ~]$ kubectl get job
+[node1 ~]$ kk get job
 NAME     COMPLETIONS   DURATION   AGE
 pods-job   1/1           36s     60s
 
 # Completed 表示pod正常终止
-[node1 ~]$ kubectl get pods
+[node1 ~]$ kk get pods
 NAME                    READY   STATUS      RESTARTS   AGE
 pods-simple-pod-kdjr6   0/1     Completed   0          4m41s
 
 # 查看pod日志（标准输出和错误）
-[node1 ~]$ kubectl logs pods-simple-pod-kdjr6
+[node1 ~]$ kk logs pods-simple-pod-kdjr6
 Start Job!
 Job Done!
 
 # 执行结束后，手动删除job，也可在yaml中配置自动删除
-[node1 ~]$ kubectl delete job pods-job
+[node1 ~]$ kk delete job pods-job
 job.batch "pods-job" deleted
 ```
 
@@ -884,24 +1009,24 @@ job.batch "pods-job" deleted
 使用 [job.yaml](example_job/cronjob.yaml) 测试：
 
 ```shell
-[node1 ~]$ kubectl apply -f cronjob.yaml 
+[node1 ~]$ kk apply -f cronjob.yaml 
 job.batch/pods-cronjob created
 
-[node1 ~]$ kubectl get cronjob
+[node1 ~]$ kk get cronjob
 NAME           SCHEDULE      SUSPEND   ACTIVE   LAST SCHEDULE   AGE
 pods-cronjob   */1 * * * *   False     1        28s             10s
 
 # cronjob内部还是调用的job
-[node1 ~]$ kubectl get job
+[node1 ~]$ kk get job
 NAME                    COMPLETIONS   DURATION   AGE
 pods-cronjob-28305226   1/1           34s        2m54s
 pods-cronjob-28305227   1/1           34s        114s
 pods-cronjob-28305228   1/1           34s        54s
 
 # 删除cronjob，会自动删除关联的job, pod
-[node1 ~]$ kubectl delete cronjob pods-cronjob
+[node1 ~]$ kk delete cronjob pods-cronjob
 cronjob.batch "pods-cronjob" deleted
-[node1 ~]$ kubectl get job
+[node1 ~]$ kk get job
 No resources found in default namespace.
 ```
 
@@ -1062,7 +1187,7 @@ nginx                               1/1     Running   0          11s
 
 # 进入 nginx pod
 $ kk exec -it nginx -- bash 
-kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+kk exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kk exec [POD] -- [COMMAND] instead.
 
 # 访问 hellok8s 的 cluster ip
 root@nginx:/# curl 20.1.120.16:3000
@@ -1443,10 +1568,10 @@ ingress控制器版本是`1.8.2`。
 wget https://raw.gitmirror.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
 
 # 安装
-kubectl apply -f deploy.yaml
+kk apply -f deploy.yaml
 
 # 等待控制器的pod运行正常（这里自动创建了一个新的namespace）
-$ kubectl get pods --namespace=ingress-nginx --watch
+$ kk get pods --namespace=ingress-nginx --watch
 NAME                                        READY   STATUS      RESTARTS   AGE
 ingress-nginx-admission-create-kt8lm        0/1     Completed   0          2m36s
 ingress-nginx-admission-patch-rslxl         0/1     Completed   2          2m36s
@@ -1455,13 +1580,13 @@ ingress-nginx-controller-6f4df7b5d6-lxfsr   1/1     Running     0          2m36s
 # 注意前两个 Completed 的pod是一次性的，用于执行初始化工作，现在安装成功。
 
 # 等待各项资源就绪
-kubectl wait --namespace ingress-nginx \
+kk wait --namespace ingress-nginx \
   --for=condition=ready pod \
   --selector=app.kubernetes.io/component=controller \
   --timeout=120s
   
 #查看安装的各种资源
-$ kubectl get all -n ingress-nginx
+$ kk get all -n ingress-nginx
 NAME                                            READY   STATUS      RESTARTS   AGE
 pod/ingress-nginx-admission-create-smxkz        0/1     Completed   0          16m
 pod/ingress-nginx-admission-patch-7c86x         0/1     Completed   1          16m
@@ -1535,7 +1660,7 @@ docker build . -t leigg/hellok8s:v3_nginxingress
 docker push leigg/hellok8s:v3_nginxingress
 ```
 
-3. 更新deployment镜像：`kubectl set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v3_nginxingress`，并等待更新完成
+3. 更新deployment镜像：`kk set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v3_nginxingress`，并等待更新完成
 4. 部署 [deployment_httpd_svc.yaml](deployment_httpd_svc.yaml) 作为 Ingress 后端之一
 5. 定义 Ingress [ingress-hellok8s.yaml](ingress-hellok8s.yaml)，其中定义了路由规则，然后应用
 6. 在节点上验证
@@ -1682,12 +1807,12 @@ metadata:
 使用：
 
 ```shell
-$ kubectl apply -f namespaces.yaml    
+$ kk apply -f namespaces.yaml    
 # namespace/dev created
 # namespace/test created
 
 
-$ kubectl get namespaces          
+$ kk get namespaces          
 # NAME              STATUS   AGE
 # default           Active   215d
 # dev               Active   2m44s
@@ -1698,7 +1823,7 @@ $ kubectl get namespaces
 # test              Active   2m44s
 
 # 获取指定namespace下的资源
-$ kubectl get pods -n dev
+$ kk get pods -n dev
 ```
 
 ## 10. 使用ConfigMap和Secret
@@ -1743,7 +1868,7 @@ immutable: true
 
 ```shell
 # 先删除所有资源
-$ kubectl delete pod,deployment,service,ingress --all
+$ kk delete pod,deployment,service,ingress --all
 
 docker build . -t leigg/hellok8s:v4_configmap
 docker push leigg/hellok8s:v4_configmap
@@ -1762,7 +1887,7 @@ Get Database Connect URL: http://mydb.example123.com
 app-config.json:{"db_url":"mysql.example.com"}
 ```
 
-可以看到app已经拿到了configmap中定义的配置信息。若要更新，直接更改configmap的yaml文件然后应用，然后重启业务pod即可（使用`kubectl rollout restart deployment <deployment-name>`）。
+可以看到app已经拿到了configmap中定义的配置信息。若要更新，直接更改configmap的yaml文件然后应用，然后重启业务pod即可（使用`kk rollout restart deployment <deployment-name>`）。
 
 若configmap配置了`immutable: true`，则无法再进行修改：
 
