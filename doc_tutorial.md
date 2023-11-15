@@ -512,7 +512,7 @@ Pod 中的容器所看到的系统主机名与为Pod名称相同。
 
 ### 4.1 部署deployment
 
-先创建 [deployment.yaml](./deployment.yaml)， 用来编排多个pod。
+下面使用 [deployment.yaml](./deployment.yaml) 作为示例进行演示：
 
 ```shell
 $ kk apply -f deployment.yaml
@@ -546,13 +546,14 @@ hellok8s-go-http-55cfd74847-zlf49   1/1     Running   0          68s   20.2.36.7
 下面是演示情况：
 
 ```shell
+# --watch可简写为-w
 $ kk get pods --watch
 NAME                                READY   STATUS    RESTARTS   AGE
 hellok8s-go-http-58cb496c84-cft9j   1/1     Running   0          4m7s
 
 
 # 在另一个终端执行patch命令
-# kk patch deployment deployment-hellok8s-go-http -p '{"spec":{"replicas": 2}}'
+# kk patch deployment hellok8s-go-http -p '{"spec":{"replicas": 2}}'
 
 hellok8s-go-http-58cb496c84-sdrt2   0/1     Pending   0          0s
 hellok8s-go-http-58cb496c84-sdrt2   0/1     Pending   0          0s
@@ -587,26 +588,26 @@ docker push leigg/hellok8s:v2
 ```shell
 $ kk set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v2
 
-$ 查看更新过程
+$ # 查看更新过程（如果镜像已经拉取，此过程会很快，你可能只会看到最后一条输出）
 $ kk rollout status deployment/hellok8s-go-http
 Waiting for deployment "hellok8s-go-http" rollout to finish: 2 out of 3 new replicas have been updated...
 Waiting for deployment "hellok8s-go-http" rollout to finish: 2 out of 3 new replicas have been updated...
 Waiting for deployment "hellok8s-go-http" rollout to finish: 2 out of 3 new replicas have been updated...
 Waiting for deployment "hellok8s-go-http" rollout to finish: 1 old replicas are pending termination...
 Waiting for deployment "hellok8s-go-http" rollout to finish: 1 old replicas are pending termination...
-deployment "hellok8s-go-http" successfully rolled  # OK
+deployment "hellok8s-go-http" successfully rolled out
 
 # 也可以直接查看pod信息，会观察到pod正在更新（这是一个启动新pod，删除旧pod的过程，最终会维持到所配置的replicas数量）
-$ kk get pods
+$ kk get po -w
 NAMESPACE     NAME                                       READY   STATUS              RESTARTS      AGE
 default       go-http                                    1/1     Running             0             14m
-default       hellok8s-go-http-55cfd74847-5jw7f          1/1     Terminating         0             27m
-default       hellok8s-go-http-55cfd74847-z29dl          1/1     Running             0             23m
-default       hellok8s-go-http-55cfd74847-zlf49          1/1     Running             0             27m
+default       hellok8s-go-http-55cfd74847-5jw7f          1/1     Terminating         0             3m
+default       hellok8s-go-http-55cfd74847-z29dl          1/1     Running             0             3m
+default       hellok8s-go-http-55cfd74847-zlf49          1/1     Running             0             3m
 default       hellok8s-go-http-668c7f75bd-m56pm          0/1     ContainerCreating   0             0s
 default       hellok8s-go-http-668c7f75bd-qlrk5          1/1     Running             0             14s
 
-# 绑定其中一个pod来测试
+# 绑定其中一个pod来测试（这是一个阻塞终端的操作）
 $ kk port-forward hellok8s-go-http-668c7f75bd-m56pm 3000:3000
 Forwarding from 127.0.0.1:3000 -> 3000
 Forwarding from [::1]:3000 -> 3000
@@ -621,7 +622,44 @@ $ curl http://localhost:3000
 
 这里演示的更新是容器更新，修改其他属性也属于更新。
 
-> 通过`kk get deploy -o wide`或`kk describe...`命令可以查看Pod内每个容器使用的镜像名称（含版本）。
+> 通过`kk get deploy -o wide`或`kk describe deploy ...`命令可以查看Pod内每个容器使用的镜像名称（含版本）。
+
+Deployment的镜像更新或回滚都是通过 **创建新的Replicaset和终止旧的Replicaset** 来完成的，你可以通过`kk get rs -w`来观察这一过程。
+在更新完成后，应当看到新旧Replicaset是同时存在的：
+
+```shell
+$ kk get rs -o wide
+NAME                          DESIRED   CURRENT   READY   AGE     CONTAINERS   IMAGES              SELECTOR
+hellok8s-go-http-55cfd74847   0         0         0       7m50s   hellok8s     leigg/hellok8s:v1   app=hellok8s,pod-template-hash=55cfd74847
+hellok8s-go-http-668c7f75bd   3         3         3       6m23s   hellok8s     leigg/hellok8s:v2   app=hellok8s,pod-template-hash=668c7f75bd
+```
+
+**注意**
+：k8s使用旧的Replicaset作为Deployment的更新历史，回滚时会用到，所以请不要手动删除旧的replicaset。通过`kubectl rollout history deployment/hellok8s-go-http`
+可以查看上线历史：
+
+```shell
+$ kk rollout history deployment/hellok8s-go-http                              
+deployment.apps/hellok8s-go-http 
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+```
+
+其中`CHANGE-CAUSE`列是更新原因，可以通过以下命令设置当前运行版本（REVISION）的备注：
+
+```
+$ kubectl annotate deployment/hellok8s-go-http kubernetes.io/change-cause="image updated to v2"    
+deployment.apps/hellok8s-go-http annotated
+
+$ kk rollout history deployment/hellok8s-go-http                                               
+deployment.apps/hellok8s-go-http 
+REVISION  CHANGE-CAUSE
+1         <none>
+2         image updated to v2
+```
+
+只有当Deployment的`.spec.template`部分发生变更时才会创建新的REVISION，如果只是Pod数量变化或Deployment标签修改，则不会创建新的REVISION。
 
 ### 4.4 回滚部署
 
@@ -629,12 +667,12 @@ $ curl http://localhost:3000
 
 按照下面的步骤进行：
 
-1. 修改main.go，将最后监听端口那行先注释，添加一行：panic("something went wrong")
-2. 构建镜像: docker build . -t leigg/hellok8s:v2_problem
-3. push镜像：docker push leigg/hellok8s:v2_problem
-4. 更新deployment使用的镜像：kk set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v2_problem
-5. 观察：kk rollout status deployment/hellok8s-go-http （会停滞，按 Ctrl-C 停止观察）
-6. 观察pod：kk get pods
+1. 修改main.go为 [main_panic.go](main_panic.go) ；
+2. 构建镜像: `docker build . -t leigg/hellok8s:v2_problem`
+3. push镜像：`docker push leigg/hellok8s:v2_problem`
+4. 更新deployment使用的镜像：`kk set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v2_problem`
+5. 观察：`kk rollout status deployment/hellok8s-go-http` （会停滞，按 Ctrl-C 停止观察）
+6. 观察pod：`kk get pods`
 
 ```shell
 $ kk get pods
@@ -665,10 +703,10 @@ $ kk rollout history deployment/hellok8s-go-http
 deployment.apps/hellok8s-go-http 
 REVISION  CHANGE-CAUSE
 1         <none>
-2         <none>
+2         image updated to v2
 3         <none>
 
-# 现在回到revision 2，可以先查看它具体信息（主要看用的哪个镜像tag）
+# 现在回到revision 2，可以先查看它具体信息（主要确认用的哪个镜像tag）
 $ kk rollout history deployment/hellok8s-go-http --revision=2
 deployment.apps/hellok8s-go-http with revision #2
 Pod Template:
@@ -683,8 +721,8 @@ Pod Template:
     Mounts:	<none>
   Volumes:	<none>
 
-# 确认后，回滚（到上个版本）
-$ kk rollout undo deployment/hellok8s-go-http  #到指定版本 --to-revision=2          
+# 确认后再回滚（若不指定--to-revision=N，则是回到上个版本）
+$ kk rollout undo deployment/hellok8s-go-http        
 deployment.apps/hellok8s-go-http rolled back
 
 # 检查副本集状态（所处的版本）
@@ -941,12 +979,12 @@ DaemonSet是一种特殊的控制器，它会在每个node上**只会**运行一
 
 正因为它的特殊，所以DaemonSet的pod通常会在配置中直接指定映射到指定node端口，并且可以绕过污点限制从而可以被调度到Master上运行（需要在yaml中配置）。
 
-DaemonSet的yaml文件示例 [daemonset.yaml](./example_deployment/daemonset.yaml)
+DaemonSet的yaml文件示例 [daemonset-elasticsearch.yaml](daemonset-elasticsearch.yaml)
 
 操作步骤如下：
 
 ```shell
-kk create -f fluentd-daemonset.yaml
+kk create -f daemonset-elasticsearch.yaml
 
 # 会看到每个node上都运行一个pod，包含master
 kk get pods -n kube-system -o wide
