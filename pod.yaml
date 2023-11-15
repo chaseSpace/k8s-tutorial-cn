@@ -1,4 +1,5 @@
-# 注意所有的name都只能使用 小写字母 - . 组合
+# Pod名称必须是一个合法DNS子域名
+# 具体要求：https://kubernetes.io/zh-cn/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
 apiVersion: v1
 kind: Pod
 metadata:

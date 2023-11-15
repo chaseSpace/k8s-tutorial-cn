@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: diff-images
+spec:
+  containers:
+    - name: busybox
+      image: busybox
+      command: [ "sleep", "3600" ]
+    - name: centos
+      image: centos:6
+      command: [ "sleep", "3600" ]
