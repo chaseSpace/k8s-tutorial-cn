@@ -11,6 +11,11 @@ spec:
       labels:
         app: hellok8s
     spec:
+      tolerations:
+        # 这些容忍度设置是为了让该守护进程集在控制平面节点上运行
+        # 如果你不希望自己的控制平面节点运行 Pod，可以删除它们
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
       containers:
         - image: leigg/hellok8s:v1
           name: hellok8s

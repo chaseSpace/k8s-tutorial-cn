@@ -8,7 +8,7 @@ spec:
   selector:
     matchLabels:
       app: hellok8s # 管理template下所有 app=hellok8s的pod，（要求和template.metadata.labels完全一致！！！否则无法部署deployment）
-  template:   # template 定义一组pod
+  template: # template 定义一组容器
     metadata:
       labels:
         app: hellok8s
