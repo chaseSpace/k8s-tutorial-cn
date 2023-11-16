@@ -565,7 +565,7 @@ hellok8s-go-http-58cb496c84-sdrt2   1/1     Running             0          1s
 
 最后，你可以通过`kk get pods`命令观察到Deployment管理下的pod副本数量为3。
 
->我们可以在Deployment创建后修改它的部分字段，比如标签、副本数以及容器模板。其中修改容器模板会触发Deployment管理的所有Pod更新。
+> 我们可以在Deployment创建后修改它的部分字段，比如标签、副本数以及容器模板。其中修改容器模板会触发Deployment管理的所有Pod更新。
 
 ### 4.3 更新deployment
 
@@ -2051,6 +2051,56 @@ EqqtXGJpxjV67NAAAACkxlaWdnQEx1eWk=
 -----END OPENSSH PRIVATE KEY-----
 config.yaml:username: hellok8s
 password: pass123
+```
+
+#### 10.2.5 使用命令创建secret
+
+除了通过模板方式创建Secret，我们还可以通过kubectl命令直接创建Secret：
+
+```shell
+# generic表示常规类型，通过 kubectl create secret -h 查看参数说明
+$ kubectl create secret generic db-user-pass \
+     --from-literal=username=admin \
+     --from-literal=password='S!B\*d$zDsb='
+secret/db-user-pass created
+
+# 或者通过文件创建
+$ kubectl create secret generic db-user-pass \
+    --from-file=./username.txt \
+    --from-file=./password.txt
+```
+
+创建后直接查看Secret明文：
+
+```shell
+$ kk describe secret db-user-pass                                                                         
+Name:         db-user-pass
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Type:  Opaque
+
+Data
+====
+password:  12 bytes
+username:  5 bytes
+$ kk get secret db-user-pass -o jsonpath='{.data}'                  
+{"password":"UyFCXCpkJHpEc2I9","username":"YWRtaW4="} # value是base64编码
+$ echo UyFCXCpkJHpEc2I9 |base64 --decode                      
+S!B\*d$zDsb=
+
+$ kk get secret db-user-pass -o jsonpath='{.data.password}' | base64 --decode
+S!B\*d$zDsb=#                                                                                                                                                                                
+$ kk get secret db-user-pass -o jsonpath='{.data.username}' | base64 --decode
+admin
+```
+
+删除Secret：
+
+```shell
+$ kk delete secret db-user-pass                                 
+secret "db-user-pass" deleted
 ```
 
 ### 10.3 Downward API
