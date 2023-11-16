@@ -368,19 +368,17 @@ k8s-node1    NotReady   <none>          6s      v1.25.14
 
 Kubernetes 需要网络插件(Container Network Interface: CNI)来提供集群内部和集群外部的网络通信。以下是一些常用的 k8s 网络插件：
 
-```
-Flannel：Flannel 是最常用的 k8s 网络插件之一，它使用了虚拟网络技术来实现容器之间的通信，支持多种网络后端，如 VXLAN、UDP 和 Host-GW。
-Calico：Calico 是一种基于 BGP 的网络插件，它使用路由表来路由容器之间的流量，支持多种网络拓扑结构，并提供了安全性和网络策略功能。
-Canal：Canal 是一个组合了 Flannel 和 Calico 的网络插件，它使用 Flannel 来提供容器之间的通信，同时使用 Calico 来提供网络策略和安全性功能。
-Weave Net：Weave Net 是一种轻量级的网络插件，它使用虚拟网络技术来为容器提供 IP 地址，并支持多种网络后端，如 VXLAN、UDP 和 TCP/IP，同时还提供了网络策略和安全性功能。
-Cilium：Cilium 是一种基于 eBPF (Extended Berkeley Packet Filter) 技术的网络插件，它使用 Linux 内核的动态插件来提供网络功能，如路由、负载均衡、安全性和网络策略等。
-Contiv：Contiv 是一种基于 SDN 技术的网络插件，它提供了多种网络功能，如虚拟网络、网络隔离、负载均衡和安全策略等。
-Antrea：Antrea 是一种基于 OVS (Open vSwitch) 技术的网络插件，它提供了容器之间的通信、网络策略和安全性等功能，还支持多种网络拓扑结构。
-
-作者：冰_点
-链接：https://juejin.cn/post/7236182358817800251
-来源：稀土掘金
-```
+- Flannel：Flannel 是最常用的 k8s 网络插件之一，它使用了虚拟网络技术来实现容器之间的通信，支持多种网络后端，如 VXLAN、UDP 和
+  Host-GW。
+- Calico：Calico 是一种基于 BGP 的网络插件，它使用路由表来路由容器之间的流量，支持多种网络拓扑结构，并提供了安全性和网络策略功能。
+- Canal：Canal 是一个组合了 Flannel 和 Calico 的网络插件，它使用 Flannel 来提供容器之间的通信，同时使用 Calico
+  来提供网络策略和安全性功能。
+- Weave Net：Weave Net 是一种轻量级的网络插件，它使用虚拟网络技术来为容器提供 IP 地址，并支持多种网络后端，如 VXLAN、UDP 和
+  TCP/IP，同时还提供了网络策略和安全性功能。
+- Cilium：Cilium 是一种基于 eBPF (Extended Berkeley Packet Filter) 技术的网络插件，它使用 Linux
+  内核的动态插件来提供网络功能，如路由、负载均衡、安全性和网络策略等。
+- Contiv：Contiv 是一种基于 SDN 技术的网络插件，它提供了多种网络功能，如虚拟网络、网络隔离、负载均衡和安全策略等。
+- Antrea：Antrea 是一种基于 OVS (Open vSwitch) 技术的网络插件，它提供了容器之间的通信、网络策略和安全性等功能，还支持多种网络拓扑结构。
 
 这里选择calico，安装步骤如下：
 
@@ -524,17 +522,6 @@ crictl images
 reboot
 ```
 
-k8s组件的日志文件位置（当集群故障时查看）：
-
-```shell
-$ ls /var/log/containers/
-etcd-k8s-master_kube-system_etcd-64d58a06aaf9417d406fd335f26eec0f8c51ed9d10e3713c3b553977e4bc6b6e.log@                                      
-kube-apiserver-k8s-master_kube-system_kube-apiserver-f773c1b3959f7c9a1a25618a5dee2a36752e4f0b8a618902e9eedcdfba075cb5.log@                  
-kube-controller-manager-k8s-master_kube-system_kube-controller-manager-7ea76156361ce5a837fd7ac9e56afee04904f24c2e95f15950d2ac6347061370.log@
-kube-proxy-l9s4z_kube-system_kube-proxy-a25215f976bfab8762c877bd5ce90fdfe7f53c1c197887badb0ece5b0e13b683.log@                               
-kube-scheduler-k8s-master_kube-system_kube-scheduler-55ce404921d20a4a05c7dea80987969f3a141eeaf6d22d234df11cc32365e120.log@ 
-```
-
 ## 6. 验证集群
 
 这一节通过在集群中快速部署nginx服务来验证集群是否正常工作。
@@ -629,7 +616,8 @@ Events:
 
 这里的`connection is unauthorized: Unauthorized`其实是calico的日志，根本原因是calico用来查询集群信息的ServiceAccount
 Token过期了。
-calico使用的token存储在`/etc/cni/net.d/calico-kubeconfig`，通过cat可以查看。这个token的有效期只有24h，但不知为何calico没有自动续期导致Pod异常。
+calico使用的token存储在`/etc/cni/net.d/calico-kubeconfig`，通过cat可以查看。这个token的有效期只有24h，
+但不知为何calico没有自动续期导致Pod无法正常创建和删除（对应分配和释放IP操作）。
 
 一个快速解决的办法是删除`calico-node`Pod，这样它在重建`calico-node`Pod后会生成新的token：
 
@@ -711,3 +699,7 @@ systemctl restart kubelet
 # 如果不是root用户
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 ```
+
+## 参考
+
+- [掘金-冰_点-Kubernetes 之7大CNI 网络插件用法和对比](https://juejin.cn/post/7236182358817800251)
