@@ -13,6 +13,7 @@
 
 ### 资源索引
 
+- [kubectl 命令文档](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands)
 - 模板示例
     - [Pod示例集合](example_pod)
     - [Job/CronJob示例集合](example_job)
