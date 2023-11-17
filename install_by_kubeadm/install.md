@@ -380,6 +380,7 @@ Kubernetes 需要网络插件(Container Network Interface: CNI)来提供集群�
 - Contiv：Contiv 是一种基于 SDN 技术的网络插件，它提供了多种网络功能，如虚拟网络、网络隔离、负载均衡和安全策略等。
 - Antrea：Antrea 是一种基于 OVS (Open vSwitch) 技术的网络插件，它提供了容器之间的通信、网络策略和安全性等功能，还支持多种网络拓扑结构。
 
+更多插件列表查看 [官方文档](https://kubernetes.io/zh-cn/docs/concepts/cluster-administration/addons/#networking-and-network-policy) 。
 这里选择calico，安装步骤如下：
 
 ```shell
@@ -507,11 +508,11 @@ k8s-node1    Ready    <none>          16h   v1.25.14
 后面如果想要彻底删除集群，在所有节点执行:
 
 ```shell
-kubeadm reset # 重置集群  -f 强制执行
+kubeadm reset -f # 重置集群  -f 强制执行
 
-rm -rf /var/lib/kubelet/* # 删除核心组件目录
-rm -rf /etc/kubernetes/* # 删除集群配置 
-rm -rf /etc/cni/net.d/* # 删除容器网络配置
+rm -rf /var/lib/kubelet # 删除核心组件目录
+rm -rf /etc/kubernetes # 删除集群配置 
+rm -rf /etc/cni/net.d/ # 删除容器网络配置
 rm -rf /var/log/pods && rm -rf /var/log/containers # 删除pod和容器日志
 service kubelet restart
 # 镜像一般保留，查看当前节点已下载的镜像命令如下
@@ -576,7 +577,7 @@ kubectl delete svc nginx
 
 至此，使用kubeadm搭建集群结束。但是还有一些进阶话题需要讨论，比如k8s镜像清理、日志存储等，参考下一篇文档。
 
-## 7. 故障解决
+## 7. 疑难解决
 
 ### 7.1 解决calico镜像下载较慢的问题
 
@@ -698,6 +699,65 @@ systemctl restart kubelet
 
 # 如果不是root用户
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+```
+
+### 7.4 安装其他网络插件-flannel
+
+flannel也是一个可以用于 Kubernetes 的 overlay 网络提供者。可以用来替换calico，下面是安装步骤：
+
+```shell
+wget --no-check-certificate https://hub.gitmirror.com/https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+
+# 修改Pod网段：搜索文件内：net-conf.json
+#  net-conf.json: |
+#    {
+#      "Network": "10.244.0.0/16",  => 20.2.0.0/16
+#      "Backend": {
+#        "Type": "vxlan"
+#      }
+#    }
+kubectl apply -f kube-flannel.yml
+```
+
+可以手动拉取镜像以提高效率：
+
+```shell
+$ cat kube-flannel.yml|grep image:    
+        image: docker.io/flannel/flannel:v0.23.0
+        image: docker.io/flannel/flannel-cni-plugin:v1.2.0
+        image: docker.io/flannel/flannel:v0.23.0
+        
+$ ctr image pull docker.io/flannel/flannel:v0.23.0
+$ ctr image pull docker.io/flannel/flannel-cni-plugin:v1.2.0
+```
+
+安装成功后，能看到flannel部署的两个Pod以及集群内置的coredns Pod都处于Running状态：
+
+```shell
+$ kk get po -A
+NAMESPACE      NAME                                 READY   STATUS    RESTARTS   AGE
+kube-flannel   kube-flannel-ds-672rx                1/1     Running   0          43s
+kube-flannel   kube-flannel-ds-v4hzd                1/1     Running   0          43s
+kube-system    coredns-c676cc86f-8vpk4              1/1     Running   0          4m36s
+kube-system    coredns-c676cc86f-fzzjp              1/1     Running   0          4m36s
+...
+```
+
+在测试环境中，你可以通过修改本机时间来检查flannel是否像calico那样存在token过期的问题：
+
+```shell
+# 改为1天后的时间，甚至是10天后，半年后都可
+# - 但注意k8s组件证书默认有效期一年，如果改为一年后，kubectl命令会无法正常执行
+$ date -s '2023-11-18 19:00:00'
+
+$ kk apply -f ../practice/deployment.yaml 
+deployment.apps/hellok8s-go-http created
+
+# pod能够running，就说明不存在token过期问题
+$ kk get po                           
+NAMESPACE      NAME                                 READY   STATUS    RESTARTS   AGE
+default        hellok8s-go-http-999f66c56-7fdst     1/1     Running   0          1s
+default        hellok8s-go-http-999f66c56-j5dhx     1/1     Running   0          1s
 ```
 
 ## 参考
