@@ -32,13 +32,13 @@ Kubernetes是目前最受欢迎的开源容器编排平台。
 Kubernetes可以实现容器集群的自动化部署、自动扩缩容、维护等功能。它拥有自动包装、自我修复、横向缩放、服务发现、负载均衡、
 自动部署、升级回滚、存储编排等特性。
 
-### 1.1 设计架构
+### 1.1 架构设计
 
-K8s集群节点拥有Master和Node两种角色，Master管理Node，而Node管理容器。
+K8s集群节点拥有Master和Node两种角色。它们的职责如下：
 
-Master主要负责整个集群的管控，包含监控、编排、调度集群中的各个工作节点。通常Master会占用一台独立的服务器，基于高可用可能会占用多台。
-
-Node则是集群中的承载实际工作任务的节点，直接负责对容器的控制，可以无限扩展。
+- Master：官方叫做控制平面（Control
+  Plane）。主要负责整个集群的管控，包含监控、编排、调度集群中的各类资源对象（如Pod/Deployment等）。通常Master会占用一台独立的服务器，基于高可用可能会占用多台，参考[kubeadm搭建高可用集群](https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/high-availability/)。
+- Node：则是集群中的承载实际工作任务的节点，直接负责对容器的控制，可以无限扩展。
 
 K8s架构图如下：
 <div align="center">
@@ -50,14 +50,16 @@ K8s架构图如下：
 Master由四个部分组成：
 
 1. **API Server进程**  
-   核心组件之一，为集群中各类资源提供增删改查的HTTP REST接口，即操作任何资源都要经过API Server。与其通信有三种方式：
+   核心组件之一，为集群中各类资源提供增删改查的HTTP REST接口，即操作任何资源都要经过API Server。Master上`kube-system`
+   空间中运行的Pod之一`kube-apiserver`是API
+   Server的具体实现。与其通信有三种方式：
 
 - 最原始的通过REST API访问；
 - 通过官方提供的Client来访问，本质上也是REST API调用；
-- 通过kubectl客户端访问，其将命令转换为REST API调用，是最主要的访问方式。
+- 通过kubectl客户端访问，其本质上是将命令转换为REST API调用，是最主要的访问方式。
 
 2. **etcd**  
-   K8s使用etcd作为内部数据库，用于保存集群配置以及所有对象的状态信息。只有API Server进程能直接读写etcd。
+   K8s使用etcd作为内部数据库，用于保存集群配置以及所有对象的状态信息。只有API Server进程能直接读写etcd。为了保证集群数据安全性，建议为其考虑备份方案。
 
 
 3. **调度器（Scheduler）**  
