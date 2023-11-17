@@ -1702,6 +1702,156 @@ spec:
 
 ## 4. API Server
 
+Kubernetes API Server 是 Kubernetes 集群中的核心组件之一，它充当了整个系统的控制面的入口点，负责处理集群内部和外部的 API
+请求。API Server 提供了一组 Restful API，允许用户和其他组件通过 HTTP 请求与 Kubernetes 集群进行交互。
+
+API Server的实体是位于`kube-system`空间中的`kube-apiserver`Pod。
+> 一旦`kube-apiserver`Pod运行异常，kubectl命令将无法使用。
+
+**资源管理**  
+API Server 管理了 Kubernetes 集群中的所有资源对象，如 Pod、Service、Deployment 等。通过 API
+Server，用户和其他组件可以对这些资源进行增删查改等操作。
+
+**身份认证和授权**  
+API Server 处理用户的身份认证，并**默认**根据 RBAC（Role-Based Access Control）规则执行授权，以确定用户是否有权限执行特定操作。这有助于确保对集群的安全访问。
+
+**API组**  
+在 Kubernetes 中，API 组（API Groups）是一种用于组织和版本化 API 资源的机制。Kubernetes API 可以被组织成多个 API
+组，每个组包含一组相关的 API 资源。API 组的引入有助于避免命名冲突，提供更好的组织结构，
+并允许 Kubernetes API 的扩展和演进。
+
+API组通常会出现在Restful API路径中，还有资源模板的`apiVersion`字段中。下面是一些常见的API组:
+
+- app/v1（模板中简写为v1，为大部分内置资源对象使用，如Pod/ConfigMap/Secret/Service/Stateful/LimitRange/PV/PVC...）
+- apps/v1 （ReplicaSet/Deployment/DaemonSet）
+- networking.k8s.io/v1 (Ingress)
+
+k8s使用的API组列表在 [API Groups](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#-strong-api-groups-strong-)
+可见（链接携带版本）。
+
+API组的版本控制通过携带`Alpha/Beta`这样的版本名称来实现，比如你可能会看见`api/v1alpha1`或`api/v1beta1`这样的API路径。不同名称的用法如下：
+
+- Alpha：
+    - 内置的 Alpha API 版本默认禁用，需要在`kube-apiserver`配置中显式启用才能使用
+    - 软件可能会有 Bug。启用某个特性可能会暴露出 Bug
+    - 对某个 Alpha API 特性的支持可能会随时被删除，不会另行通知
+    - 由于缺陷风险增加和缺乏长期支持，建议该软件仅用于短期测试集群
+- Beta:
+    - 默认禁用，需要在`kube-apiserver`配置中显式启用才能使用（k8s v1.22之前的beta版本默认启用）
+    - 内置的 Beta API 版本会在未来某个时间被废弃（转为对应的stable版本），其生命周期约为 9 个月或 3 个次要版本
+    - 软件被很好的测试过。启用某个特性被认为是安全的
+    - 尽管一些特性会发生细节上的变化，但它们将会被长期支持
+    - 该版本的软件不建议生产使用，后续发布版本可能会有不兼容的变动
+
+当API版本从Beta转为正式版本后，其版本标签将仅含版本号，如`v1`
+。此外，还可以 [启用或禁用API组](https://kubernetes.io/zh-cn/docs/reference/using-api/#enabling-or-disabling) 。
+
+### 4.1 基本操作
+
+#### 4.1.1 启动反向代理
+
+为了快速演示如何使用原始的Restful API的方式访问API Server饿我们使用`kubectl proxy`来启动一个针对API Server的反向代理服务：
+
+```shell
+# 在master节点执行
+$ kubectl proxy --port 8080
+Starting to serve on 127.0.0.1:8080
+```
+
+这个命令会启动一个API Server的反向代理服务，它把本机8080端口收到的请求转发到Master节点的`kube-apiserver`
+Pod进程中，并在转发过程中使用当前环境kubectl命令使用的身份进行认证。这样，我们在使用curl的过程中就不需要手动携带token了。
+
+#### 4.1.2 curl访问API
+
+接下来以操作Pod为例，演示如何使用API。首先从前面提到的官方文档中获知Pod的几个常用API如下：
+
+- Create：POST /api/v1/namespaces/{namespace}/pods
+- Read：GET /api/v1/namespaces/{namespace}/pods/{name}
+- Replace：PUT /api/v1/namespaces/{namespace}/pods/{name}
+- Patch：PATCH /api/v1/namespaces/{namespace}/pods/{name}
+- Delete：DELETE /api/v1/namespaces/{namespace}/pods/{name}
+
+下面演示如何使用curl来请求其中的Create和Read这两个API。首先是Create（创建），其API描述如下：
+
+```
+URL参数
+- name
+- namespace
+
+查询参数
+- pretty
+- dryRun
+- fieldManager
+- fieldValidation
+
+Body
+- 描述资源的JSON对象
+
+返回码
+- 200 OK
+- 202 已创建
+```
+
+现在使用curl请求Create API来创建一个default空间下的名为`nginx`的Pod：
+
+```shell
+# 你也可以单独定义 pod_nginx.json，在curl中通过 --data-binary @pod_nginx.json 使用
+$ curl localhost:8080/api/v1/namespaces/default/pods -X POST -H "Content-Type: application/json" -d '{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "nginx",
+    "labels": {
+      "app": "nginx"
+    }
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "nginx-container",
+        "image": "nginx"
+      }
+    ]
+  }
+}'
+
+# 返回创建成功的Pod完整JSON
+{
+  "kind": "Pod",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "nginx",
+    "namespace": "default",
+    "uid": "06e71b18-b592-446e-a446-6f6de80a3cf8",
+...
+```
+
+再使用Read API查看Pod：
+
+```shell
+$ curl localhost:8080/api/v1/namespaces/default/pods/nginx
+{
+  "kind": "Pod",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "nginx",
+    "namespace": "default",
+    "uid": "06e71b18-b592-446e-a446-6f6de80a3cf8",
+...
+```
+
+最后，使用kubectl查询：
+
+```shell
+$ kk get po                
+NAME    READY   STATUS    RESTARTS   AGE
+nginx   1/1     Running   0          2m
+```
+
+更多API的使用请直接查看官方文档。
+
+### 4.2 身份认证、授权和准入控制
+
 TODO
 
 ## TODO
