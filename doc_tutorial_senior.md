@@ -482,11 +482,11 @@ This host is statefulset-1!
 [root@k8s-node1 ~]# cat /home/host-sts-pv-dir/data 
 This host is statefulset-0!
 
-# 在master启动curl Pod，访问无头Service
-$ kk apply -f pod_curl.yaml           
-pod/curl created
+# 在master启动cURL Pod，访问无头Service
+$ kk apply -f pod_cURL.yaml           
+pod/cURL created
 
-$ kk exec -it curl --  sh     
+$ kk exec -it cURL --  sh     
 / # nslookup stateful-svc
 nslookup: can't resolve '(null)': Name does not resolve
 
@@ -494,15 +494,15 @@ Name:      stateful-svc
 Address 1: 20.2.235.201 statefulset-1.stateful-svc.default.svc.cluster.local
 Address 2: 20.2.36.84 statefulset-0.stateful-svc.default.svc.cluster.local
 
-/ # curl statefulset-0.stateful-svc.default.svc.cluster.local
+/ # cURL statefulset-0.stateful-svc.default.svc.cluster.local
 <p> The host is statefulset-0</p>
-/ # curl statefulset-1.stateful-svc.default.svc.cluster.local
+/ # cURL statefulset-1.stateful-svc.default.svc.cluster.local
 <p> The host is statefulset-1</p>
 ```
 
-这里，我们验证了两个 StatefulSet Pod对节点本地卷的写入，然后部署一个curl容器来查询部署的 StatefulSet无头服务的DNS信息，
+这里，我们验证了两个 StatefulSet Pod对节点本地卷的写入，然后部署一个cURL容器来查询部署的 StatefulSet无头服务的DNS信息，
 得到了两个由`$(StatefulSet 名称)-$(序号)`组成的稳定虚拟ID（statefulset-1和statefulset-0），
-并且通过curl访问了两个Pod的本地服务，得到了预期结果。客户端可以在**集群内**使用这个虚拟ID来访问服务。
+并且通过cURL访问了两个Pod的本地服务，得到了预期结果。客户端可以在**集群内**使用这个虚拟ID来访问服务。
 当然，也可以使用无头服务的总域名`statefulset-svc.default.svc.cluster.local`来访问，但这样访问的服务是随机的，当我们使用
 StatefulSet 部署应用时，说明我们有需要**指定实例ID**进行访问的需求，否则使用Deployment就足够了。
 
@@ -1026,33 +1026,33 @@ annotations:
   contact-person: "John Doe (john@example.com)"
 ```
 
-下面演示如何查看 [pod_curl.yaml](pod_curl.yaml) 的注解信息：
+下面演示如何查看 [pod_cURL.yaml](pod_cURL.yaml) 的注解信息：
 
 ```shell
-$ kk describe pod curl                                      
-Name:             curl
+$ kk describe pod cURL                                      
+Name:             cURL
 Namespace:        default
 Priority:         0
 Service Account:  default
 Node:             k8s-node1/192.168.31.3
 Start Time:       Fri, 03 Nov 2023 12:38:14 +0800
-Labels:           app=curl
+Labels:           app=cURL
 Annotations:      cni.projectcalico.org/containerID: afb1e9f94f02d8f293b48fabe028623063159b7b7cd35ccd20726ee7e19ed63b
                   cni.projectcalico.org/podIP: 20.2.36.91/32
                   cni.projectcalico.org/podIPs: 20.2.36.91/32
                   description:
-                    The `curl` command is a powerful tool used to make HTTP requests from the command line. It is versatile and supports various protocols, in...
+                    The `cURL` command is a powerful tool used to make HTTP requests from the command line. It is versatile and supports various protocols, in...
                   key1: value1
 ...
                                                                                                                                                                                        
-$ kubectl get pod curl -o=jsonpath='{.metadata.annotations}'     
-{"cni.projectcalico.org/containerID":"afb1e9f94f02d8f293b48fabe028623063159b7b7cd35ccd20726ee7e19ed63b","cni.projectcalico.org/podIP":"20.2.36.91/32","cni.projectcalico.org/podIPs":"20.2.36.91/32","description":"The `curl` command is a powerful tool used to make HTTP requests from the command line. It is versatile and supports various protocols, including HTTP, HTTPS, FTP, FTPS, and more.","key1":"value1","kubectl.kubernetes.io/last-applied-configuration":"{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{\"description\":\"The `curl` command is a powerful tool used to make HTTP requests from the command line. It is versatile and supports various protocols, including HTTP, HTTPS, FTP, FTPS, and more.\",\"key1\":\"value1\"},\"labels\":{\"app\":\"curl\"},\"name\":\"curl\",\"namespace\":\"default\"},\"spec\":{\"containers\":[{\"command\":[\"sh\",\"-c\",\"sleep 1h\"],\"image\":\"appropriate/curl\",\"name\":\"curl-container\"}]}}\n"}#
+$ kubectl get pod cURL -o=jsonpath='{.metadata.annotations}'     
+{"cni.projectcalico.org/containerID":"afb1e9f94f02d8f293b48fabe028623063159b7b7cd35ccd20726ee7e19ed63b","cni.projectcalico.org/podIP":"20.2.36.91/32","cni.projectcalico.org/podIPs":"20.2.36.91/32","description":"The `cURL` command is a powerful tool used to make HTTP requests from the command line. It is versatile and supports various protocols, including HTTP, HTTPS, FTP, FTPS, and more.","key1":"value1","kubectl.kubernetes.io/last-applied-configuration":"{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{\"description\":\"The `cURL` command is a powerful tool used to make HTTP requests from the command line. It is versatile and supports various protocols, including HTTP, HTTPS, FTP, FTPS, and more.\",\"key1\":\"value1\"},\"labels\":{\"app\":\"cURL\"},\"name\":\"cURL\",\"namespace\":\"default\"},\"spec\":{\"containers\":[{\"command\":[\"sh\",\"-c\",\"sleep 1h\"],\"image\":\"appropriate/cURL\",\"name\":\"cURL-container\"}]}}\n"}#
 
-$ kubectl get pod curl -o=jsonpath='{.metadata.annotations.key1}'
+$ kubectl get pod cURL -o=jsonpath='{.metadata.annotations.key1}'
 value1
 
-$ kubectl get pod curl -o=jsonpath='{.metadata.annotations.description}'
-The `curl` command is a powerful tool used to make HTTP requests from the command line. It is versatile and supports various protocols, including HTTP, HTTPS, FTP, FTPS, and more.
+$ kubectl get pod cURL -o=jsonpath='{.metadata.annotations.description}'
+The `cURL` command is a powerful tool used to make HTTP requests from the command line. It is versatile and supports various protocols, including HTTP, HTTPS, FTP, FTPS, and more.
 ```
 
 这里需要注意的是，除了我们手动在模板中添加的注解之外，k8s还自动添加了关于Pod自身网络的注解信息。
@@ -1076,7 +1076,7 @@ Kubernetes UID 是全局唯一标识符（也叫 UUID）。 UUID 是标准化的
 比如查看Pod的uid：
 
 ```shell
-$ kubectl get pod curl -o=jsonpath='{.metadata.uid}'                    
+$ kubectl get pod cURL -o=jsonpath='{.metadata.uid}'                    
 37ea632b-2adc-4c0c-9133-5c2229480206
 ```
 
@@ -1712,8 +1712,10 @@ API Server的实体是位于`kube-system`空间中的`kube-apiserver`Pod。
 API Server 管理了 Kubernetes 集群中的所有资源对象，如 Pod、Service、Deployment 等。通过 API
 Server，用户和其他组件可以对这些资源进行增删查改等操作。
 
-**身份认证和授权**  
+**身份认证、授权和准入控制**  
 API Server 处理用户的身份认证，并**默认**根据 RBAC（Role-Based Access Control）规则执行授权，以确定用户是否有权限执行特定操作。这有助于确保对集群的安全访问。
+
+准入控制是Kubernetes中的一个强大的安全层，它允许管理员定义一组规则，以确保在资源创建或修改之前执行特定的操作。这可以包括验证、修改或拒绝请求。
 
 **API组**  
 在 Kubernetes 中，API 组（API Groups）是一种用于组织和版本化 API 资源的机制。Kubernetes API 可以被组织成多个 API
@@ -1750,7 +1752,7 @@ API组的版本控制通过携带`Alpha/Beta`这样的版本名称来实现，�
 
 #### 4.1.1 启动反向代理
 
-为了快速演示如何使用原始的Restful API的方式访问API Server饿我们使用`kubectl proxy`来启动一个针对API Server的反向代理服务：
+为了快速演示如何使用原始的Restful API的方式访问API Server，我们使用`kubectl proxy`来启动一个针对API Server的反向代理服务：
 
 ```shell
 # 在master节点执行
@@ -1758,12 +1760,12 @@ $ kubectl proxy --port 8080
 Starting to serve on 127.0.0.1:8080
 ```
 
-这个命令会启动一个API Server的反向代理服务，它把本机8080端口收到的请求转发到Master节点的`kube-apiserver`
-Pod进程中，并在转发过程中使用当前环境kubectl命令使用的身份进行认证。这样，我们在使用curl的过程中就不需要手动携带token了。
+这个命令会启动一个临时的API Server的反向代理服务，它把本机8080端口收到的请求转发到Master节点的 `kube-apiserver`
+Pod进程（6443端口）中，并在转发过程中使用当前环境kubectl命令使用的身份进行认证。这样，我们在访问8080端口的时候就不需要携带任何凭据了。
 
-#### 4.1.2 curl访问API
+#### 4.1.2 使用cURL访问API
 
-接下来以操作Pod为例，演示如何使用API。首先从前面提到的官方文档中获知Pod的几个常用API如下：
+接下来以操作Pod为例，演示如何使用Restful API。首先从前面提到的官方文档中获知Pod的几个常用API如下：
 
 - Create：POST /api/v1/namespaces/{namespace}/pods
 - Read：GET /api/v1/namespaces/{namespace}/pods/{name}
@@ -1771,32 +1773,13 @@ Pod进程中，并在转发过程中使用当前环境kubectl命令使用的身�
 - Patch：PATCH /api/v1/namespaces/{namespace}/pods/{name}
 - Delete：DELETE /api/v1/namespaces/{namespace}/pods/{name}
 
-下面演示如何使用curl来请求其中的Create和Read这两个API。首先是Create（创建），其API描述如下：
+下面演示如何使用cURL来请求其中的Create和Read这两个API。首先是Create（创建），在上面提到的官方文档中包含对API的具体参数描述，为了节省篇幅，这里省略。
 
-```
-URL参数
-- name
-- namespace
-
-查询参数
-- pretty
-- dryRun
-- fieldManager
-- fieldValidation
-
-Body
-- 描述资源的JSON对象
-
-返回码
-- 200 OK
-- 202 已创建
-```
-
-现在使用curl请求Create API来创建一个default空间下的名为`nginx`的Pod：
+现在使用cURL请求Create API来创建一个default空间下的名为`nginx`的Pod：
 
 ```shell
-# 你也可以单独定义 pod_nginx.json，在curl中通过 --data-binary @pod_nginx.json 使用
-$ curl localhost:8080/api/v1/namespaces/default/pods -X POST -H "Content-Type: application/json" -d '{
+# 你也可以单独定义 pod_nginx.json，在cURL中通过 --data-binary @pod_nginx.json 使用
+$ cURL localhost:8080/api/v1/namespaces/default/pods -X POST -H "Content-Type: application/json" -d '{
   "apiVersion": "v1",
   "kind": "Pod",
   "metadata": {
@@ -1829,7 +1812,7 @@ $ curl localhost:8080/api/v1/namespaces/default/pods -X POST -H "Content-Type: a
 再使用Read API查看Pod：
 
 ```shell
-$ curl localhost:8080/api/v1/namespaces/default/pods/nginx
+$ cURL localhost:8080/api/v1/namespaces/default/pods/nginx
 {
   "kind": "Pod",
   "apiVersion": "v1",
@@ -1850,7 +1833,163 @@ nginx   1/1     Running   0          2m
 
 更多API的使用请直接查看官方文档。
 
-### 4.2 身份认证、授权和准入控制
+### 4.2 身份认证
+
+在上一节中，我们使用kubectl的反向代理来帮我们完成了发给API Server的请求的身份认证操作。但是，在实际环境中，
+我们极少通过Master节点来直接访问API Server，而是通过创建好的拥有各类角色的凭据来访问API Server。
+
+> Master节点上的kubectl命令拥有操作集群资源的最高权限，为了提高集群的安全性，只有在进行底层资源维护时才会用到。
+
+API Server的每一次访问在`kube-apiserver`内部按顺序都要通过三个关卡：**身份认证、授权和准入控制**。它们分别具有以下作用：
+
+- 身份认证：是谁在请求（确定用户身份有效）
+- 授权：发起的操作有无授权过（确定用户+操作已被授权），在**4.3**节中讲到
+- 准入控制器： 这个操作是否符合当前集群设定的规则（操作是否合规），在**4.4**节中讲到
+
+在Kubernetes中，身份认证是确认用户或实体是谁的过程。K8s支持多种身份验证机制，包括证书、令牌、用户名/密码以及外部Webhook校验等方式。
+使用这些机制，Kubernetes确保只有身份有效的实体可以操作集群资源。
+
+**kubectl的身份认证**  
+我们之前一直使用的kubectl命令能够正常执行，也是通过了身份认证这一关卡的。具体来说，kubectl命令的认证是使用`$HOME/.kube/config`
+这个文件中的配置完成的。该文件用于配置集群访问所需，又叫做kubeconfig文件（但并不表示存在这个名称的文件）。
+该文件也是一种k8s模板形式，它包含了默认管理员用户 `kubernetes-admin`
+用于身份认证的详细信息（包含用户名、客户端证书/密钥等），[config.yaml](config.yaml)
+是一个示例模板。同时也可以通过`kubectl config view`命令进行查看当前使用的kubeconfig文件。
+
+> 集群的第一个`$HOME/.kube/config`文件是安装节点上`/etc/kubernetes/admin.conf`文件的一个副本。Master节点的kube组件进程会实时监控该文件的更新，
+> 并在需要时自动更新`$HOME/.kube/config`文件。
+
+kubeconfig文件可以手动修改源文件，但更建议使用 kubeconfig 命令进行修改，可以避免不必要的错误。常用命令如下：
+
+- kubectl config view：打印 kubeconfig 文件内容。
+- kubectl config set-cluster：设置 kubeconfig 的 clusters 配置段。
+- kubectl config set-credentials: 设置 kubeconfig 的 users 配置段。
+- kubectl config set-context: 设置 kubeconfig 的 contexts 配置段。
+- kubectl config use-context: 设置 kubeconfig 的 current-context 配置段。
+
+我们可以通过cURL直接访问Master节点的6443端口上的API端点来观察不携带身份信息的请求情况：
+
+```shell
+# 在master节点访问
+$ cURL --insecure https://localhost:6443/api/v1/namespaces/default/pods/nginx
+{
+  "kind": "Status",
+  "apiVersion": "v1",
+  "metadata": {},
+  "status": "Failure",
+  "message": "pods \"nginx\" is forbidden: User \"system:anonymous\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
+  "reason": "Forbidden",
+  "details": {
+    "name": "nginx",
+    "kind": "pods"
+  },
+  "code": 403
+}
+```
+
+`message`提示我们是一个匿名用户，不允许查询Pod信息。
+
+> 1.6 及之后版本中，如果所使用的鉴权模式不是`AlwaysAllow`，则匿名访问默认是被启用的。匿名访问将会自动获得用户名
+> `system:anonymous`和对应的用户组`system:unauthenticated`。并且从 1.6 版本开始，ABAC 和 RBAC
+> 鉴权模块要求对这个匿名用户或用户组进行显式的操作授权，否则无权进行绝大部分操作。
+
+
+要访问API Server，需要先进行身份认证。而k8s中的身份认证主要分为以下两大类：
+
+- 常规用户认证：供普通真人用户或集群外的应用访问集群使用
+    - HTTPS 客户端证书认证
+    - Token 认证
+    - HTTP Basic 认证
+- ServiceAccount 认证：供集群内的Pod使用（用于给Pod中的进程提供访问API Server的身份标识）
+
+#### 4.2.1 常规认证—x509证书
+
+通过x509证书进行用户认证，需要提前通过`--client-ca-file=SOMEFILE`将用于验证客户端身份的CA根证书文件传递给API
+Server作为启动参数。
+如果提供了客户端证书并且证书被验证通过，则 `subject` 中的公共名称（Common Name） 就被作为请求的用户名。 自 Kubernetes 1.4
+开始，客户端证书还可以通过证书的 `organization` 字段标明用户的组成员信息。 要包含用户的多个组成员信息，可以在证书中包含多个
+`organization` 字段。
+
+下面演示具体的操作步骤：
+
+```shell
+# 1. 生成根证书私钥
+#openssl genrsa -out ca.key 2048
+# 2. 基于根证书私钥生成证书文件 （-days 设置证书有效期）
+#openssl req -x509 -new -nodes -key ca.key -subj "/CN=<master-ip>" -days 1000 -out ca.crt
+
+-- 前两步可省略，因为安装集群时已经提供了默认的ca证书以及key文件在 /etc/kubernetes/pki/ 下面
+
+# 3. 生成client证书私钥
+openssl genrsa -out client.key 2048
+
+# 4. 基于client证书私钥生成client证书的csr文件（证书签名请求），CN是用户名，O是组名
+openssl req -new -key client.key -out client.csr -subj "/CN=user2/O=app1/O=app2"
+
+# 5. 基于client两个文件生成client证书
+openssl x509 -req -in client.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out client.crt -days 365
+
+# 检查client证书
+openssl x509 -in client.crt -text -noout
+```
+
+通过检查 `/etc/kubernetes/manifests/kube-apiserver.yaml`
+文件我们可以找到已经存在的 `--client-ca-file=/etc/kubernetes/pki/ca.crt` 选项，无需再修改。
+
+现在我们演示两种使用客户端证书的访问方式：
+
+1. 直接使用`cURL`携带客户端证书的方式访问
+2. 将客户端证书设置到kubeconfig文件，然后使用kubectl命令访问
+
+首先演示第一种。通过`cURL`携带客户端证书的方式进行用户认证：
+
+```shell
+# 首先从kubeconfig文件中获取API Server的根证书（当然也可以使用 --insecure 选项禁用服务器证书校验）
+$ echo $(grep certificate-authority-data /etc/kubernetes/admin.conf |cut -d" " -f 6) |base64 -d > apiserver-ca.crt
+
+# 然后使用client证书、client密钥以及服务器根证书进行访问
+# - 注意访问地址的host部分必须是apiserver的暴露ip（与kubeconfig中的集群地址一致），否则不能通过服务器证书校验
+# - 根据response可见，能够识别到 user2 用户，但由于没授权，所以还不能访问资源
+# - 若不能识别，则显示 system:anonymous 用户
+# - （这里有一个cURL的坑要注意，必须在client证书和密钥前加上 ./ 否则无法正常识别，原因未知）
+$ cURL --cert ./client.crt --key ./client.key --cacert apiserver-ca.crt \
+      https://10.0.0.2:6443/api/v1/namespaces/default/pods/nginx
+{
+  "kind": "Status",
+  "apiVersion": "v1",
+  "metadata": {},
+  "status": "Failure",
+  "message": "pods \"nginx\" is forbidden: User \"user2\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
+  "reason": "Forbidden",
+  "details": {
+    "name": "nginx",
+    "kind": "pods"
+  },
+  "code": 403
+}
+```
+
+第二种则是通过`kubectl config`命令将客户端证书和私钥设置到kubeconfig文件中，然后通过kubectl命令自动使用它们进行认证。具体步骤如下：
+
+```shell
+# 1. 设置用户凭据
+kubectl config set-credentials user2 --embed-certs=true --client-certificate=client.crt --client-key=client.key
+# 2. 设置上下文（将 cluster 和 credentials进行组合成访问集群的上下文）
+kubectl config set-context user2@kubernetes --cluster=kubernetes --user=user2
+# 3. 指定要使用的上下文
+kubectl config use-context user2@kubernetes
+# 4. 访问资源
+# - 成功识别到user2用户
+$ kubectl get pods
+Error from server (Forbidden): pods is forbidden: User "user2" cannot list resource "pods" in API group "" in the namespace "default"
+
+# 最后切换回admin
+kubectl config use-context kubernetes-admin@kubernetes
+# 可以携带上下文参数来指定用户
+# kubectl --context=user2@kubernetes get pods
+```
+
+#### 4.2.1 常规认证—HTTP令牌认证
 
 TODO
 
