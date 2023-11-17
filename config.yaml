@@ -1,0 +1,27 @@
+# 此配置文件包含了集群访问的凭证信息，包含用户名、集群名、上下文名、证书等。
+# 可以存在多个用户、集群、上下文。
+# 集群的第一个访问配置文件是 /etc/kubernetes/admin.conf
+# 每个字段意义：
+# cluster: 集群列表。包含访问 API Server 的 URL 和所属集群的名称等。
+# users: 用户列表，包含访问 API Server 时的用户名和认证信息。
+# contexts: kubelet 的可用上下文列表，由用户列表中的某特定用户名称和集群列表中的某特定集群名称组合而成。
+# current-context: kubelet 当前使用的上下文名称，即上下文列表中的某个特定项。
+apiVersion: v1
+kind: Config
+clusters:
+  - cluster:
+      certificate-authority-data: "<apiServer-ca-cert-base64>" # 用于验证API Server证书的CA根证书的base64
+      server: https://192.168.31.2:6443 # 集群访问地址
+    name: kubernetes
+contexts:
+  - context:
+      cluster: kubernetes
+      user: kubernetes-admin
+    name: kubernetes-admin@kubernetes
+current-context: kubernetes-admin@kubernetes
+preferences: { }
+users:
+  - name: kubernetes-admin
+    user:
+      client-certificate-data: "<client-cert-base64>"
+      client-key-data: "<client-cert-key-base64>"
