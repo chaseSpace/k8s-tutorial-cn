@@ -17,3 +17,7 @@
 - 模板示例
     - [Pod示例集合](example_pod)
     - [Job/CronJob示例集合](example_job)
+
+### License
+
+本仓库中的K8s教程均在 CC-BY-NC-SA 4.0 下发布（转载请注明作者及来源）。
