@@ -1259,7 +1259,7 @@ Labels:             beta.kubernetes.io/arch=amd64
                     node.kubernetes.io/exclude-from-external-load-balancers=
 # 2.1 换个命令查看标签
 $ kubectl get nodes --show-labels |grep k8s-master
-k8s-master   Ready    control-plane   14d   v1.25.14   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,disktype=ssd,kubernetes.io/arch=amd64,kubernetes.io/hostname=k8s-master,kubernetes.io/os=linux,node-role.kubernetes.io/control-plane=,node.kubernetes.io/exclude-from-external-load-balancers=
+k8s-master   Ready    control-plane   14d   v1.27.0   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,disktype=ssd,kubernetes.io/arch=amd64,kubernetes.io/hostname=k8s-master,kubernetes.io/os=linux,node-role.kubernetes.io/control-plane=,node.kubernetes.io/exclude-from-external-load-balancers=
 
 # 3. 删除master节点 NoSchedule的污点，省略
 
@@ -1896,13 +1896,15 @@ $ cURL --insecure https://localhost:6443/api/v1/namespaces/default/pods/nginx
 
 要访问API Server，需要先进行身份认证。而k8s中的身份认证主要分为以下两大类：
 
-- 常规用户认证：供普通真人用户或集群外的应用访问集群使用
+- 用户账号认证：供普通真人用户或集群外的应用访问集群使用
     - HTTPS 客户端证书认证
-    - Token 认证
-    - HTTP Basic 认证
-- ServiceAccount 认证：供集群内的Pod使用（用于给Pod中的进程提供访问API Server的身份标识）
+    - HTTP Token 认证
+    - HTTP Basic认证（不再支持，`--basic_auth_file`在v1.19中删除，使用`--token-auth-file`替换）
+- ServiceAccount认证：供集群内的Pod使用（用于给Pod中的进程提供访问API Server的身份标识）
 
-#### 4.2.1 常规认证—x509证书
+通常情况下，集群的用户账号可能会从企业数据库进行同步。而服务账号有意做的更轻量，允许集群用户为了具体的任务按需创建服务账号（遵从权限最小化原则）。
+
+#### 4.2.1 用户账号—x509证书
 
 通过x509证书进行用户认证，需要提前通过`--client-ca-file=SOMEFILE`将用于验证客户端身份的CA根证书文件传递给API
 Server作为启动参数。
@@ -1989,7 +1991,228 @@ kubectl config use-context kubernetes-admin@kubernetes
 # kubectl --context=user2@kubernetes get pods
 ```
 
-#### 4.2.1 常规认证—HTTP令牌认证
+#### 4.2.2 用户账号—静态令牌文件
+
+这种方式通过在API Server的启动参数中指定一个文件作为可用token列表即可，原理和使用方式都很简单。但由于是在一个文件中存储了多个明文token的方式，
+一旦文件泄露，则这些token全部暴露（需要废弃），**因此不建议使用**。
+
+首先，需要创建一个文本文件（比如叫做`k8s_account_tokens.csv`，后缀可省略），
+然后按CSV格式（逗号分割多列）编辑它，示例如下:
+
+```shell
+# vi k8s_account_tokens.csv
+# 分别是token，用户名，用户id，所属用户组
+my_token_xxx,user2,1
+my_token_yyy,user3,2,"group1,group2"
+```
+
+对于token这列， 通常是生成一串长度适当的随机字符填入。另外，**用户组**列是可选的，当用户组只有一个的时候，双引号可以省略。
+
+> linux上生成随机字符串的命令: `tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 16`
+> - 这个命令生成一个长度为16且只包含'a-zA-Z0-9'的字符串。
+
+然后我们需要把这个文件添加到API服务器的启动参数`--token-auth-file=<file_path>`中，下面是操作步骤：
+
+```shell
+# kube-apiserver pod从固定挂载的几个目录读取文件，所以我们需要移动到其中的一个目录下才能被读取到
+$ mv k8s_account_tokens.csv /etc/kubernetes/pki/
+
+$ vi /etc/kubernetes/manifests/kube-apiserver.yaml
+#spec:
+#  containers:
+#  - command:
+#    - kube-apiserver
+#    - --token-auth-file=/etc/kubernetes/pki/k8s_account_tokens.csv   #  添加这行
+...
+```
+
+保存退出后，API服务器会自动重启。你可以通过`watch crictl ps`观察重启过程。
+
+> 如果`kube-apiserver`Pod重启失败，你可以通过`crictl logs <container-id>`来查看错误日志。
+
+现在我们可以在HTTP请求中携带这个token进行访问了：
+
+```shell
+$ curl --insecure https://localhost:6443/api/v1/namespaces/default/pods -H "Authorization:Bearer nlZtQeHoS8k0Pvbe"
+{
+  "kind": "Status",
+  "apiVersion": "v1",
+  "metadata": {},
+  "status": "Failure",
+  "message": "pods is forbidden: User \"user3\" cannot list resource \"pods\" in API group \"\" in the namespace \"default\"",
+  "reason": "Forbidden",
+  "details": {
+    "kind": "pods"
+  },
+  "code": 403
+}
+```
+
+和之前的示例一致，我们的身份可以被识别，只是没有通过授权来执行命令。
+
+#### 4.2.3 服务账号
+
+服务账号（ServiceAccount）认证主要是提供给Pod中的进程使用，以便Pod可以从内部访问API
+Server。用户账号认证不限制命名空间，但ServiceAccount认证局限于它所在的命名空间。
+
+**默认ServiceAccount**  
+每个命名空间都有一个默认的ServiceAccount，当Pod没有指定ServiceAccount时，Pod会使用默认的ServiceAccount。
+默认账号只被授权了访问一些公开API的权限，下面是一些公开API端点：
+
+- 健康检查：
+    - /healthz: 提供集群的健康状态。
+- API 组：
+    - /api: 提供核心 Kubernetes API 组的访问。
+    - /apis: 提供所有支持的 API 组的列表。
+- 版本信息：
+    - /version: 提供 Kubernetes 集群的版本信息。
+- 节点信息：
+    - /api/v1/nodes: 公开节点信息。
+
+等等。下面以之前创建的 [pod_nginx.yaml](pod_nginx.yaml) 为例进行演示：
+
+```shell
+$ kk get sa       
+NAME      SECRETS   AGE
+default   0         175m
+
+$ kk describe sa default                                        
+Name:                default
+Namespace:           default
+Labels:              <none>
+...
+
+$ kubectl get pod nginx -o jsonpath='{.spec.serviceAccountName}'
+default
+
+$ kubectl get pod nginx -o jsonpath='{.spec.containers[*].volumeMounts}' | jq .
+[
+  {
+    "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+    "name": "kube-api-access-fzjrb",
+    "readOnly": true
+  }
+]
+
+# jq用于格式化json
+$ kubectl get pod nginx -o jsonpath='{.spec.volumes}' | jq .
+[
+  {
+    "name": "kube-api-access-fzjrb",
+    "projected": {
+      "defaultMode": 420,
+      "sources": [
+        {
+          "serviceAccountToken": {
+            "expirationSeconds": 3607,
+            "path": "token"
+          }
+        },
+        {
+          "configMap": {
+            "items": [
+              {
+                "key": "ca.crt",
+                "path": "ca.crt"
+              }
+            ],
+            "name": "kube-root-ca.crt"
+          }
+        },
+        {
+          "downwardAPI": {
+            "items": [
+              {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.namespace"
+                },
+                "path": "namespace"
+              }
+            ]
+          }
+        }
+...
+```
+
+如上所示，Nginx Pod并没有手动指定volume，k8s自动为Pod注入了名为`kube-api-access-fzjrb`的volume，该volume的类型是`projected`
+，它包含以下3个来源：
+
+- serviceAccountToken: 来自serviceAccount，它是kubelet
+  使用 [TokenRequest API](https://kubernetes.io/zh-cn/docs/reference/kubernetes-api/authentication-resources/token-request-v1/)
+  获取有时间限制的令牌。映射到Pod内的文件是`token`
+    - 这个令牌也会在Pod被删除后过期
+    - 在v1.22 之前的k8s版本会先创建令牌Secret，再将其挂载到Pod中，这种方式的缺点是除非Pod被删除，否则令牌永不过期
+- CA证书：来自configMap，映射到Pod内的文件是`/ca.crt`
+- 命名空间：来自downwardAPI，将`metadata.namespace`即`default`，映射到Pod内的文件`namespace`
+
+Pod可以使用这几个信息完成对API服务器进行安全且有限制的访问。这几个挂载的文件存放在Pod内的`/var/run/secrets/kubernetes.io/serviceaccount`
+目录下，可以进入Pod内查看：
+
+```shell
+$ kk exec -it nginx -- bash                  
+root@nginx:/# ls /var/run/secrets/kubernetes.io/serviceaccount/
+ca.crt	namespace  token
+```
+
+然后可以直接在Pod内使用服务账号提供的token对API Server进行访问（查看token所属身份）：
+
+```shell
+root@nginx:/# TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+root@nginx:/# CACERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+# kubernetes.default.svc.cluster.local 是API服务器的host，在创建每个pod时自动注入
+# 允许访问公开API
+root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" -X GET https://kubernetes.default.svc.cluster.local/version 
+{
+  "major": "1",
+  "minor": "27",
+  "gitVersion": "v1.27.0",
+  "gitCommit": "1b4df30b3cdfeaba6024e81e559a6cd09a089d65",
+  "gitTreeState": "clean",
+  "buildDate": "2023-04-11T17:04:24Z",
+  "goVersion": "go1.20.3",
+  "compiler": "gc",
+  "platform": "linux/amd64"
+}
+# 默认服务账号没有访问集群资源的权限
+root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" -X GET https://kubernetes.default.svc.cluster.local/api/v1/namespaces/defaut/pods
+{
+  "kind": "Status",
+  "apiVersion": "v1",
+  "metadata": {},
+  "status": "Failure",
+  "message": "pods is forbidden: User \"system:serviceaccount:default:default\" cannot list resource \"pods\" in API group \"\" in the namespace \"default\"",
+  "reason": "Forbidden",
+  "details": {
+    "kind": "pods"
+  },
+  "code": 403
+}
+```
+
+服务账号的身份在认证后被确定的用户名为 `system:serviceaccount:<名字空间>:<服务账号>`，
+并被分配到用户组 `system:serviceaccounts 和 system:serviceaccounts:<名字空间>`。
+
+**自定义ServiceAccount（SA）**  
+默认分配的服务账号只能访问公开的API，但有时候我们想要访问一些集群内的特定资源，那就需要使用自定义SA了。
+大致操作步骤如下：
+
+- 创建一个ServiceAccount（包含token），这又有两种方式
+    1. 创建临时token：使用`kubectl create token <token-name> --duration`创建一个临时token，然后创建SA，再将二者绑定起来
+    2. 创建长期token：手动创建一个带有特殊注解 kubernetes.io/service-account.name 的 Secret 对象，然后会自动绑定到对应的SA
+- 创建角色并与其绑定（下节讲到）
+- 在Pod模板中引用
+
+下面是不同情况下创建SA的示例：
+
+- 临时token：[serviceaccount.yaml](serviceaccount.yaml)（之后创建token）
+- 长期token：[secret-serviceaccount.yaml](secret-serviceaccount.yaml) （提前创建SA）
+
+创建角色并绑定SA的步骤暂时略过。然后需要在Pod中绑定SA，参考 [pod_associate_serviceaccount.yaml](pod_associate_serviceaccount.yaml) 。
+
+> 如果在Pod模板内映射`serviceAccountToken`时指定了`expirationSeconds`
+> 字段，则kubelet会自动为token完成续期，但Pod内的应用需要自己定时从文件中读取新的token。
 
 TODO
 
