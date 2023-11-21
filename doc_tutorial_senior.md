@@ -1847,11 +1847,11 @@ API Server的每一次访问在`kube-apiserver`内部按顺序都要通过三个
 - 准入控制器： 这个操作是否符合当前集群设定的规则（操作是否合规），在**4.4**节中讲到
 
 在Kubernetes中，身份认证是确认用户或实体是谁的过程。K8s支持多种身份验证机制，包括证书、令牌、用户名/密码以及外部Webhook校验等方式。
-使用这些机制，Kubernetes确保只有身份有效的实体可以操作集群资源。
+使用这些机制，Kubernetes确保只有身份有效的实体可以操作（与角色匹配的）集群资源。
 
 **kubectl的身份认证**  
 我们之前一直使用的kubectl命令能够正常执行，也是通过了身份认证这一关卡的。具体来说，kubectl命令的认证是使用`$HOME/.kube/config`
-这个文件中的配置完成的。该文件用于配置集群访问所需，又叫做kubeconfig文件（但并不表示存在这个名称的文件）。
+这个文件中的配置完成的。该文件用于配置集群访问所需，又叫做kubeconfig文件（但并不存在这个名称的文件）。
 该文件也是一种k8s模板形式，它包含了默认管理员用户 `kubernetes-admin`
 用于身份认证的详细信息（包含用户名、客户端证书/密钥等），[config.yaml](config.yaml)
 是一个示例模板。同时也可以通过`kubectl config view`命令进行查看当前使用的kubeconfig文件。
@@ -1867,7 +1867,7 @@ kubeconfig文件可以手动修改源文件，但更建议使用 kubeconfig 命�
 - kubectl config set-context: 设置 kubeconfig 的 contexts 配置段。
 - kubectl config use-context: 设置 kubeconfig 的 current-context 配置段。
 
-我们可以通过cURL直接访问Master节点的6443端口上的API端点来观察不携带身份信息的请求情况：
+我们可以通过cURL直接访问Master节点的6443端口上的API端点来观察**不携带任何凭据**时的请求结果：
 
 ```shell
 # 在master节点访问
@@ -1899,7 +1899,7 @@ $ cURL --insecure https://localhost:6443/api/v1/namespaces/default/pods/nginx
 - 用户账号认证：供普通真人用户或集群外的应用访问集群使用
     - HTTPS 客户端证书认证
     - HTTP Token 认证
-    - HTTP Basic认证（不再支持，`--basic_auth_file`在v1.19中删除，使用`--token-auth-file`替换）
+    - HTTP Basic认证（不再支持，`--basic_auth_file`在v1.19中删除，使用`--token-auth-file`实现类似的功能）
 - ServiceAccount认证：供集群内的Pod使用（用于给Pod中的进程提供访问API Server的身份标识）
 
 通常情况下，集群的用户账号可能会从企业数据库进行同步。而服务账号有意做的更轻量，允许集群用户为了具体的任务按需创建服务账号（遵从权限最小化原则）。
@@ -2009,14 +2009,15 @@ my_token_yyy,user3,2,"group1,group2"
 对于token这列， 通常是生成一串长度适当的随机字符填入。另外，**用户组**列是可选的，当用户组只有一个的时候，双引号可以省略。
 
 > linux上生成随机字符串的命令: `tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 16`
-> - 这个命令生成一个长度为16且只包含'a-zA-Z0-9'的字符串。
+> ，这个命令生成一个长度16且只包含'a-zA-Z0-9'的字符串。
 
 然后我们需要把这个文件添加到API服务器的启动参数`--token-auth-file=<file_path>`中，下面是操作步骤：
 
 ```shell
-# kube-apiserver pod从固定挂载的几个目录读取文件，所以我们需要移动到其中的一个目录下才能被读取到
+# kube-apiserver pod从固定挂载的几个目录读取文件，所以我们需要将文件移动到其中的一个目录下才能被读取到
 $ mv k8s_account_tokens.csv /etc/kubernetes/pki/
 
+# 修改 kube-apiserver.yaml
 $ vi /etc/kubernetes/manifests/kube-apiserver.yaml
 #spec:
 #  containers:
@@ -2026,9 +2027,12 @@ $ vi /etc/kubernetes/manifests/kube-apiserver.yaml
 ...
 ```
 
-保存退出后，API服务器会自动重启。你可以通过`watch crictl ps`观察重启过程。
+保存退出后，API服务器会自动重启。你可以通过`watch crictl ps`观察重启 kube-apiserver 重启过程。
 
-> 如果`kube-apiserver`Pod重启失败，你可以通过`crictl logs <container-id>`来查看错误日志。
+> - 如果`kube-apiserver`Pod重启失败，你可以通过`crictl logs <container-id>`
+    > 来查看错误日志。
+> - kube-apiserver宕机会导致几乎所有kubectl命令不可用，虽然不会影响运行中的Pod，但仍需要尽快修复。
+    通过`journalctl -u kubelet`会看到大量错误日志。
 
 现在我们可以在HTTP请求中携带这个token进行访问了：
 
@@ -2052,8 +2056,8 @@ $ curl --insecure https://localhost:6443/api/v1/namespaces/default/pods -H "Auth
 
 #### 4.2.3 服务账号
 
-服务账号（ServiceAccount）认证主要是提供给Pod中的进程使用，以便Pod可以从内部访问API
-Server。用户账号认证不限制命名空间，但ServiceAccount认证局限于它所在的命名空间。
+服务账号（ServiceAccount，简称SA）认证主要是提供给Pod中的进程使用，以便Pod可以从内部访问API
+Server。用户账号认证不限制命名空间，但服务账号认证局限于它所在的命名空间。
 
 **默认ServiceAccount**  
 每个命名空间都有一个默认的ServiceAccount，当Pod没有指定ServiceAccount时，Pod会使用默认的ServiceAccount。
@@ -2191,20 +2195,20 @@ root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" -X G
 }
 ```
 
-服务账号的身份在认证后被确定的用户名为 `system:serviceaccount:<名字空间>:<服务账号>`，
+默认服务账号的身份在认证后被确定的用户名为 `system:serviceaccount:<名字空间>:<服务账号>`，
 并被分配到用户组 `system:serviceaccounts 和 system:serviceaccounts:<名字空间>`。
 
-**自定义ServiceAccount（SA）**  
-默认分配的服务账号只能访问公开的API，但有时候我们想要访问一些集群内的特定资源，那就需要使用自定义SA了。
+**自定义服务账号**  
+默认分配的服务账号只能访问公开的API，但有时候我们想要访问一些集群内的特定资源，那就需要使用自定义服务账号了。
 大致操作步骤如下：
 
-- 创建一个ServiceAccount（包含token），这又有两种方式
+- 创建一个服务账号（包含token），这又有两种方式
     1. 创建临时token：使用`kubectl create token <token-name> --duration`创建一个临时token，然后创建SA，再将二者绑定起来
     2. 创建长期token：手动创建一个带有特殊注解 kubernetes.io/service-account.name 的 Secret 对象，然后会自动绑定到对应的SA
 - 创建角色并与其绑定（下节讲到）
 - 在Pod模板中引用
 
-下面是不同情况下创建SA的示例：
+下面是不同情况下创建服务账号的示例：
 
 - 临时token：[serviceaccount.yaml](serviceaccount.yaml)（之后创建token）
 - 长期token：[secret-serviceaccount.yaml](secret-serviceaccount.yaml) （提前创建SA）
