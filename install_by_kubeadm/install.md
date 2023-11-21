@@ -102,8 +102,8 @@ gpgkey=http://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg
 EOF
 
 # centos 安装各组件
-sudo yum install -y wget lsof net-tools \
-    kubelet-1.25.14 kubeadm-1.25.14 kubectl-1.25.14 --disableexcludes=kubernetes
+sudo yum install -y wget lsof net-tools jq \
+    kubelet-1.27.0 kubeadm-1.27.0 kubectl-1.27.0 --disableexcludes=kubernetes
 
 # 开机启动，且立即启动
 sudo systemctl enable --now kubelet
@@ -130,12 +130,12 @@ deb https://mirrors.aliyun.com/kubernetes/apt/ kubernetes-xenial main
 EOF
 
 apt-get update
-apt-get install -y kubelet=1.25.14-00 kubeadm=1.25.14-00 kubectl=1.25.14-00
+apt-get install -y kubelet=1.27.0-00 kubeadm=1.27.0-00 kubectl=1.27.0-00
 # 查看软件仓库包含哪些版本 apt-cache madison kubelet
 # 删除 apt-get remove  -y kubelet kubeadm kubectl
 ```
 
-## 4. 为kubelet和runtime配置相同的cgroup driver
+## 4. 配置cgroup driver
 
 Container runtimes推荐使用`systemd`作为kubeadm的driver，而不是kubelet默认的`cgroupfs`driver。
 
@@ -145,7 +145,7 @@ https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-dri
 
 所以使用高于v1.22的版本，这步就不用配置。
 
-## 5. 使用kubeadmin创建集群
+## 5. 创建集群
 
 下面的命令需要在所有机器上执行。
 
@@ -221,6 +221,8 @@ lsmod | grep -e br_netfilter -e overlay
 
 ### 5.1 在master上初始化集群
 
+选择版本时最好选择 [官方仍在维护的版本](https://kubernetes.io/releases/) 。
+
 ```shell
 # 提前拉取需要的image
 kubeadm config images pull --image-repository registry.aliyuncs.com/google_containers
@@ -230,10 +232,10 @@ $ crictl images
 IMAGE                                                             TAG                 IMAGE ID            SIZE
 registry.aliyuncs.com/google_containers/coredns                   v1.9.3              5185b96f0becf       14.8MB
 registry.aliyuncs.com/google_containers/etcd                      3.5.6-0             fce326961ae2d       103MB
-registry.aliyuncs.com/google_containers/kube-apiserver            v1.25.14            48f6f02f2e904       35.1MB
-registry.aliyuncs.com/google_containers/kube-controller-manager   v1.25.14            2fdc9124e4ab3       31.9MB
-registry.aliyuncs.com/google_containers/kube-proxy                v1.25.14            b2d7e01cd611a       20.5MB
-registry.aliyuncs.com/google_containers/kube-scheduler            v1.25.14            62a4b43588914       16.2MB
+registry.aliyuncs.com/google_containers/kube-apiserver            v1.27.0            48f6f02f2e904       35.1MB
+registry.aliyuncs.com/google_containers/kube-controller-manager   v1.27.0            2fdc9124e4ab3       31.9MB
+registry.aliyuncs.com/google_containers/kube-proxy                v1.27.0            b2d7e01cd611a       20.5MB
+registry.aliyuncs.com/google_containers/kube-scheduler            v1.27.0            62a4b43588914       16.2MB
 registry.aliyuncs.com/google_containers/pause                     3.8                 4873874c08efc       311kB
 registry.cn-hangzhou.aliyuncs.com/google_containers/pause         3.6                 6270bb605e12e       302kB
 
@@ -246,11 +248,11 @@ registry.cn-hangzhou.aliyuncs.com/google_containers/pause         3.6           
 # --pod-network-cidr 指定 Kubernetes 集群中 Pod 网络的 IP 地址范围。Pod IP 地址将分配给容器化的应用程序 Pod，以便它们可以相互通信。
 $ kubeadm init \
 --image-repository registry.aliyuncs.com/google_containers \
---kubernetes-version v1.25.14 \
+--kubernetes-version v1.27.0 \
 --service-cidr=20.1.0.0/16 \
 --pod-network-cidr=20.2.0.0/16
 
-[init] Using Kubernetes version: v1.25.14
+[init] Using Kubernetes version: v1.27.0
 [preflight] Running pre-flight checks
 [preflight] Pulling images required for setting up a Kubernetes cluster
 [preflight] This might take a minute or two, depending on the speed of your internet connection
@@ -319,7 +321,7 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```shell
 [root@k8s-master calico]# kubectl get nodes
 NAME         STATUS   ROLES           AGE   VERSION
-k8s-master   NotReady   control-plane   7m14s   v1.25.14
+k8s-master   NotReady   control-plane   7m14s   v1.27.0
 
 [root@k8s-master calico]# kubectl cluster-info
 
@@ -358,8 +360,8 @@ Run 'kubectl get nodes' on the control-plane to see this node join the cluster.
 ```shell
 [root@k8s-master ~]# kubectl get nodes
 NAME         STATUS     ROLES           AGE     VERSION
-k8s-master   NotReady   control-plane   3m48s   v1.25.14
-k8s-node1    NotReady   <none>          6s      v1.25.14
+k8s-master   NotReady   control-plane   3m48s   v1.27.0
+k8s-node1    NotReady   <none>          6s      v1.27.0
 ```
 
 下节解决节点状态是`NotReady`的问题。
@@ -471,8 +473,8 @@ k8s-node1
 ```shell
 [root@k8s-master ~]# kubectl get nodes
 NAME         STATUS   ROLES           AGE   VERSION
-k8s-master   Ready    control-plane   64m   v1.25.14
-k8s-node1    Ready    <none>          61m   v1.25.14
+k8s-master   Ready    control-plane   64m   v1.27.0
+k8s-node1    Ready    <none>          61m   v1.27.0
 ```
 
 ### 5.5 在普通节点执行kubectl
@@ -496,8 +498,8 @@ kubectl命令默认连接本地的8080端口，需要修改配置文件，指向
 [root@k8s-node1 ~]# source /etc/profile
 [root@k8s-node1 ~]# kubectl get nodes
 NAME         STATUS   ROLES           AGE   VERSION
-k8s-master   Ready    control-plane   17h   v1.25.14
-k8s-node1    Ready    <none>          16h   v1.25.14
+k8s-master   Ready    control-plane   17h   v1.27.0
+k8s-node1    Ready    <none>          16h   v1.27.0
 ```
 
 但是，在实际环境中，我们通常不需要做这个操作。因为普通节点相对master节点只是一种临时资源，可能会以后某个时间点退出集群。

@@ -84,8 +84,8 @@ kube-system   kube-scheduler-k8s-master                      1/1     Running   4
 # 查看节点信息，确定待删除节点名称
 $ kk get nodes     
 NAME         STATUS   ROLES           AGE   VERSION
-k8s-master   Ready    control-plane   15d   v1.25.14
-k8s-node1    Ready    <none>          15d   v1.25.14
+k8s-master   Ready    control-plane   15d   v1.27.0
+k8s-node1    Ready    <none>          15d   v1.27.0
 
 # 在master节点上执行清空pod操作（drain）
 # - 根据输出得知:该节点已进入 cordoned（隔离）状态，不再接受新Pod调度
@@ -101,8 +101,8 @@ cannot delete Pods declare no controller (use --force to override): default/go-h
 # 观察k8s-node1状态已经发生变化
 $ kk get nodes                                  
 NAME         STATUS                     ROLES           AGE   VERSION
-k8s-master   Ready                      control-plane   16d   v1.25.14
-k8s-node1    Ready,SchedulingDisabled   <none>          16d   v1.25.14
+k8s-master   Ready                      control-plane   16d   v1.27.0
+k8s-node1    Ready,SchedulingDisabled   <none>          16d   v1.27.0
 
 # 因为default/go-http是不重要的Pod，所以可以执行强制清空
 # - 根据输出得知：除了daemonset之外的pod都驱逐完成了（被驱逐的Pod在其他节点创建可能需要点时间）
@@ -153,7 +153,7 @@ $ kubectl delete node k8s-node1
 node "k8s-node1" deleted
 $ kubectl get nodes                                            
 NAME         STATUS   ROLES           AGE   VERSION
-k8s-master   Ready    control-plane   16d   v1.25.14
+k8s-master   Ready    control-plane   16d   v1.27.0
 
 # 在k8s-node1上执行，重置节点以便下次加入集群, 添加-f忽略询问
 [root@k8s-node1 ~]# kubeadm reset
@@ -262,10 +262,10 @@ docker.io/calico/kube-controllers                                 v3.26.1       
 docker.io/calico/node                                             v3.26.1             8065b798a4d67       86.6MB
 registry.aliyuncs.com/google_containers/coredns                   v1.9.3              5185b96f0becf       14.8MB
 registry.aliyuncs.com/google_containers/etcd                      3.5.6-0             fce326961ae2d       103MB
-registry.aliyuncs.com/google_containers/kube-apiserver            v1.25.14            48f6f02f2e904       35.1MB
-registry.aliyuncs.com/google_containers/kube-controller-manager   v1.25.14            2fdc9124e4ab3       31.9MB
-registry.aliyuncs.com/google_containers/kube-proxy                v1.25.14            b2d7e01cd611a       20.5MB
-registry.aliyuncs.com/google_containers/kube-scheduler            v1.25.14            62a4b43588914       16.2MB
+registry.aliyuncs.com/google_containers/kube-apiserver            v1.27.0             6f707f569b572       33.4MB
+registry.aliyuncs.com/google_containers/kube-controller-manager   v1.27.0             95fe52ed44570       31MB
+registry.aliyuncs.com/google_containers/kube-proxy                v1.27.0             5f82fc39fa816       23.9MB
+registry.aliyuncs.com/google_containers/kube-scheduler            v1.27.0             f73f1b39c3fe8       18.2MB
 registry.aliyuncs.com/google_containers/pause                     3.8                 4873874c08efc       311kB
 registry.cn-hangzhou.aliyuncs.com/google_containers/pause         3.6                 6270bb605e12e       302kB
 ```

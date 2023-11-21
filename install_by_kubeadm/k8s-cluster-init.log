@@ -1,5 +1,5 @@
-[root@k8s-master ~]# kubeadm init --apiserver-advertise-address=10.0.2.2 --image-repository registry.aliyuncs.com/google_containers --kubernetes-version v1.25.14 --service-cidr=20.1.0.0/16 --pod-network-cidr=20.2.0.0/16
-[init] Using Kubernetes version: v1.25.14
+[root@k8s-master ~]# kubeadm init --apiserver-advertise-address=10.0.2.2 --image-repository registry.aliyuncs.com/google_containers --kubernetes-version v1.27.0 --service-cidr=20.1.0.0/16 --pod-network-cidr=20.2.0.0/16
+[init] Using Kubernetes version: v1.27.0
 [preflight] Running pre-flight checks
 	[WARNING Firewalld]: firewalld is active, please ensure ports [6443 10250] are open or your cluster may not function correctly
 [preflight] Pulling images required for setting up a Kubernetes cluster

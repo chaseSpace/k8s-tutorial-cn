@@ -1628,7 +1628,7 @@ Ingress控制器不会随集群一起安装，需要单独安装。可以选择�
 - [官方仓库](https://github.com/kubernetes/ingress-nginx)
 - [官方安装指导](https://kubernetes.github.io/ingress-nginx/deploy/)
 
-先通过官方仓库页面的版本支持表确认控制器与k8s匹配的版本信息，笔者使用的k8s版本是`1.25.14`，准备安装的Nginx
+先通过官方仓库页面的版本支持表确认控制器与k8s匹配的版本信息，笔者使用的k8s版本是`1.27.0`，准备安装的Nginx
 ingress控制器版本是`1.8.2`。
 
 安装方式有Helm安装和手动安装，Helm是一个很好用的k8s包管理器（后续介绍），但这里先使用手动安装。
@@ -1805,7 +1805,7 @@ kk -n kube-system scale --replicas=3 deployment/nginx-ingress-controller
 $ kk label nodes k8s-node1 ingress="true"
 $ kk get node k8s-node1 --show-labels
 NAME        STATUS   ROLES    AGE     VERSION    LABELS
-k8s-node1   Ready    <none>   2d22h   v1.25.14   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,ingress=true,kubernetes.io/arch=amd64,kubernetes.io/hostname=k8s-node1,kubernetes.io/os=linux
+k8s-node1   Ready    <none>   2d22h   v1.27.0    beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,ingress=true,kubernetes.io/arch=amd64,kubernetes.io/hostname=k8s-node1,kubernetes.io/os=linux
 
 # 修改ingress部署文件，搜索Deployment，在其spec.template.spec.nodeSelector下面添加 ingress: "true"
 $ vi deploy.yaml 
