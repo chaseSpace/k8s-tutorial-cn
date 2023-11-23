@@ -1034,7 +1034,7 @@ Name:             cURL
 Namespace:        default
 Priority:         0
 Service Account:  default
-Node:             k8s-node1/192.168.31.3
+Node:             k8s-node1/10.0.0.3
 Start Time:       Fri, 03 Nov 2023 12:38:14 +0800
 Labels:           app=cURL
 Annotations:      cni.projectcalico.org/containerID: afb1e9f94f02d8f293b48fabe028623063159b7b7cd35ccd20726ee7e19ed63b
@@ -1061,7 +1061,7 @@ The `cURL` command is a powerful tool used to make HTTP requests from the comman
 
 集群中的每一个对象都有一个名称（由用户提供）来标识在同类资源中的唯一性。
 
-每个 Kubernetes 对象也有一个 UID 来标识在整个集群中的唯一性。比如，在同一个名字空间 中只能有一个名为 `myapp-1234` 的
+每个 Kubernetes 对象也有一个 UID 来标识在整个集群中的唯一性。比如，在同一个命名空间 中只能有一个名为 `myapp-1234` 的
 Pod，但是可以命名一个 Pod 和一个 Deployment 同为 `myapp-1234`。
 
 名称在同一资源的所有 API 版本中必须是唯一的。
@@ -1698,7 +1698,7 @@ spec:
 
 - Pod 未设置 `priorityClassName`
 - Pod 的 `priorityClassName` 设置值不是 `cluster-services`
-- Pod 的 `priorityClassName` 设置值为 `cluster-services`，并且它将被创建于 `kube-system` 名字空间中，并且它已经通过了资源配额检查。
+- Pod 的 `priorityClassName` 设置值为 `cluster-services`，并且它将被创建于 `kube-system` 命名空间中，并且它已经通过了资源配额检查。
 
 ## 4. API Server
 
@@ -1728,7 +1728,7 @@ API组通常会出现在Restful API路径中，还有资源模板的`apiVersion`
 - apps/v1 （ReplicaSet/Deployment/DaemonSet）
 - networking.k8s.io/v1 (Ingress)
 
-k8s使用的API组列表在 [API Groups](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#-strong-api-groups-strong-)
+k8s使用的API组列表在 [API Groups](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#api-groups)
 可见（链接携带版本）。
 
 API组的版本控制通过携带`Alpha/Beta`这样的版本名称来实现，比如你可能会看见`api/v1alpha1`或`api/v1beta1`这样的API路径。不同名称的用法如下：
@@ -1840,10 +1840,10 @@ nginx   1/1     Running   0          2m
 
 > Master节点上的kubectl命令拥有操作集群资源的最高权限，为了提高集群的安全性，只有在进行底层资源维护时才会用到。
 
-API Server的每一次访问在`kube-apiserver`内部按顺序都要通过三个关卡：**身份认证、授权和准入控制**。它们分别具有以下作用：
+API Server的每一次访问在`kube-apiserver`内部按顺序都要通过三个关卡：**身份认证、鉴权和准入控制**。它们分别具有以下作用：
 
 - 身份认证：是谁在请求（确定用户身份有效）
-- 授权：发起的操作有无授权过（确定用户+操作已被授权），在**4.3**节中讲到
+- 鉴权：发起的操作有无授权过（确定用户+操作+资源已被授权），在**4.3**节中讲到
 - 准入控制器： 这个操作是否符合当前集群设定的规则（操作是否合规），在**4.4**节中讲到
 
 在Kubernetes中，身份认证是确认用户或实体是谁的过程。K8s支持多种身份验证机制，包括证书、令牌、用户名/密码以及外部Webhook校验等方式。
@@ -1928,7 +1928,7 @@ openssl genrsa -out client.key 2048
 # 4. 基于client证书私钥生成client证书的csr文件（证书签名请求），CN是用户名，O是组名
 openssl req -new -key client.key -out client.csr -subj "/CN=user2/O=app1/O=app2"
 
-# 5. 基于client两个文件生成client证书
+# 5. 基于client两个文件和k8s的ca私钥生成client证书
 openssl x509 -req -in client.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out client.crt -days 365
 
 # 检查client证书
@@ -1940,10 +1940,10 @@ openssl x509 -in client.crt -text -noout
 
 现在我们演示两种使用客户端证书的访问方式：
 
-1. 直接使用`cURL`携带客户端证书的方式访问
+1. 直接使用`curl`携带客户端证书的方式访问
 2. 将客户端证书设置到kubeconfig文件，然后使用kubectl命令访问
 
-首先演示第一种。通过`cURL`携带客户端证书的方式进行用户认证：
+首先演示第一种。通过`curl`携带客户端证书的方式进行用户认证：
 
 ```shell
 # 首先从kubeconfig文件中获取API Server的根证书（当然也可以使用 --insecure 选项禁用服务器证书校验）
@@ -1954,7 +1954,7 @@ $ echo $(grep certificate-authority-data /etc/kubernetes/admin.conf |cut -d" " -
 # - 根据response可见，能够识别到 user2 用户，但由于没授权，所以还不能访问资源
 # - 若不能识别，则显示 system:anonymous 用户
 # - （这里有一个cURL的坑要注意，必须在client证书和密钥前加上 ./ 否则无法正常识别，原因未知）
-$ cURL --cert ./client.crt --key ./client.key --cacert apiserver-ca.crt \
+$ curl --cert ./client.crt --key ./client.key --cacert apiserver-ca.crt \
       https://10.0.0.2:6443/api/v1/namespaces/default/pods/nginx
 {
   "kind": "Status",
@@ -1978,7 +1978,7 @@ $ cURL --cert ./client.crt --key ./client.key --cacert apiserver-ca.crt \
 kubectl config set-credentials user2 --embed-certs=true --client-certificate=client.crt --client-key=client.key
 # 2. 设置上下文（将 cluster 和 credentials进行组合成访问集群的上下文）
 kubectl config set-context user2@kubernetes --cluster=kubernetes --user=user2
-# 3. 指定要使用的上下文
+# 3. 切换上下文
 kubectl config use-context user2@kubernetes
 # 4. 访问资源
 # - 成功识别到user2用户
@@ -2002,8 +2002,8 @@ kubectl config use-context kubernetes-admin@kubernetes
 ```shell
 # vi k8s_account_tokens.csv
 # 分别是token，用户名，用户id，所属用户组
-my_token_xxx,user2,1
-my_token_yyy,user3,2,"group1,group2"
+nlZtQeHoS8k0Pvbe,user3,3
+nxdt123445k0P21d,user4,4,"group1,group2"
 ```
 
 对于token这列， 通常是生成一串长度适当的随机字符填入。另外，**用户组**列是可选的，当用户组只有一个的时候，双引号可以省略。
@@ -2180,7 +2180,7 @@ root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" -X G
   "platform": "linux/amd64"
 }
 # 默认服务账号没有访问集群资源的权限
-root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" -X GET https://kubernetes.default.svc.cluster.local/api/v1/namespaces/defaut/pods
+root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" https://kubernetes.default.svc.cluster.local/api/v1/namespaces/default/pods
 {
   "kind": "Status",
   "apiVersion": "v1",
@@ -2195,8 +2195,8 @@ root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" -X G
 }
 ```
 
-默认服务账号的身份在认证后被确定的用户名为 `system:serviceaccount:<名字空间>:<服务账号>`，
-并被分配到用户组 `system:serviceaccounts 和 system:serviceaccounts:<名字空间>`。
+默认服务账号的身份在认证后被确定的用户名为 `system:serviceaccount:<命名空间>:<服务账号>`，
+并被分配到用户组 `system:serviceaccounts 和 system:serviceaccounts:<命名空间>`。
 
 **自定义服务账号**  
 默认分配的服务账号只能访问公开的API，但有时候我们想要访问一些集群内的特定资源，那就需要使用自定义服务账号了。
@@ -2217,6 +2217,287 @@ root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" -X G
 
 > 如果在Pod模板内映射`serviceAccountToken`时指定了`expirationSeconds`
 > 字段，则kubelet会自动为token完成续期，但Pod内的应用需要自己定时从文件中读取新的token。
+
+### 4.3 授权
+
+当API服务器收到外部请求时，首先会对其进行身份认证，通过后再鉴权。鉴权是指检查用户是否拥有访问指定资源的权限。
+如果鉴权结果为拒绝，则返回HTTP状态码403。
+
+Kubernetes 会结合请求中的大部分API属性进行鉴权，如用户、组、API和请求路径等。K8s一共支持以下几种鉴权方式：
+
+- RBAC：基于角色的访问控制（从v1.6版本开始为默认鉴权方式）。
+- ABAC：基于属性的访问控制。
+- Webhook：基于HTTP 回调的方式通过外部服务进行鉴权。
+- Node：针对节点的鉴权方式。
+
+在API Server的启动参数中设定参数来启用一个或多个鉴权模块：
+
+- --authorization-mode=ABAC 基于属性的访问控制（ABAC）模式允许你使用本地文件配置策略。
+- --authorization-mode=RBAC 基于角色的访问控制（RBAC）模式允许你使用 Kubernetes API 创建和存储策略（默认）。
+- --authorization-mode=Webhook WebHook 是一种 HTTP 回调模式，允许你使用远程 REST 端点管理鉴权。
+- --authorization-mode=Node 节点鉴权是一种特殊用途的鉴权模式，专门对 kubelet 发出的 API 请求执行鉴权。
+- --authorization-mode=AlwaysDeny 该标志阻止所有请求。仅将此标志用于测试。
+- --authorization-mode=AlwaysAllow 此标志允许所有请求。仅在你不需要 API 请求的鉴权时才使用此标志。
+
+选择多个鉴权模块时，模块按顺序检查。
+
+**查询权限**  
+当你通过身份认证和鉴权之后，可以通过以下命令查看自己能否访问指定资源：
+
+```shell
+# 得到yes或no
+$ kubectl auth can-i create deployments --namespace dev
+yes
+
+# --as用来检查其他用户有无对应权限（但不会告诉你用户是否存在）
+$ kubectl auth can-i list secrets --namespace dev --as dave
+no
+
+# 检查命名空间 dev 里的 dev-sa 服务账户是否可以列举命名空间 target 里的 Pod
+$ kubectl auth can-i list pods \
+	--namespace target \
+	--as system:serviceaccount:dev:dev-sa
+no
+```
+
+#### 4.3.1 RBAC
+
+RBAC基于角色和角色绑定来定义在 Kubernetes 中用户或服务账户对资源的访问权限。
+
+- 角色定义：每个角色的定义包括允许以哪些方式，访问哪些类型的资源（也可以指定具体资源名称）
+- 角色绑定：将定义好的角色绑定到指定的用户账号或服务账号
+
+K8s中支持以两种方式使用RBAC:
+
+1. 基于单一命名空间的RBAC（关键字为Role、RoleBinding）
+2. 基于全局的RBAC，功能兼容第一种（关键字为ClusterRole、ClusterRoleBinding）
+
+RBAC 鉴权机制使用 `rbac.authorization.k8s.io` API 组来驱动鉴权决定。
+
+##### 4.3.1.1 Role和RoleBinding
+
+示例如下：
+
+- [rbac_role.yaml](rbac_role.yaml)
+- [rbac_rolebinding.yaml](rbac_rolebinding.yaml)
+
+> 注意：RoleBinding 中的 RoleRef 字段一旦定义就不能修改，只能重建 RoleBinding。
+
+下面是演示情况:
+
+```shell
+$ kk apply -f rbac_role.yaml 
+role.rbac.authorization.k8s.io/pod-reader created
+
+$ kk apply -f rbac_rolebinding.yaml
+rolebinding.rbac.authorization.k8s.io/read-pods created
+
+$ kk get role                          
+NAME         CREATED AT
+pod-reader   2023-11-20T00:13:17Z
+
+$ kk get rolebinding
+NAME        ROLE              AGE
+read-pods   Role/pod-reader   21s
+
+$ kk describe rolebinding read-pods 
+Name:         read-pods
+Labels:       <none>
+Annotations:  <none>
+Role:
+  Kind:  Role
+  Name:  pod-reader
+Subjects:
+  Kind            Name  Namespace
+  ----            ----  ---------
+  User            user2
+  User            user3  
+  ServiceAccount  sa1
+```
+
+现在测试绑定角色后，之前创建好的用户账号（user2,user3）和服务账号（sa1）能否访问`pods`资源：
+
+```shell
+# 1. 通过x509证书创建的user2
+$ curl --cert ./client.crt --key ./client.key --cacert apiserver-ca.crt \
+      https://10.0.0.2:6443/api/v1/namespaces/default/pods/nginx
+{
+  "kind": "PodList",
+  "apiVersion": "v1",
+  "metadata": {
+    "resourceVersion": "128733"
+  },
+...内容较长，省略
+
+# 2. 通过静态令牌文件创建的user3
+$ curl --insecure https://localhost:6443/api/v1/namespaces/default/pods -H "Authorization:Bearer nlZtQeHoS8k0Pvbe"
+...省略
+
+# 3. 通过服务账号sa1
+$ kk exec -it nginx-sa-longtime -- bash
+root@nginx-sa-longtime:/# TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+root@nginx-sa-longtime:/# CACERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+root@nginx-sa-longtime:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" https://kubernetes.default.svc.cluster.local/api/v1/namespaces/default/pods
+...省略
+```
+
+##### 4.3.1.2 ClusterRole和ClusterRoleBinding
+
+ClusterRole 和 ClusterRoleBinding 属于集群范围，不限制于单一命名空间，所以它能够授权的权限范围比Role更大（包含），这体现在它能够为以下资源授权：
+
+- 集群范围资源（比如节点（Node））
+- 非资源端点（比如 /healthz）
+- 跨命名空间访问命名空间作用域的资源（如 Pod）
+
+需要注意的是，一个 RoleBinding 可以引用某个 ClusterRole，这会自动将后者定义的权限范围限定在前者所在的命名空间内，这样做方便你在集群范围内定义一组通用的角色（在多个命名空间中复用）。
+
+示例如下：
+
+- [rbac_clusterrole.yaml](rbac_clusterrole.yaml)
+- [rbac_clusterrolebinding.yaml](rbac_clusterrolebinding.yaml)
+
+> 注意：与RoleBinding一样，ClusterRoleBinding 中的 RoleRef 字段一旦定义就不能修改，只能重建 ClusterRoleBinding。
+
+现在测试绑定集群角色后，之前创建好的用户账号user2能否访问`kube-public`空间中的`secrets`资源：
+
+```shell
+$ kk apply -f rbac_clusterrole.yaml 
+clusterrole.rbac.authorization.k8s.io/secret-reader created
+$ kk apply -f rbac_clusterrolebinding.yaml 
+clusterrolebinding.rbac.authorization.k8s.io/read-secrets-global created
+
+# 可以访问kube-public空间的secrets
+$ curl --cert ./client.crt --key ./client.key --cacert apiserver-ca.crt \
+      https://10.0.0.2:6443/api/v1/namespaces/kube-public/secrets
+{
+  "kind": "SecretList",
+  "apiVersion": "v1",
+  "metadata": {
+    "resourceVersion": "211074"
+  },
+...省略
+
+# 但没有delete权限
+$ curl --cert ./client.crt --key ./client.key --cacert apiserver-ca.crt -X DELETE \
+      https://192.168.31.2:6443/api/v1/namespaces/kube-public/secrets/some-secret 
+{
+  "kind": "Status",
+  "apiVersion": "v1",
+  "metadata": {},
+  "status": "Failure",
+  "message": "secrets \"some-secret\" is forbidden: User \"user2\" cannot delete resource \"secrets\" in API group \"\" in the namespace \"kube-public\"",
+  "reason": "Forbidden",
+  "details": {
+    "name": "some-secret",
+    "kind": "secrets"
+  },
+  "code": 403
+}
+```
+
+如上所示，测试情况符合预期。你可以在 [rbac_clusterrole.yaml](rbac_clusterrole.yaml) 中添加`delete`动词（verbs）然后再尝试删除。
+
+##### 4.3.1.3 聚合的 ClusterRole
+
+我们可以通过标签将多个ClusterRole聚合到一起，然后生成一个新的ClusterRole。
+[rbac_aggregate_clusterrole.yaml](rbac_aggregate_clusterrole.yaml) 是一个简单的示例。
+
+创建聚合ClusterRole后，后续创建的ClusterRole只要匹配标签规则就会自动合并到【聚合ClusterRole】的规则中去（删除同理），
+可以通过以下命令查看聚合后的规则集合。
+
+```shell
+kk get clusterrole <aggregate-clusterole-name> -o jsonpath='{.rules}'
+```
+
+##### 4.3.1.4 默认创建的角色和绑定资源
+
+API 服务器创建了一组默认的 ClusterRole 和 ClusterRoleBinding 对象。 这其中许多是以`system:`为前缀。通过以下命令查看：
+
+```
+$ kk get clusterrole
+admin                                                                  2023-11-18T21:41:59Z
+cluster-admin                                                          2023-11-18T21:41:59Z
+...
+system:aggregate-to-admin                                              2023-11-18T21:41:59Z
+system:aggregate-to-edit                                               2023-11-18T21:41:59Z
+system:aggregate-to-view                                               2023-11-18T21:41:59Z
+...
+system:controller:node-controller                                      2023-11-18T21:41:59Z
+system:controller:persistent-volume-binder                             2023-11-18T21:41:59Z
+system:controller:pod-garbage-collector                                2023-11-18T21:41:59Z
+...
+
+$ kk get clusterrolebinding
+...
+```
+
+可以看到默认创建了较多细粒度的集群角色。显然，以`system:aggregate`开头的集群角色是一个聚合的集群角色。
+> 注意：不要随意修改名称前缀是`system:`的集群角色和绑定资源，这可能会造成集群无法正常运作。
+
+
+**API发现角色**  
+默认创建的集群角色中包含一个名为`system:discovery`的角色，该角色允许用户访问公开的集群 API。通过以下命令查看该角色的详细配置：
+
+```shell
+$ kk get clusterrole system:discovery -o yaml
+```
+
+并且针对这个角色的修改会被API
+Server在启动时自动覆盖，这是通过 [自动协商](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/rbac/#auto-reconciliation)
+机制完成的。要避免这类覆盖操作，
+要么不要手动编辑这些角色，要么禁止自动协商机制。
+
+**面向用户的角色**  
+一些默认的 ClusterRole 不是以前缀`system:`开头的。这些是面向用户的角色。它们包括：
+
+- cluster-admin：若在ClusterRoleBinding中使用，可以完全控制整个集群；也可以在RoleBinding中使用，以控制单个命名空间下的所有资源，包含命名空间本身；
+- admin：允许管理员访问权限，一般用于RoleBinding。如果在 RoleBinding 中使用，则可授予对名字空间中的大多数资源的读/写权限，
+  包括创建角色和角色绑定的能力。 此角色不允许对资源配额或者名字空间本身进行写操作；
+- edit：允许对名字空间的大多数对象进行读/写操作，不允许查看或者修改角色或者角色绑定；
+- view：允许对名字空间的大多数对象有只读权限，不允许查看角色或角色绑定，也不允许查看 Secret（防止通过服务账户的token实现特权提升）；
+
+这些角色可以被用户直接使用（绑定自定义账户），请在阅读 [面向用户的角色](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/rbac/#user-facing-roles)
+来了解每个角色的规则之后再进行使用。
+
+##### 4.3.1.5 预防特权提升
+
+RBAC API 会阻止用户通过编辑角色或者角色绑定来提升权限。 这一点是在 API 级别实现的，所以在 RBAC 鉴权组件未启用的状态下依然可以正常工作。
+
+首先，只有在满足以下两种情况之一时用户可以（在单一命名空间或集群范围内）**创建/更新角色**：
+
+- 已经拥有命名空间内所有的权限（单一命名空间或集群）
+- 被显式授权在`rbac.authorization.k8s.io`API 组中的`roles`或`clusterroles`资源使用`escalate`动词
+
+其次，只有在满足以下两种情况之一时用户可以（在单一命名空间或集群范围内）**创建/更新角色绑定**：
+
+- 已经拥有命名空间内所有的权限（单一命名空间或集群）
+- 被显式授权在`rbac.authorization.k8s.io`API 组中的`rolebindings`或`clusterrolebindings`资源使用`bind`动词（可以限制具体能够绑定的角色名）
+
+[rbac_role_granter.yaml](rbac_role_granter.yaml) 是一个为指定用户授予`rolebindings`+`ClusterRole`权限的示例。
+
+##### 4.3.1.6 命令行工具使用
+
+参考 [官方文档](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/rbac/#command-line-utilities) 。
+
+> 其中可能需要额外注意`kubectl auth reconcile`命令的使用，这条命令经常用来按指定方式更新模板中的角色权限，可以删除角色中未包含的权限和主体。
+
+##### 4.3.1.7 使用建议
+
+- 若要为应用开发用户分配权限，建议将账户绑定默认创建的集群角色`edit`
+- 若要为普通管理员（运维人员）分配权限，建议将账户绑定默认创建的集群角色`admin`
+- 若要为Pod分配指定权限，建议创建特定的ServiceAccount并绑定特定角色（并且限定资源名称），而不是修改每个命名空间中的default账户
+- 若要为命名空间中的任何Pod分配默认权限，可以为default账户绑定特定角色
+- 不要为新的账户绑定`cluster-admin`角色，除非你真的需要
+
+#### 4.3.2 其他鉴权方式
+
+本章节只详细讲述了K8s的主要鉴权方式RBAC。若要了解其他鉴权方式的细节，请点击以下官方链接：
+
+- [ABAC鉴权](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/abac/)
+- [Node鉴权](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/node/)
+- [Webhook鉴权](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/webhook/)
+
+### 4.4 准入控制器
 
 TODO
 
