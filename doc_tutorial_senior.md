@@ -2218,6 +2218,10 @@ root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" http
 > 如果在Pod模板内映射`serviceAccountToken`时指定了`expirationSeconds`
 > 字段，则kubelet会自动为token完成续期，但Pod内的应用需要自己定时从文件中读取新的token。
 
+#### 4.2.4 用户伪装
+
+TODO
+
 ### 4.3 授权
 
 当API服务器收到外部请求时，首先会对其进行身份认证，通过后再鉴权。鉴权是指检查用户是否拥有访问指定资源的权限。
@@ -2497,7 +2501,7 @@ RBAC API 会阻止用户通过编辑角色或者角色绑定来提升权限。 �
 - [Node鉴权](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/node/)
 - [Webhook鉴权](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/webhook/)
 
-### 4.4 准入控制器
+### 4.5 准入控制器
 
 TODO
 
