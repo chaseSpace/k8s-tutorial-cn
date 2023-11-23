@@ -1,0 +1,23 @@
+# 这是一个位于 default 名字空间的 Role 的示例，可用来授予对 Pod 的读访问权限
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: pod-reader
+rules:
+  # 下面几个属性可使用 ["*"] 表所有
+  # apiGroups 表示要访问API组
+  # "" 表示核心 API 组（/api/v1），查看v1.28所有API组 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#api-groups
+  - apiGroups: [ "" ]
+    # resources 表示要访问的资源名称列表，例如 pods、deployments、services 等
+    # 通过访问公开API获取所有的资源名称，如下
+    # kubectl proxy --port 8080
+    # curl http://localhost:8080/api/v1 |jq '.resources[].name'
+    resources: [ "pods" ] # 某些资源拥有子资源，通过斜杠分割，例如 "pods/log" （默认不能访问子资源）
+    # verbs 请求动词，支持create、【watch/get/list】、patch、update、【delete/deletecollection】等
+    # 通过访问公开API获取指定资源的请求动词，如下
+    # kubectl proxy --port 8080
+    # curl http://localhost:8080/api/v1 |jq '.resources[] | select(.name == "pods") | .verbs'
+    # 还有一些针对某些资源的特殊动词，https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/authorization/#determine-the-request-verb
+    verbs: [ "get", "watch", "list" ]
+    resourceNames: [ "nginx", "busybox" ] # 可选，若忽略则不限制资源名称，等同 ["*"]

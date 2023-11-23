@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring
+aggregationRule:
+  clusterRoleSelectors: # 匹配其他的 ClusterRole
+    - matchLabels:
+        rbac.example.com/aggregate-to-monitoring: "true"
+rules: [ ] # api-server 自动填充这里的规则（聚合匹配的 ClusterRole 的规则）
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: secret-reader
+  labels:
+    rbac.example.com/aggregate-to-monitoring: "true"
+rules:
+  - apiGroups: [ "" ]
+    resources: [ "secrets" ]
+    verbs: [ "get", "watch", "list" ]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: deployment-reader
+  labels:
+    rbac.example.com/aggregate-to-monitoring: "true"
+rules:
+  - apiGroups: [ "" ]
+    resources: [ "deployments" ]
+    verbs: [ "get", "watch", "list" ]

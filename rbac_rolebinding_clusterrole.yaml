@@ -1,0 +1,26 @@
+# ClusterRole + RoleBinding
+# 用户权限范围限制在 RoleBinding 的命名空间内（只能访问default空间内的configmap）
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: configmap-reader
+rules:
+  - apiGroups: [ "" ]
+    resources: [ "configmap" ]
+    verbs: [ "get", "watch", "list" ]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-configmap
+  namespace: default
+subjects:
+  - kind: User
+    name: user2
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: configmap-reader
+  apiGroup: rbac.authorization.k8s.io
+

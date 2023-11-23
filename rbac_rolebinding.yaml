@@ -1,0 +1,28 @@
+# RoleBinding 与 Role 绑定到 特定的普通/服务账户（组）
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods
+  namespace: default # 授权范围限定在此空间内，而不是下面用户所属空间或Role定义的空间
+subjects: # 你可以指定不止一个subject（主体），包含用户、组或服务账户
+  - kind: User
+    name: user2 # "name" 区分大小，创建时不会检查用户是否存在，且不能是系统用户（以system:作为前缀）
+    namespace: default # default可省略
+  - kind: User
+    name: user3
+  - kind: ServiceAccount
+    name: sa1 # 不能是系统服务用户（以system:serviceaccount:作为前缀）
+    namespace: default  # default可省略
+  # 使用Group时，除了自定义用户组外，需要注意服务账户组的命名规则：
+  # - system:serviceaccounts:qa 表示qa空间的全部用户或组
+  # - system:serviceaccounts  表示任何空间的全部服务用户或组
+  # - system:authenticated 表示任何已通过身份认证的用户
+  # - system:unauthenticated 表示任何【未通过】身份认证的用户！，与system:authenticated组合后匹配全部用户
+  - kind: Group
+    name: group
+roleRef:
+  # 指定与当前命名空间中的某 Role 或 ClusterRole 的绑定关系
+  # roleRef 不可修改，只能重建RoleBinding
+  kind: Role        # 此字段必须是 Role 或 ClusterRole
+  name: pod-reader  # 此字段必须与你要绑定的 Role 或 ClusterRole 的名称匹配
+  apiGroup: rbac.authorization.k8s.io #  可为 ""
