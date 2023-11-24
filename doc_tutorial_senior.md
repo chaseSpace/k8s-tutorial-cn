@@ -2011,7 +2011,7 @@ nxdt123445k0P21d,user4,4,"group1,group2"
 > linux上生成随机字符串的命令: `tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 16`
 > ，这个命令生成一个长度16且只包含'a-zA-Z0-9'的字符串。
 
-然后我们需要把这个文件添加到API服务器的启动参数`--token-auth-file=<file_path>`中，下面是操作步骤：
+然后我们需要把这个文件添加到API Server的启动参数`--token-auth-file=<file_path>`中，下面是操作步骤：
 
 ```shell
 # kube-apiserver pod从固定挂载的几个目录读取文件，所以我们需要将文件移动到其中的一个目录下才能被读取到
@@ -2027,7 +2027,7 @@ $ vi /etc/kubernetes/manifests/kube-apiserver.yaml
 ...
 ```
 
-保存退出后，API服务器会自动重启。你可以通过`watch crictl ps`观察重启 kube-apiserver 重启过程。
+保存退出后，API Server会自动重启。你可以通过`watch crictl ps`观察重启 kube-apiserver 重启过程。
 
 > - 如果`kube-apiserver`Pod重启失败，你可以通过`crictl logs <container-id>`
     > 来查看错误日志。
@@ -2150,7 +2150,8 @@ $ kubectl get pod nginx -o jsonpath='{.spec.volumes}' | jq .
 - CA证书：来自configMap，映射到Pod内的文件是`/ca.crt`
 - 命名空间：来自downwardAPI，将`metadata.namespace`即`default`，映射到Pod内的文件`namespace`
 
-Pod可以使用这几个信息完成对API服务器进行安全且有限制的访问。这几个挂载的文件存放在Pod内的`/var/run/secrets/kubernetes.io/serviceaccount`
+Pod可以使用这几个信息完成对API
+Server进行安全且有限制的访问。这几个挂载的文件存放在Pod内的`/var/run/secrets/kubernetes.io/serviceaccount`
 目录下，可以进入Pod内查看：
 
 ```shell
@@ -2165,7 +2166,7 @@ ca.crt	namespace  token
 root@nginx:/# TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
 root@nginx:/# CACERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 
-# kubernetes.default.svc.cluster.local 是API服务器的host，在创建每个pod时自动注入
+# kubernetes.default.svc.cluster.local 是API Server的host，在创建每个pod时自动注入
 # 允许访问公开API
 root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" -X GET https://kubernetes.default.svc.cluster.local/version 
 {
@@ -2220,11 +2221,74 @@ root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" http
 
 #### 4.2.4 用户伪装
 
-TODO
+一个用户可以通过伪装（Impersonation）头部字段来以另一个用户的身份执行操作。例如，管理员可以使用这一功能特性来临时伪装成另一个用户，查看请求是否被拒绝，
+从而调试鉴权策略中的问题。
+
+下面通过两种伪装方式来进行说明：
+
+- curl访问的伪装
+- kubectl访问的伪装
+
+**第一种：curl访问的伪装**  
+这种方式直接在HTTP头部添加伪装字段来实现伪装目的，可以使用的HTTP头部字段如下：
+
+- Impersonate-User：要伪装成的用户名
+- Impersonate-Group：要伪装成的用户组名。可以多次指定以设置多个用户组（要求Impersonate-User同时存在）
+- Impersonate-Extra-<附加名称>：一个**可选的**动态的头部字段，用来设置与用户相关的附加字段。<附加名称>部分必须是小写字符，
+  如果有任何字符不是合法的 HTTP 头部标签字符， 则必须是 utf8 字符，且转换为百分号编码。
+- Impersonate-Uid：一个**可选的**唯一标识符，用来表示所伪装的用户（要求Impersonate-User同时存在），在v1.22及以上版本可用
+
+**第二种：kubectl访问的伪装**
+
+在使用`kubectl`时，可以使用`--as`标志来配置`Impersonate-User`头部字段值， 使用`--as-group`标志配置`Impersonate-Group`
+头部字段值。
+
+命令示例：
+
+```shell
+$ kubectl drain mynode --as=superman --as-group=system:masters
+```
+
+**需要拥有伪装的权限**  
+用户必须拥有伪装的权限才能进行伪装（默认的超级管理员拥有所有权限），在使用RBAC鉴权插件的集群中，可以创建以下ClusterRole来定义相应的角色：
+
+```yaml
+# 定义伪装权限的角色不能在Role和RoleBinding中使用
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: limited-impersonator
+rules:
+  # 可以伪装成用户 "jane.doe@example.com"
+  - apiGroups: [ "" ]   # 核心API组包含 authentication.k8s.io
+    resources: [ "users" ]
+    verbs: [ "impersonate" ]
+    resourceNames: [ "jane.doe@example.com" ]
+
+  # 可以伪装成用户组 "developers" 和 "admins"
+  - apiGroups: [ "" ]
+    resources: [ "groups" ]
+    verbs: [ "impersonate" ]
+    resourceNames: [ "developers","admins" ]
+
+  # 可以将附加字段 "scopes" 伪装成 "view" 和 "development"
+  - apiGroups: [ "authentication.k8s.io" ]
+    resources: [ "userextras/scopes" ]
+    verbs: [ "impersonate" ]
+    resourceNames: [ "view", "development" ]
+
+  # 可以伪装 UID "06f6ce97-e2c5-4ab8-7ba5-7654dd08d52b"
+  - apiGroups: [ "authentication.k8s.io" ]
+    resources: [ "uids" ]
+    verbs: [ "impersonate" ]
+    resourceNames: [ "06f6ce97-e2c5-4ab8-7ba5-7654dd08d52b" ]
+```
+
+你可以在阅读完下面 **4.3** 章节中的RBAC内容后再来理解这个角色模板。
 
 ### 4.3 授权
 
-当API服务器收到外部请求时，首先会对其进行身份认证，通过后再鉴权。鉴权是指检查用户是否拥有访问指定资源的权限。
+当API Server收到外部请求时，首先会对其进行身份认证，通过后再鉴权。鉴权是指检查用户是否拥有访问指定资源的权限。
 如果鉴权结果为拒绝，则返回HTTP状态码403。
 
 Kubernetes 会结合请求中的大部分API属性进行鉴权，如用户、组、API和请求路径等。K8s一共支持以下几种鉴权方式：
@@ -2501,9 +2565,57 @@ RBAC API 会阻止用户通过编辑角色或者角色绑定来提升权限。 �
 - [Node鉴权](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/node/)
 - [Webhook鉴权](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/webhook/)
 
-### 4.5 准入控制器
+### 4.4 准入控制器
 
-TODO
+准入控制器（Admission Controller）是 Kubernetes 中一种用于执行请求准入控制（Admission Control）的插件机制。它允许管理员在 API
+请求到达 Kubernetes API 服务器之前**变更和验证**这些请求。准入控制器主要用于确保 Kubernetes 集群中运行的工作负载的安全性和一致性。
+
+准入控制器限制的是三种类型的请求：创建/删除/修改，以及自定义动作。它不会限制读取（get/watch/list）对象的请求。
+
+**两个执行阶段**  
+准入控制过程分为两个阶段。
+
+- 第一阶段：运行**变更**类型的准入控制器
+- 第二阶段：运行**验证**类型的准入控制器
+
+注意：有些准入控制器可以同时是这两种类型。如果两个阶段之一的任何一个控制器拒绝了某请求，则整个请求将立即被拒绝，并向最终用户返回错误。
+
+**启用准入控制器**  
+通过添加API 服务器的 `--enable-admission-plugins=<控制器1>,<控制器2>...` 标志来启用一个或多个准入控制器。
+v1.27.0版本中默认启用的控制器是`NodeRestriction`。
+
+**禁用准入控制器**  
+通过添加API Server的`--disable-admission-plugins=<控制器1>,<控制器2>...`来禁用一个或多个准入控制器（包含默认启用的）。
+
+你可以通过在master节点执行下面的命令来查看启用或禁用的准入控制器：
+
+```shell
+$ ps aux | grep kube-apiserver |grep admission-plugins
+```
+
+当然，也可以直接查看master节点上的`/etc/kubernetes/manifests/kube-apiserver.yaml`模板。
+
+**有哪些准入控制器**  
+可用的准入控制器多达几十个，请直接查看[官方文档](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/admission-controllers/#what-does-each-admission-controller-do) 。
+常用的准入控制器如下（其中大部分已经默认启用）：
+
+- DefaultIngressClass
+- DefaultStorageClass
+- DefaultTolerationSeconds
+- LimitRanger（若部署了LimitRange对象则必须启用）
+- NamespaceAutoProvision
+- NamespaceExists
+- NamespaceLifecycle（强烈推荐）
+- PersistentVolumeClaimResize
+- PodTolerationRestriction
+- ResourceQuota（若部署了ResourceQuota对象则必须启用）
+- ServiceAccount（强烈推荐）
+- StorageObjectInUseProtection
+- TaintNodesByCondition
+
+默认启用的准入控制器并没有在API Server的`--enable-admission-plugins`
+标志中显式指定，在 [这个页面](https://kubernetes.io/zh-cn/docs/reference/command-line-tools-reference/kube-apiserver/#options)
+中搜索`--enable-admission-plugins`以查看默认启用的准入控制器列表。
 
 ## TODO
 
