@@ -2226,10 +2226,10 @@ root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" http
 
 下面通过两种伪装方式来进行说明：
 
-- curl访问的伪装
-- kubectl访问的伪装
+- HTTP方式访问（curl）
+- kubectl访问
 
-**第一种：curl访问的伪装**  
+**第一种：HTTP方式访问**  
 这种方式直接在HTTP头部添加伪装字段来实现伪装目的，可以使用的HTTP头部字段如下：
 
 - Impersonate-User：要伪装成的用户名
@@ -2238,7 +2238,7 @@ root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" http
   如果有任何字符不是合法的 HTTP 头部标签字符， 则必须是 utf8 字符，且转换为百分号编码。
 - Impersonate-Uid：一个**可选的**唯一标识符，用来表示所伪装的用户（要求Impersonate-User同时存在），在v1.22及以上版本可用
 
-**第二种：kubectl访问的伪装**
+**第二种：kubectl访问**
 
 在使用`kubectl`时，可以使用`--as`标志来配置`Impersonate-User`头部字段值， 使用`--as-group`标志配置`Impersonate-Group`
 头部字段值。
@@ -2616,6 +2616,16 @@ $ ps aux | grep kube-apiserver |grep admission-plugins
 默认启用的准入控制器并没有在API Server的`--enable-admission-plugins`
 标志中显式指定，在 [这个页面](https://kubernetes.io/zh-cn/docs/reference/command-line-tools-reference/kube-apiserver/#options)
 中搜索`--enable-admission-plugins`以查看默认启用的准入控制器列表。
+
+## 5. 可视化管理
+
+### 5.1 Kubernetes Dashboard
+
+TODO
+
+### 5.2 K9s
+
+TODO
 
 ## TODO
 
