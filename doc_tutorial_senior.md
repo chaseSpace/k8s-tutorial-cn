@@ -2617,7 +2617,7 @@ $ ps aux | grep kube-apiserver |grep admission-plugins
 标志中显式指定，在 [这个页面](https://kubernetes.io/zh-cn/docs/reference/command-line-tools-reference/kube-apiserver/#options)
 中搜索`--enable-admission-plugins`以查看默认启用的准入控制器列表。
 
-## 5. 可视化管理
+## 5. 可视化面板
 
 ### 5.1 Kubernetes Dashboard
 
