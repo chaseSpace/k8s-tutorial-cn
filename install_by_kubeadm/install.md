@@ -73,14 +73,20 @@ yum-config-manager --add-repo http://mirrors.aliyun.com/docker-ce/linux/centos/d
 yum install containerd -y
 
 containerd  --version
-# - 创建或修改配置
-vi /etc/containerd/config.toml  # 直接使用此文档同级位置的 containerd.config.toml 覆盖即可
+
+# 创建或修改配置，参考下面的文字说明 
+# vi /etc/containerd/config.toml
+
 systemctl enable containerd # 开机启动
 
 systemctl daemon-reload
 systemctl restart containerd
 systemctl status containerd
 ```
+
+对于`/etc/containerd/config.toml`
+文件，我们需要修改其中关于镜像源部分的配置，以实现部分镜像仓库源的镜像下载加速。修改的位置关键字为：`registry.mirrors`, `sandbox_image`。
+你也可以使用仓库中的 [containerd.config.toml](containerd.config.toml) 进行覆盖（先备份现有的）。
 
 ## 3. 安装三大件
 
@@ -601,7 +607,7 @@ ctr image pull docker.io/calico/node:v3.26.1
 ctr image pull docker.io/calico/kube-controllers:v3.26.1
 ```
 
-因为之前安装containerd时在其配置文件中添加了国内源，所以这里直接使用ctr手动拉取的速度很快。
+因为之前安装containerd时在其配置文件中添加了国内源，所以这里直接使用ctr手动拉取位于`docker.io`的镜像的速度会很快。
 
 在后续测试过程中，你也可以使用这个方式来解决国外镜像下载慢的问题。对于生产环境，通常是使用本地镜像仓库，一般不会有这个问题。
 
