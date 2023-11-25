@@ -1583,7 +1583,7 @@ $ kk exec -it curl --  sh
 这些方式都有一个严重问题，那就是需要占用节点端口。当需要暴露的服务逐渐增加，节点端口的占用会越来越多，且增加很大管理成本。
 除此之外，这些方式也都不支持域名以及SSL配置，还需要额外配置Nginx等反向代理组件。
 
-Ingress就是为了解决这个问题而设计的，它允许你将 Service 映射到集群对外提供的某个端点上（无需占用节点端口），从而实现对外部提供服务的功能。
+Ingress就是为了解决这个问题而设计的，它允许你将 Service 映射到集群对外提供的某个端点上（即url路径，无需占用节点端口），从而实现对外部提供服务的功能。
 
 举个例子：集群对外的统一端点是`api.example.com:80`，可以这样为集群内的两个Service（backend:8080、frontend:8082）配置映射：
 
@@ -1635,10 +1635,20 @@ ingress控制器版本是`1.8.2`。
 
 ```shell
 # 下载Nginx Ingress控制器安装文件
-wget https://raw.gitmirror.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
+# 已经 githubusercontent 替换为 gitmirror
+wget https://raw.gitmirror.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml -O nginx-ingress.yaml
+
+# 查看需要的镜像
+$ cat nginx-ingress.yaml|grep image: 
+        image: registry.k8s.io/ingress-nginx/controller:v1.8.2@sha256:74834d3d25b336b62cabeb8bf7f1d788706e2cf1cfd64022de4137ade8881ff2
+        image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b
+        image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b
+
+$ 在node1上手动拉取镜像（部署的Pod会调度到非Master节点）
+$ grep -oP 'image:\s*\K[^[:space:]]+' nginx-ingress.yaml | xargs -n 1 ctr image pull
 
 # 安装
-kk apply -f deploy.yaml
+kk apply -f nginx-ingress.yaml
 
 # 等待控制器的pod运行正常（这里自动创建了一个新的namespace）
 $ kk get pods --namespace=ingress-nginx --watch
@@ -1698,17 +1708,19 @@ Normal   Pulling    2m5s (x2 over 3m20s)  kubelet            Pulling image "regi
 Warning  Failed     15s (x2 over 2m19s)   kubelet            Failed to pull image "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b": rpc error: code = DeadlineExceeded desc = failed to pull and unpack image "registry.k8s.io/ingress-nginx/kube-webhook-certgen@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b": failed to resolve reference "registry.k8s.io/ingress-nginx/kube-webhook-certgen@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b": failed to do request: Head "https://us-west2-docker.pkg.dev/v2/k8s-artifacts-prod/images/ingress-nginx/kube-webhook-certgen/manifests/sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b": dial tcp 142.251.8.82:443: i/o timeout
 
 
-# 发现无法访问 registry.k8s.io，参考https://github.com/anjia0532/gcr.io_mirror 进行解决
+# 发现无法访问 registry.k8s.io，参考 https://github.com/anjia0532/gcr.io_mirror 来解决
 # 笔者发起issue来同步nginx用到的几个镜像到作者的docker仓库，大概1min完成同步，然后现在在节点手动拉取这个可访问的docker.io下的镜像进行替代
 # 在非master节点执行（ctr是containerd cli）：
 ctr image pull docker.io/anjia0532/google-containers.ingress-nginx.kube-webhook-certgen:v20230407
 ctr image pull docker.io/anjia0532/google-containers.ingress-nginx.controller:v1.8.2
 
 # 替换模板中的镜像
-sed -i 's#registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b#docker.io/anjia0532/google-containers.ingress-nginx.kube-webhook-certgen:v20230407#' deploy.yaml
-sed -i 's#registry.k8s.io/ingress-nginx/controller:v1.8.2@sha256:74834d3d25b336b62cabeb8bf7f1d788706e2cf1cfd64022de4137ade8881ff2#docker.io/anjia0532/google-containers.ingress-nginx.controller:v1.8.2#' deploy.yaml
-# 再次应用
-kk apply -f deploy.yaml
+sed -i 's#registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b#docker.io/anjia0532/google-containers.ingress-nginx.kube-webhook-certgen:v20230407#' nginx-ingress.yaml
+sed -i 's#registry.k8s.io/ingress-nginx/controller:v1.8.2@sha256:74834d3d25b336b62cabeb8bf7f1d788706e2cf1cfd64022de4137ade8881ff2#docker.io/anjia0532/google-containers.ingress-nginx.controller:v1.8.2#' nginx-ingress.yaml
+
+# 重新部署
+kk delete -f nginx-ingress.yaml --force
+kk apply -f nginx-ingress.yaml
 ```
 
 这里重点关注`service/ingress-nginx-controller`这一行，这是Nginx Ingress自动创建的`LoadBalancer`类型的service，
