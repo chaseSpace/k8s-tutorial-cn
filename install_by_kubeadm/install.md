@@ -586,16 +586,19 @@ kubectl delete svc nginx
 镜像下载慢会导致节点一直停留在`NotReady`状态，可以通过手动拉取的方式解决：
 
 ```shell
-$ cat calico.yaml|grep image:
+# awk去重
+$ cat calico.yaml|grep image: |awk '!seen[$0]++'
           image: docker.io/calico/cni:v3.26.1
-          image: docker.io/calico/cni:v3.26.1
-          image: docker.io/calico/node:v3.26.1
           image: docker.io/calico/node:v3.26.1
           image: docker.io/calico/kube-controllers:v3.26.1
-# 一个个手动拉取上面的三个镜像（需要在所有节点执行）
-$ ctr image pull docker.io/calico/cni:v3.26.1
-$ ctr image pull docker.io/calico/node:v3.26.1
-$ ctr image pull docker.io/calico/kube-controllers:v3.26.1
+          
+# 一次性手动拉取上面的三个镜像（需要在所有节点执行）
+$ grep -oP 'image:\s*\K[^[:space:]]+' calico.yaml |awk '!seen[$0]++' | xargs -n 1 ctr image pull
+
+# 等价于
+ctr image pull docker.io/calico/cni:v3.26.1
+ctr image pull docker.io/calico/node:v3.26.1
+ctr image pull docker.io/calico/kube-controllers:v3.26.1
 ```
 
 因为之前安装containerd时在其配置文件中添加了国内源，所以这里直接使用ctr手动拉取的速度很快。
