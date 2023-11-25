@@ -24,7 +24,7 @@ metadata:
 roleRef:
   apiGroup: ""
   kind: ClusterRole
-  name: cluster-admin # 超级管理员角色。在生产环境中，不应该随意使用此角色，而应该定义新的有限制的角色
+  name: cluster-admin # 超级管理员角色应该仅分配给集群核心管理人员。在生产环境中，不应该随意使用此角色，而应该定义新的有限制的角色
 subjects:
   - kind: ServiceAccount
     name: dashboard-admin
