@@ -2205,7 +2205,7 @@ root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" http
 
 - 创建一个服务账号（包含token），这又有两种方式
     1. 创建临时token：使用`kubectl create token <token-name> --duration`创建一个临时token，然后创建SA，再将二者绑定起来
-    2. 创建长期token：手动创建一个带有特殊注解 kubernetes.io/service-account.name 的 Secret 对象，然后会自动绑定到对应的SA
+    2. 创建长期token：手动创建一个带有特殊注解 `kubernetes.io/service-account.name` 的 Secret 对象，然后会自动绑定到对应的SA
 - 创建角色并与其绑定（下节讲到）
 - 在Pod模板中引用
 
@@ -2617,11 +2617,286 @@ $ ps aux | grep kube-apiserver |grep admission-plugins
 标志中显式指定，在 [这个页面](https://kubernetes.io/zh-cn/docs/reference/command-line-tools-reference/kube-apiserver/#options)
 中搜索`--enable-admission-plugins`以查看默认启用的准入控制器列表。
 
-## 5. 可视化面板
-
-### 5.1 Kubernetes Dashboard
+## 5. 自定义资源
 
 TODO
+
+## 6. 可视化面板
+
+拥有一个K8s的可视化面板能帮助我们更轻松地监视和管理 Kubernetes 集群。本文主要介绍以下几种可视化面板：
+
+- **Kubernetes Dashboard**：基于WebUI，是一个官方提供的 Web 用户界面，用于管理和监视 Kubernetes 集群。
+  它提供了对集群中各种资源的可视化界面，包括 Pod、Service、ReplicaSet、Deployment 等。
+- **K9s**：基于TUI（终端用户界面），用于在终端中交互式地管理 Kubernetes 集群。它提供了类似于 top
+  命令的实时集群资源使用情况视图，同时允许用户浏览和操作集群中的资源
+
+### 6.1 Kubernetes Dashboard
+
+安装之前，需要先通过Dashboard的 [官方仓库发布](https://github.com/kubernetes/dashboard/releases)
+中找到兼容你安装的k8s集群版本的最新Dashboard版本以及yaml文件下载链接。例如，`v2.7.0`
+完全兼容的k8s版本是`v1.25`，`v3.0.0-alpha0`完全兼容的k8s版本是`v1.27`。
+
+本教程使用的k8s版本是v1.27.0，所以演示`v3.0.0-alpha0`的安装使用（旧版本的安装使用大同小异）。首先需要下载yaml文件：
+
+```shell
+# 已将 githubusercontent 替换为 gitmirror，加速下载yaml
+$ wget https://raw.gitmirror.com/kubernetes/dashboard/v3.0.0-alpha0/charts/kubernetes-dashboard.yaml
+```
+
+如果你的网络环境无法直连海外，建议提前手动拉取镜像（自动拉取无法加速）：
+
+```
+# 查看用到的镜像
+$ cat kubernetes-dashboard.yaml|grep image:                                                
+          image: docker.io/kubernetesui/dashboard-api:v1.0.0
+          image: docker.io/kubernetesui/dashboard-web:v1.0.0
+          image: docker.io/kubernetesui/metrics-scraper:v1.0.9
+
+# 一次性拉取三个镜像
+$ grep -oP 'image:\s*\K[^[:space:]]+' kubernetes-dashboard.yaml | xargs -n 1 ctr image pull
+
+# 查看下载的镜像
+$ ctr image ls |grep kubernetesui
+```
+
+在开始部署前，你可以查看模板文件来了解Dashboard需要部署的资源对象有哪些。
+
+需要注意的是，其中有一个叫做cert-manager的自定义资源对象（CRD）需要提前部署（可以通过`cat kubernetes-dashboard.yaml|grep '### cert' -A 10`
+查看），所以这里将部署分为两个阶段：
+
+- 部署Cert-Manager：这个CRD用来自动化证书的创建、颁发和续期等管理工作
+- 部署Dashboard本身
+
+#### 6.1.1 部署Cert-Manager
+
+如果你的节点无法直连海外，则需要提前拉取镜像。此外，由于Cert-Manager部署的Pod默认是调度到非Master节点，所以实际生产环境中，如果你有多个普通节点，
+建议你修改yaml文件中kind为`Deployment`的对象，在其中添加**Node亲和性配置**，便于提前知晓Pod调度的目标节点，然后再去目标节点提前拉取镜像，
+完成部署过程的提速。
+
+在本教程的环境中，只有一个普通节点（和一个Master节点），所以无需配置亲和性。
+
+```shell
+# 注意这里用到了gitmirror加速，问号后面的部分才是原始链接（同时在master和node1上执行）
+$ wget https://hub.gitmirror.com/?q=https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.yaml -O cert-manager.yaml
+$ cat cert-manager.yaml |grep image:     
+          image: "quay.io/jetstack/cert-manager-cainjector:v1.13.2"
+          image: "quay.io/jetstack/cert-manager-controller:v1.13.2"
+          image: "quay.io/jetstack/cert-manager-webhook:v1.13.2"
+
+# 提前拉取cert-manager镜像（在node1上执行）
+$ grep -oP 'image:\s*\K[^[:space:]]+' cert-manager.yaml | xargs -n 1 ctr image pull
+
+# 部署（回到master）
+$ kubectl apply -f cert-manager.yaml
+
+# 查看，cert-manager部署的资源对象都在一个新的命名空间【cert-manager】里面
+# 注意：kk get all 只会列出pod/deployment/service/replicaset类型的对象，还有其他对象需要单独查询，建议直接查看yaml文件
+$ kk get all -n cert-manager
+NAME                                           READY   STATUS    RESTARTS   AGE
+pod/cert-manager-6954d7bbbf-wtxd8              1/1     Running   0          9s
+pod/cert-manager-cainjector-84bdff4846-cxfkb   1/1     Running   0          9s
+pod/cert-manager-webhook-85b6b76d9b-psr8h      1/1     Running   0          9s
+
+NAME                           TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)    AGE
+service/cert-manager           ClusterIP   20.1.60.27    <none>        9402/TCP   9s
+service/cert-manager-webhook   ClusterIP   20.1.38.212   <none>        443/TCP    9s
+
+NAME                                      READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/cert-manager              1/1     1            1           9s
+deployment.apps/cert-manager-cainjector   1/1     1            1           9s
+deployment.apps/cert-manager-webhook      1/1     1            1           9s
+
+NAME                                                 DESIRED   CURRENT   READY   AGE
+replicaset.apps/cert-manager-6954d7bbbf              1         1         1       9s
+replicaset.apps/cert-manager-cainjector-84bdff4846   1         1         1       9s
+replicaset.apps/cert-manager-webhook-85b6b76d9b      1         1         1       9s
+```
+
+#### 6.1.2 部署Dashboard
+
+```shell
+# 部署
+$ kk apply -f kubernetes-dashboard.yaml
+
+# 查看主要部署的对象，都位于kubernetes-dashboard空间中
+$ kk get all,ingress -n kubernetes-dashboard 
+NAME                                                        READY   STATUS    RESTARTS   AGE
+pod/kubernetes-dashboard-api-776f7d4b87-wgf7q               1/1     Running   0          43s
+pod/kubernetes-dashboard-metrics-scraper-6b85f74cd5-6wng4   1/1     Running   0          43s
+pod/kubernetes-dashboard-web-685bf6fd94-26z6v               1/1     Running   0          43s
+
+NAME                                           TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)    AGE
+service/kubernetes-dashboard-api               ClusterIP   20.1.54.147   <none>        9000/TCP   43s
+service/kubernetes-dashboard-metrics-scraper   ClusterIP   20.1.45.125   <none>        8000/TCP   43s
+service/kubernetes-dashboard-web               ClusterIP   20.1.29.80    <none>        8000/TCP   43s
+
+NAME                                                   READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/kubernetes-dashboard-api               1/1     1            1           43s
+deployment.apps/kubernetes-dashboard-metrics-scraper   1/1     1            1           43s
+deployment.apps/kubernetes-dashboard-web               1/1     1            1           43s
+
+NAME                                                              DESIRED   CURRENT   READY   AGE
+replicaset.apps/kubernetes-dashboard-api-776f7d4b87               1         1         1       43s
+replicaset.apps/kubernetes-dashboard-metrics-scraper-6b85f74cd5   1         1         1       43s
+replicaset.apps/kubernetes-dashboard-web-685bf6fd94               1         1         1       43s
+
+NAME                                             CLASS   HOSTS       ADDRESS   PORTS     AGE
+ingress.networking.k8s.io/kubernetes-dashboard   nginx   localhost             80, 443   43s
+```
+
+如上所示，Dashboard部署了3个Deployment，且每个Deployment都只有一个Pod副本。其中名为`kubernetes-dashboard-web`
+的Pod是我们需要访问的WebUI服务。
+
+#### 6.1.3 访问Dashboard
+
+从上一小节中`kubectl`查询的Dashboard部署的对象列表中可以看到，它是以Ingress+ClusterIP的方式暴露的服务。我们查看yaml文件中关于Ingress的部分如下：
+
+```yaml
+kind: Ingress
+...
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - localhost
+      secretName: kubernetes-dashboard-certs
+  rules:
+    - host: localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kubernetes-dashboard-web
+                port:
+                  name: web
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: kubernetes-dashboard-api
+                port:
+                  name: api
+```
+
+可见ingress中的端点配置如下：
+
+- `/`指向Dashboard的WebUI服务
+- `/api`指向Dashboard的API服务
+
+你也可以通过`kk describe ingress kubernetes-dashboard -n kubernetes-dashboard`查看端点配置列表。
+
+**安装Ingress控制器**  
+Dashboard的访问用到了Ingress对象，所以我们还需要安装Ingress控制器来使Ingress对象生效，参考基础教程中的 [使用Ingress](https://github.com/chaseSpace/k8s-tutorial-cn/blob/main/doc_tutorial.md#8-使用ingress)
+一节来了解如何安装Ingress控制器。
+
+**开始访问**  
+现在，我们可以直接在集群中的任何节点上通过localhost方式访问Dashboard的WebUI了:
+
+```shell
+# -k 禁用服务器证书不安全警告
+# 30415端口是ingress控制器映射到集群节点的端口，对应HTTPS的443端口。通过 kk get svc -n ingress-nginx 获取
+$ curl -k https://localhost:30415
+<!--
+Copyright 2017 The Kubernetes Authors.
+...
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+--><!DOCTYPE html><html lang="en" dir="ltr"><head>
+  <meta charset="utf-8">
+  <title>Kubernetes Dashboard</title>
+...
+</body></html>
+```
+
+但由于Dashboard的ingress配置的host是`localhost`，所以我们还不能在其他主机（非集群节点）上通过IP或域名的方式访问它。需要进行如下修改：
+
+```yaml
+...省略
+---
+
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+  labels:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/part-of: kubernetes-dashboard
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/issuer: selfsigned
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - localhost
+      secretName: kubernetes-dashboard-certs
+  rules:
+    #    - host: localhost  # <--- 注释对域名的限制，就可以通过HTTPS+IP方式访问
+    - http:
+...省略
+```
+
+再次应用yaml文件：
+
+```yaml
+kk apply -f kubernetes-dashboard.yaml
+```
+
+好了，现在我们可以在其他主机（需要能够连接到集群节点）通过集群节点IP的方式来访问Dashboard的WebUI，不过浏览器会提示服务器证书不安全：
+
+```shell
+# 浏览器访问以下地址
+# - 这个IP可以是任何一个集群节点IP
+https://10.0.0.2:30415
+```
+
+注意：这里只是为了能够通过浏览器快速访问Dashboard的WebUI，所以才注释了`host`配置。在生产环境中，
+推荐的方式应该是为Dashboard配置单独的域名（替换`localhost`），然后使用域名访问（需要更换`secretName`）。
+
+#### 6.1.4 访问控制
+
+Dashboard支持多种方式的访问控制策略，官方介绍在 [这里](https://github.com/kubernetes/dashboard/blob/master/docs/user/access-control/README.md) 。
+
+常用的有Kubeconfig、Token和用户名密码三种方式，不过**用户名密码**方式在v1.19版本中已经被替换为基于Token的认证方式了，
+所以这里剩下两种登录方式。
+
+**使用Kubeconfig文件登录**  
+TODO
+
+**使用Token登录**
+
+Dashboard需要访问API Server来完成各项操作，所以本质上它还是使用的API Server的认证授权机制。也就是说，这里的Token其实就是发送给API
+Server的HTTP请求中的`Bearer`Token。
+
+在`kubernetes-dashboard.yaml`文件中已经定义了一个服务账号`kubernetes-dashboard`
+，它拥有一些默认的最小权限，比如允许管理`kubernetes-dashboard`空间下的secrets、configmap等对象。我们不会使用它的token，
+而是创建一个新的用户账号（以及token）直接绑定cluster-admin角色。
+
+新增角色配置文件 [kubernetes-dashboard-role.yaml](kubernetes-dashboard-role.yaml)，然后部署它：
+
+```shell
+$ kk apply -f kubernetes-dashboard-role.yaml                              
+serviceaccount/dashboard-admin created
+secret/dashboard-admin created
+clusterrolebinding.rbac.authorization.k8s.io/dashboard-admin created
+
+# 获取token明文
+$ kk describe secret dashboard-admin -n kubernetes-dashboard
+...
+Data
+====
+ca.crt:     1099 bytes
+namespace:  20 bytes
+token:      eyJhbGciOiJSUzI1NiIsImtpZCI6IllBVHZuRUEx...
+```
+
+将token明文复制到浏览器的Token输入框中，点击登录即可。
 
 ### 5.2 K9s
 
