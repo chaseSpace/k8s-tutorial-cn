@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dashboard-admin  # 删除它会自动删除同一空间下同名的Secret
+  namespace: kubernetes-dashboard
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dashboard-admin
+  namespace: kubernetes-dashboard
+  annotations:
+    kubernetes.io/service-account.name: dashboard-admin
+type: kubernetes.io/service-account-token
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dashboard-admin
+  labels:
+    app.kubernetes.io/part-of: kubernetes-dashboard
+roleRef:
+  apiGroup: ""
+  kind: ClusterRole
+  name: cluster-admin # 超级管理员角色。在生产环境中，不应该随意使用此角色，而应该定义新的有限制的角色
+subjects:
+  - kind: ServiceAccount
+    name: dashboard-admin
+    namespace: kubernetes-dashboard
