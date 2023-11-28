@@ -1856,8 +1856,8 @@ API Server的每一次访问在`kube-apiserver`内部按顺序都要通过三个
 用于身份认证的详细信息（包含用户名、客户端证书/密钥等），[kubeconfig.yaml](kubeconfig.yaml)
 是一个示例模板。同时也可以通过`kubectl config view`命令进行查看当前使用的kubeconfig文件。
 
-> 集群的第一个`$HOME/.kube/config`文件是安装节点上`/etc/kubernetes/admin.conf`文件的一个副本。Master节点的kube组件进程会实时监控该文件的更新，
-> 并在需要时自动更新`$HOME/.kube/config`文件。
+> 集群的第一个`$KUBECONFIG`文件是安装节点上`/etc/kubernetes/admin.conf`文件的一个副本。Master节点的kube组件进程会实时监控该文件的更新，
+> 并在需要时自动更新`$KUBECONFIG`文件。
 
 kubeconfig文件可以手动修改源文件，但更建议使用 kubeconfig 命令进行修改，可以避免不必要的错误。常用命令如下：
 
@@ -2942,9 +2942,92 @@ token:      eyJhbGciOiJSUzI1NiIsImtpZCI6IllBVHZuRUEx...
 关于使用方面，笔者在测试过程中发现Dashboard的语言设置（在`Settings`
 中）不生效，暂不清楚原因。读者若有问题可以到 [Dashboard仓库](https://github.com/kubernetes/dashboard) 提Issue。
 
-### 5.2 K9s
+### 6.2 K9s
 
-TODO
+[K9s](https://github.com/derailed/k9s) 是一个终端UI风格的K8s集群管理工具，旨在提供一种比WebUI更加轻便的方式来监控和管理K8s集群。
+
+#### 6.2.1 在Linux上安装
+
+K9s支持多平台以及多种方式安装部署，这里我们介绍在Linux上的安装方式。
+
+> 在开始之前，你需要在上面提到的K9s仓库中选择对应K8s版本的K9s版本。
+
+```shell
+$ wget https://hub.gitmirror.com/?q=https://github.com/derailed/k9s/releases/download/v0.28.2/k9s_Linux_amd64.tar.gz -O k9s_Linux_amd64.tar.gz
+
+$ tar xvf k9s_Linux_amd64.tar.gz           
+LICENSE
+README.md
+k9s
+
+$ cp k9s /usr/local/sbin
+
+# 启动面板, Ctrl+C退出
+$ k9s 
+```
+
+常用命令：
+
+```shell
+k9s help
+
+# 查看k9s的落地信息（配置、日志文件等）
+k9s info
+
+# 指定K8s namespace启动面板
+k9s -n mycoolns
+
+# 指定K8s context启动面板
+k9s --context dashboard-admin@kubernetes
+
+# 只读模式启动面板，启动后不支持修改指令
+k9s --readonly
+```
+
+**面板示例图**
+
+![k9s.png](img/k9s.png)
+
+#### 6.2.2 使用介绍
+
+K9s默认使用环境变量`$KUBECONFIG`指向的kubeconfig文件作为访问K8s API Server的凭证，
+你可以在K9s启动时附加`--kubeconfig`参数指向其他kubeconfig文件。
+
+K9s面板支持多种简单的指令以及快捷键功能：
+
+- 默认进入Pod视图（显示所有空间的Pod）
+    - 在面板上方中间显示了可以切换命名空间的数字快捷键
+- 输入`:`，进入指令模式，支持下面的指令（输入指令，按下回车）
+    - 输入资源名查看资源列表（如`po`，`secrets`等）
+    - `s`或`shell`进入容器shell（选中某个Pod后还需要回车进入容器视图）
+    - `ctx`切换context
+    - `ns <namespace-name>`切换命名空间
+    - `pu`或`pulses`启动脉冲视图
+    - `xray <资源名> <命名空间>`启动Xray视图
+    - `popeye`或`pop`启动Popeye视图（视图中可以查看各类资源的评分）
+    - **`ctrl+a`查看全部指令**
+- `ctrl+s`保存当前视图内容为CSV表格文件（底下会提示保存位置）
+    - `:sd`或`:screendump`查看保存的文件列表
+- `ctrl+c`或`:q`退出面板
+- 输入`/`后跟表达式使用名称过滤功能，支持正则
+    - `/!`后跟表达式表示反向过滤
+    - `/-l`使用标签过滤
+    - `/-f`使用模糊查找
+- `esc`退出视图/命令行/过滤模式
+- 快捷键`d`/`v`/`e`/`l`分别表示describe/view/edit/logs
+- `ctrl+d`删除选中的资源
+- `ctrl+k`强制删除选中的资源
+- 记忆功能：启动面板后进入上次退出时停留的视图
+
+除了这些基础功能外，K9s还支持：
+
+- 视图列表支持`pgup`和`pgdn`实现翻页
+- 自定义皮肤、快捷键以及资源别名
+- 在`nodes`视图中直接进入节点Shell（需要提前在k9s配置中开启feature gates）
+- 使用扩展插件
+- 提供最小化的**监控**（只读）角色的 [配置模板](https://github.com/derailed/k9s#k9s-rbac-fu) 示例
+
+关于这些功能的更多细节，请下载使用以及查看K9s官方仓库的说明。
 
 ## TODO
 
