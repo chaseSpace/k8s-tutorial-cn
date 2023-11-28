@@ -1853,7 +1853,7 @@ API Server的每一次访问在`kube-apiserver`内部按顺序都要通过三个
 我们之前一直使用的kubectl命令能够正常执行，也是通过了身份认证这一关卡的。具体来说，kubectl命令的认证是使用`$HOME/.kube/config`
 这个文件中的配置完成的。该文件用于配置集群访问所需，又叫做kubeconfig文件（但并不存在这个名称的文件）。
 该文件也是一种k8s模板形式，它包含了默认管理员用户 `kubernetes-admin`
-用于身份认证的详细信息（包含用户名、客户端证书/密钥等），[config.yaml](config.yaml)
+用于身份认证的详细信息（包含用户名、客户端证书/密钥等），[kubeconfig.yaml](kubeconfig.yaml)
 是一个示例模板。同时也可以通过`kubectl config view`命令进行查看当前使用的kubeconfig文件。
 
 > 集群的第一个`$HOME/.kube/config`文件是安装节点上`/etc/kubernetes/admin.conf`文件的一个副本。Master节点的kube组件进程会实时监控该文件的更新，
@@ -2839,7 +2839,7 @@ spec:
   rules:
     #    - host: localhost  # <--- 注释对域名的限制，就可以通过HTTPS+IP方式访问
     - http:
-...省略
+  ...省略
 ```
 
 再次应用yaml文件：
@@ -2859,15 +2859,54 @@ https://10.0.0.2:30415
 注意：这里只是为了能够通过浏览器快速访问Dashboard的WebUI，所以才注释了`host`配置。在生产环境中，
 推荐的方式应该是为Dashboard配置单独的域名（替换`localhost`），然后使用域名访问（需要更换`secretName`）。
 
-#### 6.1.4 访问控制
+#### 6.1.4 登录认证
 
-Dashboard支持多种方式的访问控制策略，官方介绍在 [这里](https://github.com/kubernetes/dashboard/blob/master/docs/user/access-control/README.md) 。
+Dashboard支持多种方式的登录认证策略，官方介绍在 [这里](https://github.com/kubernetes/dashboard/blob/master/docs/user/access-control/README.md) 。
 
-常用的有Kubeconfig、Token和用户名密码三种方式，不过**用户名密码**方式在v1.19版本中已经被替换为基于Token的认证方式了，
+常用的有kubeconfig、Token和用户名密码三种方式。不过从K8s的v1.19版本开始，**用户名密码**方式已经被替换为基于Token的认证方式了，
 所以这里剩下两种登录方式。
 
-**使用Kubeconfig文件登录**  
-TODO
+**使用kubeconfig文件登录**  
+在集群创建后，Master节点会默认包含kubeconfig文件（`/etc/kubernetes/admin.conf`），其内容可以通过`kubectl config view`
+查看，其中默认包含：
+
+- 1个cluster：kubernetes
+- 1个context：kubernetes-admin@kubernetes
+- 1个user：kubernetes-admin
+
+我们需要在这个文件中添加新的user和context来作为Dashboard的登录信息，具体需要以下步骤：
+
+- 创建一个新的sa（以及secret）作为Dashboard用户凭证（参照之前的**4.2.2**小节）
+- 给新用户绑定角色（这里以cluster-admin角色为例）
+- 将新用户的token信息设置到kubeconfig文件中
+- 使用kubectl命令导出一份新的**仅含新用户凭证**的kubeconfig文件
+
+具体操作如下（示例中使用[kubernetes-dashboard-role.yaml](kubernetes-dashboard-role.yaml)创建新的sa）:
+
+```shell
+# 1. 创建新的sa并绑定角色
+kk apply -f kubernetes-dashboard-role.yaml
+
+# 2. 将新用户的token信息设置到kubeconfig文件中
+dashboard_token=$(kk get secret dashboard-admin -n kubernetes-dashboard -ojsonpath={.data.token} |base64 -d)
+kk config set-credentials dashboard-admin --token=$dashboard_token
+
+# 3. 添加新的context
+kk config set-context dashboard-admin@kubernetes --cluster=kubernetes --user=dashboard-admin
+
+# 4. 使用新的context测试访问
+kk --context=dashboard-admin@kubernetes get po
+
+# 5. 使用新建的context导出一份新的kubeconfig文件
+kk --context=dashboard-admin@kubernetes config view --minify --raw > my-kubeconfig
+```
+
+上述操作中导出的`my-kubeconfig`文件即可用于Dashboard的kubeconfig文件方式登录。
+
+在整个操作过程中，你需要注意以下几点:
+
+- 为安全起见，建议使用自定义角色。不要为Dashboard用户绑定`cluster-admin`角色，因为这个角色拥有管理集群的所有权限
+- kubeconfig文件原本支持client证书作为user凭证，但是Dashboard不支持这种方式（仅支持在kubeconfig文件中包含token的方式）
 
 **使用Token登录**
 
@@ -2897,6 +2936,11 @@ token:      eyJhbGciOiJSUzI1NiIsImtpZCI6IllBVHZuRUEx...
 ```
 
 将token明文复制到浏览器的Token输入框中，点击登录即可。
+
+> 注意: 如果你的Token不具有相应的权限，可能能够登录成功，但登录后无法看到相应的资源，也不能执行其他操作，并且在右上角的铃铛按钮会给出操作按钮后的无权限错误日志。
+
+关于使用方面，笔者在测试过程中发现Dashboard的语言设置（在`Settings`
+中）不生效，暂不清楚原因。读者若有问题可以到 [Dashboard仓库](https://github.com/kubernetes/dashboard) 提Issue。
 
 ### 5.2 K9s
 
