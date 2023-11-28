@@ -1868,7 +1868,7 @@ $ kk apply -f deploy.yaml # 更新部署
 Namespace（命名空间）用来隔离集群内不同环境下的资源。仅同一namespace下的资源命名需要唯一，它的作用域仅针对带有名字空间的对象，例如
 Deployment、Service 等。
 
-前面的教程中，默认使用的 namespace 是 default。
+前面的教程中，默认使用的 namespace 是 `default`。
 
 创建多个namespace：
 
@@ -1907,6 +1907,8 @@ $ kk get namespaces
 # 获取指定namespace下的资源
 $ kk get pods -n dev
 ```
+
+需要注意的是，**删除namespace时**，会默认删除该空间下的所有资源，需要谨慎操作。
 
 ## 10. 使用ConfigMap和Secret
 
