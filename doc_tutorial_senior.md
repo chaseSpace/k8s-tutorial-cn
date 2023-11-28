@@ -2617,7 +2617,87 @@ $ ps aux | grep kube-apiserver |grep admission-plugins
 标志中显式指定，在 [这个页面](https://kubernetes.io/zh-cn/docs/reference/command-line-tools-reference/kube-apiserver/#options)
 中搜索`--enable-admission-plugins`以查看默认启用的准入控制器列表。
 
-## 5. 自定义资源
+## 5. 自定义资源和特性门控
+
+本章节属于扩展内容，这里仅作基本介绍，更多细节请查阅官方文档。
+
+### 5.1 自定义资源
+
+自定义资源是 Kubernetes 中的一种扩展机制，允许用户定义和使用自己的资源类型。
+
+使用自定义资源分为两个步骤：
+
+1. 创建自定义资源定义（Custom Resource Definitions，CRD）
+    - 用户可以定义集群中新的资源类型，这些资源类型与内置的 Kubernetes 资源类型（如 Pod、Service、Deployment 等）类似
+2. 创建自定义对象（Custom Objects）
+
+当创建新的CRD时，Kubernetes API 服务器会为你所指定的每个版本生成一个新的 RESTful 资源路径。基于 CRD
+对象所创建的自定义资源可以是名字空间作用域的，也可以是集群作用域的，取决于 CRD 对象 `spec.scope` 字段的设置，
+删除命名空间会删除作用域下的所有对象。
+
+[customize_resource_define.yaml](customize_resource_define.yaml) 是一个CRD的模板示例。通过`kubectl apply`创建这个CRD之后，
+一个新的受命名空间约束的 RESTful API 端点就被创建了：
+
+```
+/apis/stable.example.com/v1/namespaces/*/crontabs/...
+```
+
+此端点 URL 现在可以用来创建和管理定制对象。
+
+下面是自定义资源的创建和使用示例（使用 [customize_object.yaml](customize_object.yaml) 作为自定义对象示例）：
+
+```shell
+# 创建CRD
+$ kk apply -f customize_resource_define.yaml 
+customresourcedefinition.apiextensions.k8s.io/crontabs.stable.example.com created
+
+# 查看CRD（CRD本身属于集群作用域）
+$ kk get crd                                
+NAME                                  CREATED AT
+crontabs.stable.example.com           2023-11-26T07:11:37Z
+
+$ kk apply -f customize_object.yaml           
+crontab.stable.example.com/my-new-cron-object created
+
+# 查看自定义对象
+$ kk get ct
+NAME                 AGE
+my-new-cron-object   31s
+```
+
+**设置结构化的范式**  
+创建CRD的时候可以设置所管理的自定义对象的结构范式，也就是后者所能拥有的字段的名称、结构以及类型和可选值等，这部分内容较为琐碎，
+为保证准确性，请直接查看 [官方文档](https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#specifying-a-structural-schema) 。
+
+**高级主题**  
+CRD和自定义对象拥有一些额外的高级功能，例如：
+
+- 使用Finalizer：能够让控制器实现异步的删除前（Pre-delete）回调
+- 合法性检查逻辑
+- 使用通用表达式语言（CEL）来添加范式的验证规则
+- 为字段设置默认值
+- 子资源
+- 分类
+
+**提供 CRD 的多个版本**  
+CRD属性中的`spec.versions`字段可以用来定义多个版本的CRD，这样就可以实现多版本共存。例如，刚开始是`v1beta`
+，后来稳定后新增`v1`。
+
+这部分包含以下多个主题：
+
+- 定义多个版本
+- 确认最高优先级版本
+- 废弃某个版本
+- 删除某个版本
+- Webhook 转换（版本变更时可能需要）
+
+由于本章节属于扩展内容，所以具体详细不会一一介绍。
+
+**实例**    
+在本教程中后面的 **6.1.1** 小节中安装的Cert-Manager就是一种自定义资源，[cert-manager.yaml](cert-manager.yaml)
+是它的完整定义，可供参考。
+
+### 5.2 特性门控
 
 TODO
 
