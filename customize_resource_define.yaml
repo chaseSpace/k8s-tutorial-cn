@@ -1,0 +1,40 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  # 名字必需与下面的 spec 字段匹配，并且格式为 '<名称的复数形式>.<组名>'
+  name: crontabs.stable.example.com
+spec:
+  # 组名称，用于 REST API: /apis/<组>/<版本>
+  group: stable.example.com
+  # 列举此 CustomResourceDefinition 所支持的版本
+  versions:
+    - name: v1
+      # 每个版本都可以通过 served 标志来独立启用或禁止
+      served: true
+      # 其中一个且只有一个版本必需被标记为存储版本
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                cronSpec:
+                  type: string
+                image:
+                  type: string
+                replicas:
+                  type: integer
+  # 可以是 Namespaced 或 Cluster
+  scope: Namespaced
+  names:
+    # 名称的复数形式，用于 URL：/apis/<组>/<版本>/<名称的复数形式>
+    plural: crontabs
+    # 名称的单数形式，作为命令行使用时和显示时的别名
+    singular: crontab
+    # kind 通常是单数形式的驼峰命名（CamelCased）形式。你的资源清单会使用这一形式。
+    kind: CronTab
+    # shortNames 允许你在命令行使用较短的字符串来匹配资源
+    shortNames:
+      - ct
