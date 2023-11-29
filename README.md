@@ -3,7 +3,7 @@
 ### 主要内容
 
 - [Kubernetes 基础教程](doc_tutorial.md)
-- [Kubernetes 进阶教程（持续更新中···）](doc_tutorial_senior.md)
+- [Kubernetes 进阶教程](doc_tutorial_senior.md)
 - [Kubernetes 维护指南（持续更新中···）](doc_maintaintion.md)
 
 ### 其他链接
