@@ -18,6 +18,7 @@
 - 模板示例
     - [Pod示例集合](example_pod)
     - [Job/CronJob示例集合](example_job)
+- [关于kubectl exec你需要知道的一切（英）](https://humalect.com/blog/kubectl-exec)
 
 ### License
 
