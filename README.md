@@ -12,7 +12,7 @@
 - [kubectl 命令行教程](https://kubernetes.io/docs/reference/kubectl/cheatsheet/#zsh)
 - [Kubernetes API Groups on v1.28](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#api-groups)
 
-### 资源索引
+### 资料索引
 
 - [kubectl 命令文档](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands)
 - 模板示例
