@@ -2617,7 +2617,7 @@ $ ps aux | grep kube-apiserver |grep admission-plugins
 标志中显式指定，在 [这个页面](https://kubernetes.io/zh-cn/docs/reference/command-line-tools-reference/kube-apiserver/#options)
 中搜索`--enable-admission-plugins`以查看默认启用的准入控制器列表。
 
-## 5. 自定义资源和特性门控
+## 5. 扩展—自定义资源和特性门控
 
 本章节属于扩展内容，这里仅作基本介绍，更多细节请查阅官方文档。
 
@@ -2820,7 +2820,7 @@ $ kk delete po kube-proxy-xxx -nkube-system
 然后修改其中的容器启动字段（添加`--feature-gates`标志）即可，修改后对应Pod会检测到模板改动并立即重启，通过Pod
 log可以查看它们的错误日志。
 
-## 6. 可视化面板
+## 6. 扩展—可视化面板
 
 拥有一个K8s的可视化面板能帮助我们更轻松地监视和管理 Kubernetes 集群。本文主要介绍以下几种可视化面板：
 
@@ -3228,9 +3228,197 @@ K9s面板支持多种简单的指令以及快捷键功能：
 
 关于这些功能的更多细节，请下载使用以及查看K9s官方仓库的说明。
 
-## 7. 大杀器之Helm
+## 7. 扩展—大杀器之Helm
 
-TODO
+当你看完了 [Kubernetes 基础教程](doc_tutorial.md) 以后，你很可能会想到在K8s集群中部署和维护一套包含前后端服务的完整业务应用是一件
+非常繁琐 的事情，因为在这个过程中我们需要维护可能包括Pod、Deployment、ConfigMap、Secret、PVC/PV、Service等在内的多个模板文件。
+
+为此，我们希望能够找到一种解决方案解决以下问题：
+
+- 将这些分散又互相关联的模板文件作为一个整体进行管理
+- 并行发布和复用这些模板文件
+- 统一维护这些模板文件产生的各种资源对象
+
+而Helm，正是当下解决这些问题的最佳方案。
+
+### 7.1 简介
+
+Helm 是 Kubernetes 生态中的一个包管理工具。使用Helm，我们可以：
+
+- **简化部署流程**：Helm将K8s各类应用打包为一种称作“Charts”的可重用包，Charts 包含了应用程序的全部资源定义、依赖关系、变量和默认配置
+- **提高可重用性**：Helm Charts 是可重用的，并且可以轻松地在不同的 Kubernetes
+  环境中分享和使用。这种可重用性大大减少了在不同环境中部署相同应用程序的工作，同时也促使了社区分享和贡献 Helm Charts
+- **模板化配置**：Helm 使用 Go 模板引擎，允许用户在创建 Charts 时使用模板化的方式定义 Kubernetes
+  资源。这使得用户可以根据需要动态生成配置，适应不同的环境和需求
+- **简化升级和回滚**： Helm 提供了便捷的命令来升级和回滚应用程序。通过 Helm，你可以轻松地将应用程序更新到新版本，或者在需要时回滚到先前的版本，而无需手动管理复杂的
+  Kubernetes 资源
+- **变量和配置**：Helm 允许用户在部署过程中使用变量和配置文件，以根据环境和需求进行自定义。这种能力使得同一个 Chart
+  可以在不同环境中使用不同的配置，而无需修改 Chart 的源代码
+- **Helm仓库**： Helm 允许用户将 Charts 存储在 Helm 仓库中，以便轻松分享、查找和访问 Charts。这促进了社区共享 Charts
+  的文化，提高了开发者和运维团队的效率。
+
+总体来说，Helm 提供了一种更高层次的抽象，使得 Kubernetes 应用程序的管理变得更加简便、可重用和可配置。它成为了 Kubernetes
+生态系统中一个受欢迎的工具，特别是在处理复杂应用程序部署时。
+
+### 7.2 安装和基本使用
+
+Helm支持多种方式安装，参阅 [Helm Install](https://github.com/helm/helm#install) 来了解更多细节。这里介绍在Linux-amd64上的安装步骤。
+
+在开始前，先通过 [Helm版本支持策略](https://helm.sh/docs/topics/version_skew/) 选择一个对应你当前K8s版本的Helm版本。
+笔者使用的K8s版本是v1.27.0，所以选择Helm v3.13.2。
+
+安装步骤如下：
+
+```shell
+# 如果你的环境无法高速访问外网，最好是手动下载二进制包
+$ curl -SLO https://get.helm.sh/helm-v3.13.2-linux-amd64.tar.gz
+
+$ tar -zxvf helm-v3.13.2-linux-amd64.tar.gz
+linux-amd64/
+linux-amd64/helm
+linux-amd64/LICENSE
+linux-amd64/README.md
+       
+$ mv linux-amd64/helm /usr/local/bin/helm
+$ helm -h                
+The Kubernetes package manager
+
+Common actions for Helm:
+
+- helm search:    search for charts
+- helm pull:      download a chart to your local directory to view
+- helm install:   upload the chart to Kubernetes
+- helm list:      list releases of charts
+...省略
+```
+
+安装后我们可以像Docker那样为Helm添加一个仓库源，以便后续安装打包好的Chart（又叫做Helm包），这里安装的是Helm提供的官方仓库：
+
+```shell
+$ helm repo add bitnami https://charts.bitnami.com/bitnami
+"bitnami" has been added to your repositories
+
+# 查看仓库中所有的Charts
+$ helm search repo bitnami
+NAME                                        	CHART VERSION	APP VERSION  	DESCRIPTION                                       
+bitnami/airflow                             	16.1.6       	2.7.3        	Apache Airflow is a tool to express and execute...
+bitnami/apache                              	10.2.3       	2.4.58       	Apache HTTP Server is an open-source HTTP serve...
+bitnami/apisix                              	2.2.7        	3.7.0        	Apache APISIX is high-performance, real-time AP...
+...省略
+```
+
+与Docker不同的是，Helm的仓库源非常之多，很多Chart都依赖不同的仓库源，它们可以在 [artifacthub.io](https://artifacthub.io/packages/search?kind=0)
+上查看。
+
+> 推荐国内的微软仓库源：helm repo add microsoft http://mirror.azure.cn/kubernetes/charts/
+
+下面以安装mysql为例演示Helm的基本使用：
+
+```shell
+# 查看已添加的仓库列表
+# 删除仓库 helm repo remove <repo-name>
+$ helm repo list
+NAME     	URL                                      
+bitnami  	https://charts.bitnami.com/bitnami       
+microsoft	http://mirror.azure.cn/kubernetes/charts/
+
+# 在已添加的仓库中的搜索包名，其中App Version是Mysql版本
+# - helm使用模糊字符串匹配算法
+$ helm search repo microsoft/mysql   
+NAME               	CHART VERSION	APP VERSION	DESCRIPTION                                       
+microsoft/mysql    	1.6.9        	5.7.30     	DEPRECATED - Fast, reliable, scalable, and easy...
+microsoft/mysqldump	2.6.2        	2.4.1      	DEPRECATED! - A Helm chart to help backup MySQL...
+
+# 先查看Chart简介
+$ helm show chart microsoft/mysql
+apiVersion: v1
+appVersion: 5.7.30
+deprecated: true
+description: DEPRECATED - Fast, reliable, scalable, and easy to use open-source relational
+  database system.
+home: https://www.mysql.com/
+icon: https://www.mysql.com/common/logos/logo-mysql-170x115.png
+keywords:
+- mysql
+- database
+- sql
+name: mysql
+sources:
+- https://github.com/kubernetes/charts
+- https://github.com/docker-library/mysql
+version: 1.6.9
+
+
+# 下载安装包至本地
+$ helm pull microsoft/mysql
+# 解压
+$ tar xzf mysql-1.6.9.tgz
+# Chart.yaml是Helm模板，values.yaml是应用的可修改的动态配置部分（安装时填充到CHart.yaml），如镜像版本、数据库密码等
+$ ls mysql/                   
+Chart.yaml  README.md  templates  values.yaml
+# 修改其中的部分信息
+#mysqlRootPassword: "123"
+#service:
+#  annotations: {}
+#  type: NodePort
+#  port: 3306
+#  nodePort: 32000
+
+$ vi mysql/values.yaml
+
+# 使用本地文件发布
+# 这个命令会使用当前目录下的所有文件 在helm空间下 部署一个名为helm-mysql的helm应用，helm空间若不存在会自动创建
+# - 注意：部署后命令行会输出有关应用的一些辅助信息
+# - install 命令会立即返回，部署将在后台进行，可使用 helm status helm-mysql 查看状态
+$ helm install helm-mysql mysql/ --namespace helm  --create-namespace
+WARNING: This chart is deprecated
+NAME: helm-mysql
+LAST DEPLOYED: Mon Nov 27 08:43:05 2023
+NAMESPACE: helm
+STATUS: deployed
+REVISION: 1
+NOTES:
+MySQL can be accessed via port 3306 on the following DNS name from within your cluster:
+helm-mysql.helm.svc.cluster.local
+...省略
+
+# 查看部署（不能看到Pod状态），-A表示显示所有K8s命名空间下的部署
+$ helm ls -A
+NAME      	NAMESPACE	REVISION	UPDATED                                	STATUS  	CHART      	APP VERSION
+helm-mysql	helm     	1       	2023-11-27 08:43:05.787331394 +0800 CST	deployed	mysql-1.6.9	5.7.30
+
+# 查看具体的Pod状态
+$ kk get po -nhelm                                                                         
+NAME                          READY   STATUS    RESTARTS   AGE
+helm-mysql-5d8bd6c54f-c44dd   0/1     Pending   0          4m10s
+```
+
+这里部署的Mysql需要一个PV（持久卷）才能部署成功，需要我们自行配置，与Helm就无关了。其他可能需要的命令：
+
+```shell
+# 查看部署状态
+helm status <helm-app-name>
+
+# 添加 --keep-history 标志以保留版本历史
+helm uninstall <helm-app-name> --keep-history
+
+# 获取命令帮助
+helm get -h
+```
+
+部署后，我们还可以对helm应用进行升级和回滚，helm应用使用从1开始递增的`revision`作为发布历史。
+
+到此，笔者就不再进一步介绍了，因为Helm官方文档已经写的相当简明了（Helm官网的UI也相当好看），并且有中文版本。下面是部分关键主题的Helm官方链接：
+
+- [如何使用Helm（中文）](https://helm.sh/zh/docs/intro/using_helm/)
+- [关于Chart](https://helm.sh/zh/docs/topics/charts/)
+- [Chart仓库指南](https://helm.sh/zh/docs/topics/chart_repository/)
+
+当你进一步详细了解Chart及其使用方式之后，就可以在实际环境中使用Helm来部署管理业务应用了。不过这其中也会存在一定的运维工作，比如你需要部署一个本地Chart仓库以保证应用隐私和部署效率。
+
+---
+
+**到此，本教程完结🎉**。
 
 ## 参考
 
