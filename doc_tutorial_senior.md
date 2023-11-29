@@ -2699,7 +2699,126 @@ CRD属性中的`spec.versions`字段可以用来定义多个版本的CRD，这�
 
 ### 5.2 特性门控
 
-TODO
+特性门控（Feature Gates）是K8s组件中的一种机制，用于在K8s中启用或禁用实验性或新引入的特性。
+特性门控允许K8s团队和社区在引入新特性时逐步进行测试和部署，而无需立即对所有集群启用。
+
+特性门控通过命令行标志或配置文件中的设置来控制。这使得 Kubernetes 集群管理员可以选择性地启用或禁用特定的功能，以适应他们的需求和风险接受程度。
+
+#### 5.2.1 特性门控的状态
+
+每个特性门控从发布开始到最终消失都会经历一个或多个状态（Alpha->Beta->GA），说明如下：
+
+- Alpha：
+    - **默认禁用**
+    - 刚发布阶段，很不稳定
+    - 随时可能被删除（在后续K8s版本中）
+    - 可能有错误
+    - 建议仅用于实验性测试
+- Beta
+    - **默认启用**，Beta API组默认禁用
+    - 该特性已经经过良好测试。启用该特性是安全的
+    - 后续版本中可能会修改部分细节，但不会移除整个特性
+    - 该特性的架构或语义可能在后续Beta或稳定版本中发生不兼容的更改，发生这种情况时会提供迁移说明
+    - 推荐仅用于非关键业务用途
+    - 试用Beta特性时可以在Github上提供优化反馈
+- GA
+    - **默认启用且不能禁用**
+    - 该特性不再需要通过配置文件启用
+    - 该特性已进入稳定版本，不会进行大幅修改
+
+如果组件的**特性门控启动标志**中包含了 **已毕业**（GA，不能设置为false） 或 **已移除**（不能设置）
+的特性门控名称，这会导致组件启动失败，并输出错误日志。
+
+可以在官方文档中找到所有特性门控跟随K8s版本的**状态变迁矩阵**：
+
+- [Alpha 和 Beta 状态的特性门控](https://kubernetes.io/zh-cn/docs/reference/command-line-tools-reference/feature-gates/#feature-gates-for-alpha-or-beta-features)
+- [已毕业和已废弃的特性门控](https://kubernetes.io/zh-cn/docs/reference/command-line-tools-reference/feature-gates/#feature-gates-for-graduated-or-deprecated-features)
+- [已移除的特性门控](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates-removed/)
+
+#### 5.2.2 启用和禁用
+
+特性门控是描述 Kubernetes 特性的一组键值对。你可以在 Kubernetes 的各个组件中使用 `--feature-gates` 标志来启用或禁用这些特性。
+
+例如，要启用 `CPUManagerPolicyAlphaOptions`这个Alpha特性，我们需要在所有K8s组件的启动参数中添加`--feature-gates`
+标志并重启它们。集群中运行的K8s组件包括：
+
+- kubelet（所有节点）
+- kube-apiserver（Master）
+- kube-controller-manager（Master）
+- kube-proxy（所有节点）
+- kube-scheduler（Master）
+
+> 注意：重启K8s组件属于集群维护操作，建议在业务空闲时间进行，并在操作前做好故障应急预案。
+
+首先演示kubelet、kube-proxy这两个在所有节点都运行的组件如何添加启动标志，在开始前你需要了解它们的作用以及故障影响：
+
+- kubelet负责维护节点上的正常运行的Pod副本数量符合预期，并实时接收API Server的调度请求以及上报节点上的状态信息，一旦故障将导致节点隔离
+- kube-proxy作为节点上所有Service的流量入口，一旦故障将导致节点上的Service无法访问
+
+```shell
+# 1. 修改kubelet启动参数
+# 进入任意节点shell（建议从普通非关键节点开始）
+# 通过 service kubelet status 得到kubelet的systemctl启动配置文件位置
+# 一般是 /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
+# 再通过这个配置文件内容了解到kubelet启动时会读取 /etc/sysconfig/kubelet 中的内容作为环境变量覆盖
+# 现在修改 /etc/sysconfig/kubelet
+$ vi /etc/sysconfig/kubelet
+# 添加以下内容，保存退出
+# 添加多个特性开关使用逗号分割："--feature-gates=A=true,B=true"
+# KUBELET_EXTRA_ARGS="--feature-gates=CPUManagerPolicyAlphaOptions=true"
+
+# 重启kubelet
+$ service kubelet restart
+
+# 检查启动命令中是否包含添加到标志
+# - 如果启动成功且包含标志说明修改成功，则对其他所有节点如法炮制
+# - 如果修改失败，则快速还原修改内容再启动kubelet，避免对节点产生影响。然后查看日志：journalctl -u kubelet -f --lines=10
+$ ps -aux |grep kubelet                                       
+root       3924  4.8  3.0 1331704 60388 ?       Ssl  19:17   0:00 /usr/bin/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf --config=/var/lib/kubelet/config.yaml --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.aliyuncs.com/google_containers/pause:3.9 --feature-gates=CPUManagerPolicyAlphaOptions=true
+
+# Tips
+# 在较新的K8s版本中，--feature-gates标志已被废弃，推荐使用 --config 标志来配置kubelet（特性配置只是其中一部分）
+# 参考 https://kubernetes.io/zh-cn/docs/tasks/administer-cluster/kubelet-config-file/
+# 具体来说，就是修改 /var/lib/kubelet/config.yaml，在其中添加featureGates部分内容
+# - 注意：通过这个方式修改是无法通过 ps aux 命令看到效果的
+# - 如果你的修改包含错误，kubelet启动时会报错，导致kubelet无法正常启动，通过journalctl查看错误日志
+#apiVersion: kubelet.config.k8s.io/v1beta1
+#featureGates:
+#  CPUManagerPolicyAlphaOptions: true
+
+# kube-proxy组件与kubelet不同，它是以Pod方式运行，并且引用的配置存放在configmap中
+# 查看kube-proxy pod引用的configmap内容
+kubectl get cm -n kube-system kube-proxy -o yaml
+
+# configmap中的config.conf就是kube-proxy的启动配置（另外还有一个kubeconfig.conf用来访问API服务器）
+# 这个config.conf的规范来自以下链接
+# https://kubernetes.io/zh-cn/docs/reference/config-api/kube-proxy-config.v1alpha1/#kubeproxy-config-k8s-io-v1alpha1-KubeProxyConfiguration
+# 其中，有一个featureGates字段，用来控制kube-proxy的特性开关。
+# 修改前建议备份configmap
+$ kk get cm kube-proxy -nkube-system -oyaml > kube-proxy-configmap.yaml
+
+# 编辑configmap: kk edit cm kube-proxy -nkube-system
+# 添加featureGates字段如下
+#apiVersion: v1
+#data:
+#  config.conf: |-
+#    apiVersion: kubeproxy.config.k8s.io/v1alpha1
+#    featureGates:  # <---
+#      CPUManagerPolicyAlphaOptions: true
+
+# 修改后删除一个kube-proxy pod进行观察能否正常重启（kube-proxy是DaemonSet控制器类型的Pod）
+# 若能够正常重启，则说明配置生效；否则请还原配置后再检查配置
+$ kk delete po kube-proxy-xxx -nkube-system
+```
+
+上述操作中提到的链接:
+
+- [kubelet-config](https://kubernetes.io/zh-cn/docs/tasks/administer-cluster/kubelet-config-file/)
+- [kube-proxy-config](https://kubernetes.io/zh-cn/docs/reference/config-api/kube-proxy-config.v1alpha1/#kubeproxy-config-k8s-io-v1alpha1-KubeProxyConfiguration)
+
+对于其他三个在Master节点以Pod形式运行的组件，修改起来就相对简单。我们可以在`/etc/kubernetes/manifests`目录下找到它们使用的PodSpec文件，
+然后修改其中的容器启动字段（添加`--feature-gates`标志）即可，修改后对应Pod会检测到模板改动并立即重启，通过Pod
+log可以查看它们的错误日志。
 
 ## 6. 可视化面板
 
@@ -2713,7 +2832,7 @@ TODO
 ### 6.1 Kubernetes Dashboard
 
 安装之前，需要先通过Dashboard的 [官方仓库发布](https://github.com/kubernetes/dashboard/releases)
-中找到兼容你安装的k8s集群版本的最新Dashboard版本以及yaml文件下载链接。例如，`v2.7.0`
+页面中找到兼容你安装的k8s集群版本的最新Dashboard版本以及yaml文件下载链接。例如，`v2.7.0`
 完全兼容的k8s版本是`v1.25`，`v3.0.0-alpha0`完全兼容的k8s版本是`v1.27`。
 
 本教程使用的k8s版本是v1.27.0，所以演示`v3.0.0-alpha0`的安装使用（旧版本的安装使用大同小异）。首先需要下载yaml文件：
@@ -3109,7 +3228,9 @@ K9s面板支持多种简单的指令以及快捷键功能：
 
 关于这些功能的更多细节，请下载使用以及查看K9s官方仓库的说明。
 
-## TODO
+## 7. 大杀器之Helm
+
+TODO
 
 ## 参考
 
