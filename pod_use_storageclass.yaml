@@ -5,7 +5,11 @@ kind: StorageClass
 metadata:
   name: sc-hostpath
 provisioner: kubernetes.io/no-provisioner # 使用hostpath作为存储后端
+# WaitForFirstConsumer 表示等待Pod调度到节点后才会申领实际的卷空间，只有Local支持；
+# - 默认是Immediate，表示直接在创建PVC时直接使用后端存储空间
 volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true # 允许PV扩容（不允许缩容）
+reclaimPolicy: Delete # 默认Delete
 
 ---
 apiVersion: v1
