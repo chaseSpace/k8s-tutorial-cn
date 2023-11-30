@@ -77,6 +77,7 @@ Master由四个部分组成：
 - Replication控制器：负责对系统重每个ReplicationController对象维护预期数量的Pod
 - Endpoint控制器：负责生成和维护所有Endpoint对象的控制器。Endpoint控制器用于监听Service和对应Pod副本的变化
 - ServiceAccount及Token控制器：为新的命名空间创建默认账户和API访问令牌。
+- 等等。
 
 kube-controller-manager所执行的各项操作也是基于API Server进程的。
 
@@ -94,7 +95,9 @@ Node由三部分组成：kubelet、kube-proxy和容器运行时（如docker/cont
 kubelet会定期调用Master节点上的API Server的REST API以报告自身状态，然后由API Server存储到etcd中。
 
 2. **kube-proxy**  
-   用于管理Service的网络访问入口，包括从集群内的其他Pod到Service的访问以及集群外访问Service。
+   每个节点都会运行一个kube-proxy Pod。它作为K8s Service的网络访问入口，负责将Service的流量转发到后端的Pod，并提供Service的负载均衡能力。
+   kube-proxy会监听 API Server 中 Service 和 Endpoint 资源的变化，并将这些变化实时反应到节点的网络规则中，确保流量正确路由到服务。
+   总结来说，kube-proxy主要负责维护网络规则和四层流量的负载均衡工作。
 
 3. **容器运行时**  
    负责直接管理容器生命周期的软件。k8s支持包含docker、containerd在内的任何基于k8s cri（容器运行时接口）实现的runtime。
@@ -1372,7 +1375,7 @@ LoadBalancer 是通过使用云提供商的负载均衡器（一般叫做SLB，S
 ### 7.5 Service类型之Headless
 
 这是一种特殊的Service类型，它不为整个服务分配任何集群IP，而是通过分配的DNS域名来访问Pod服务。由于没有Cluster
-IP，所以节点和集群外都无法直接访问Service（但可以在节点直接访问Pod IP）。无头Service主要提供给StatefulSet使用。
+IP，所以节点和集群外都无法直接访问Service（但可以在节点直接访问Pod IP）。无头Service主要提供给StatefulSet（如数据库集群）使用。
 
 操作步骤：
 
@@ -1416,14 +1419,14 @@ Address 2: 20.2.36.78 20-2-36-78.service-hellok8s-clusterip-headless.default.svc
 
 ### 7.6 Service类型之ExternalName
 
-ExternalName 也是k8s中一个特殊的Service类型，它不需要指定selector去选择哪些pods实例提供服务，而是使用DNS
-CNAME机制把svc指向另外一个域名，这个域名可以是任何能够访问的地址，
+ExternalName 也是k8s中一个特殊的Service类型，它不需要设置selector去选择为哪些pods实例提供服务，而是使用DNS
+CNAME机制把svc指向另外一个域名，这个域名可以是任何能够访问的虚拟地址（不可以是IP），
 比如`mysql.db.svc`这样的建立在db命名空间内的mysql服务，也可以指定`www.baidu.com`这样的外部真实域名。
 
 比如可以定义一个service指向 `www.baidu.com`，然后可以在集群内的任何一个pod上访问这个service的域名，
 请求service域名将自动重定向到`www.baidu.com`。
 
-> 注意 ExternalName 这个类型也仅在集群内（不含节点）可访问。
+> 注意: ExternalName 这个类型也仅在集群内（不含节点）可访问。
 
 操作步骤：
 
@@ -1433,7 +1436,7 @@ CNAME机制把svc指向另外一个域名，这个域名可以是任何能够访
 具体指令如下：
 
 ```shell
-kk apply -f service-externalname.yaml
+$ kk apply -f service-externalname.yaml
 
 # 进入curl容器
 $ kk exec -it curl -- /bin/sh          
@@ -1469,15 +1472,18 @@ Address 4: 240e:ff:e020:38::ff:b06d:569b
 >
 这个时候就可定义Endpoints模板，其中填入外部服务的IP和端口，然后应用即可。如果集群外的服务提供的地址是域名而不是IP，则使用`ExternalName`。
 
-### 7.7 搭配externalIP
+### 7.7 搭配ExternalIP
 
-前面小节介绍的 ClusterIP（含Headless）/NodePort/LoadBalancer/ExternalName 五种Service都可以搭配 externalIP 使用，
-externalIP是Service模板中的一个配置字段，位置是`spec.externalIP`。配置此字段后，在原模板提供的功能基础上，
-还可以将Service注册到指定的externalIP（通常是节点网段内的空闲IP）上，从而增加Service的一种暴露方式。
+前面小节介绍的 ClusterIP（含Headless）/NodePort/LoadBalancer/ExternalName 五种Service都可以搭配 ExternalIP 使用，
+ExternalIP是Service模板中的一个配置字段，位置是`spec.externalIP`。配置此字段后，在原模板提供的功能基础上，
+还可以将Service注册到指定的ExternalIP（通常是节点网段内的空闲IP）上，从而增加Service的一种暴露方式。
 
-这里提供一个测试通过的模板 [service-clusterip-externalIP.yaml](service-clusterip-externalIP.yaml) 给读者自行练习。
+这里提供一个测试通过的模板 [service-clusterip-externalip.yaml](service-clusterip-externalip.yaml) 给读者自行练习。
 
-`spec.externalIP`可以配置为任意局域网IP（你需要的），而不必是节点网段ip，Service Controller会自动为每个节点添加路由。
+`spec.externalIP`可以配置为任意局域网IP，而不必是节点网段内的ip，Service Controller会自动为每个节点添加路由。
+
+> 注意：设置`spec.externalIP`时要选择一个当前网络中没有使用以及以后大概率也不会使用的IP（例如`192.168.255.100`），
+> 避免在访问Service时出现乌龙。
 
 ### 7.8 服务发现
 
