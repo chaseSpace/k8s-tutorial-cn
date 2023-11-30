@@ -19,6 +19,7 @@
     - [Pod示例集合](example_pod)
     - [Job/CronJob示例集合](example_job)
 - [关于kubectl exec你需要知道的一切（英）](https://humalect.com/blog/kubectl-exec)
+- [K8s面试题（史上最全 + 持续更新）](https://www.cnblogs.com/crazymakercircle/p/17052058.html)
 
 ### License
 
