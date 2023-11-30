@@ -230,6 +230,99 @@ reboot
 
 如果你为集群节点配置了监控，你可能需要从监控系统中删除该节点的配置。
 
+### 1.4 节点健康
+
+节点状态是集群管理员的重要参考，通过`kubectl describe node <节点名称>`命令可以查看节点状态，其中包含节点的健康信息。
+
+一个节点的状态包含以下信息:
+
+- 地址（Addresses）
+- 状况（Condition）
+- 容量与可分配（Capacity&Allocatable）
+- 信息（Info）
+
+**地址（Addresses）**  
+包含以下字段：
+
+- HostName：由节点的内核报告。可以通过 kubelet 的 `--hostname-override` 参数覆盖。
+- ExternalIP：通常是节点的可外部路由（从集群外可访问）的 IP 地址。
+- InternalIP：通常是节点的仅可在集群内部路由的 IP 地址。
+
+**状况（Conditions）**  
+描述了所有 `Running` 节点的CPU、内存以及磁盘等资源是否处于压力的状况。
+
+**容量与可分配（Capacity&Allocatable）**  
+描述了节点的CPU和内存的资源总量以及可分配的资源大小，其中包含可以调度到节点上的 Pod 的个数上限。
+
+**信息（Info）**  
+节点的一般信息，如内核版本、Kubernetes 版本（`kubelet` 和 `kube-proxy` 版本）、 容器运行时详细信息，以及节点使用的操作系统。
+kubelet 从节点收集这些信息并将其发布到 Kubernetes API。
+
+#### 1.4.1 节点心跳
+
+节点发送的心跳帮助集群确定每个节点的可用性，并在检测到故障时采取一定的行动。
+
+节点心跳有两种：
+
+- 更新节点的`.status`（`kk get node <node-name>`）
+- `kube-node-lease`名字空间中的`Lease`（租约）对象。 每个节点都有一个关联的`Lease`
+  对象。可通过`kk get lease -nkube-node-lease`查看。
+
+`Lease` 是比节点的`.status`更轻量级的资源，使用`Lease`来表达心跳在大型集群中可以减少这些更新对性能的影响。
+kubelet **同时进行**这两种心跳机制。具体细节如下:
+
+- 对于第一种，kubelet会在节点状态发生变化或距离上一次上报时间超过`--node-status-update-frequency`
+  参数设置的时间（默认5分钟）时，才会更新节点的`.status`字段
+- kubelet会每隔10s发送请求给API服务器更新自己的`Lease`对象
+
+这两种心跳是协同工作的，当API服务器超过40s没有收到任何来自节点的心跳时，则将节点的`.status`更新为`Unknown`。
+
+> 默认情况下，节点控制器在将节点标记为 `Unknown` 后等待 5
+> 分钟提交第一个 [由API发起的驱逐](https://kubernetes.io/zh-cn/docs/concepts/scheduling-eviction/api-eviction/) 请求。
+> 节点控制器默认每 5 秒检查一次节点状态，可以使用 kube-controller-manager 组件上的 `--node-monitor-period` 参数来配置周期。
+
+#### 1.4.2 节点资源容量跟踪
+
+K8s调度器会保证节点上有足够的资源供其上的所有 Pod 使用。 它会检查节点上所有容器的**请求的总和**不会超过节点的容量。
+总的请求包括由 kubelet 启动的所有容器，但**不包括**由容器运行时直接启动的容器， 也不包括不受 kubelet 控制的其他进程。
+
+如果要为非Pod进程预留资源，参考[为系统守护进程预留资源](https://kubernetes.io/zh-cn/docs/tasks/administer-cluster/reserve-compute-resources/#system-reserved) 。
+
+### 1.5 节点日志管理
+
+节点分为主节点和普通节点。主节点运行多个K8s组件，如API Server、Controller Manager、Scheduler等。
+普通节点则运行两个K8s组件：kubelet和kube-proxy。
+
+其中只有kubelet是节点级的进程，其进程通过`systemctl`管理，通过`journalctl -u kubelet`可查看日志。常用命令如下：
+
+```shell
+systemctl status kubelet
+
+journalctl -u kubelet -f --lines=10
+
+journalctl -u kubelet -f --lines=100 |grep -i error
+
+journalctl -u kubelet --since today --no-pager
+```
+
+其他组件都是以Pod形式运行。常用的查询命令如下：
+
+```shell
+# --tail N 查看最新N条
+# --since=5m 查看5m前开始的日志
+# --all-containers=true 查看Pod内所有容器的日志，否则只会输出第一个容器的日志
+kubectl logs -n kube-system $POD_NAME --since=5m --all-containers=true
+```
+
+如果API Server不可用，还可以通过节点本地的`crictl`工具来查询Pod日志：
+
+```shell
+# 列出节点运行的所有容器
+crictl ps
+# 查看POD日志
+crictl logs $CONTAINER_ID
+```
+
 ## 2. 镜像管理
 
 镜像存放位置取决于集群采用的容器运行时`crictl`，它是一个用于与容器运行时 (CRI，Container Runtime Interface)
