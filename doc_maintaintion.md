@@ -288,7 +288,7 @@ K8s调度器会保证节点上有足够的资源供其上的所有 Pod 使用。
 
 如果要为非Pod进程预留资源，参考[为系统守护进程预留资源](https://kubernetes.io/zh-cn/docs/tasks/administer-cluster/reserve-compute-resources/#system-reserved) 。
 
-### 1.5 节点日志管理
+### 1.5 日志管理
 
 节点分为主节点和普通节点。主节点运行多个K8s组件，如API Server、Controller Manager、Scheduler等。
 普通节点则运行两个K8s组件：kubelet和kube-proxy。
@@ -314,7 +314,7 @@ journalctl -u kubelet --since today --no-pager
 kubectl logs -n kube-system $POD_NAME --since=5m --all-containers=true
 ```
 
-如果API Server不可用，还可以通过节点本地的`crictl`工具来查询Pod日志：
+如果API Server不可用（API Server也挂了），还可以通过节点本地的`crictl`工具来查询Pod日志：
 
 ```shell
 # 列出节点运行的所有容器
@@ -325,11 +325,14 @@ crictl logs $CONTAINER_ID
 
 ## 2. 镜像管理
 
-镜像存放位置取决于集群采用的容器运行时`crictl`，它是一个用于与容器运行时 (CRI，Container Runtime Interface)
-通信的命令行工具。CRI 是 Kubernetes 使用的标准，它定义了容器运行时和 Kubernetes kubelet 之间的接口，以便 kubelet
-能够管理容器的生命周期。
+镜像的存放位置在 Kubernetes 集群中取决于所采用的容器运行时。K8s与容器运行时之间的通信遵循 CRI（Container
+Runtime Interface，容器运行时接口）标准。CRI 定义了容器运行时与 Kubernetes kubelet 之间的接口，使得 kubelet
+能够通过这个接口来管理容器的生命周期。
 
-首先配置`crictl`：
+为了与容器运行时进行交互和管理容器，Kubernetes 使用了一个命令行工具，即`crictl`。这个工具提供了与容器运行时通信的功能，允许
+Kubernetes 组件也就是kubelet与底层容器运行时进行交互。`crictl`只能管理当前节点上的Pod/容器/镜像，不能远程管理。
+
+安装集群的时候我们会按如下方式配置好`crictl`：
 
 ```shell
 # 若是docker作为容器运行时
@@ -338,6 +341,13 @@ crictl config runtime-endpoint unix:///var/run/cri-dockerd.sock
 # 若是containerd作为容器运行时
 crictl config runtime-endpoint unix:///var/run/containerd/containerd.sock
 ```
+
+我们可以使用`crictl`来直接管理集群中的Pod及其中的容器（包括创建/启动/停止/删除），但通常只会在kubelet无法正常控制Pod时才会这样做。
+
+
+> 比如当API Server无法连接的时候，kubectl就会失去对集群资源（包括Pod）的控制能力。
+
+你可以使用`crictl -h`获取此工具的帮助信息。
 
 ### 2.1 精简镜像
 
