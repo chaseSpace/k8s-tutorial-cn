@@ -253,7 +253,7 @@ REVISION: 2
 ），此时可以使用`helm upgrade helm-nginx example-chart --version x.x.x`来指定Chart版本进行升级。
 
 如果是本地的Chart目录，那`--version`
-参数就无效了，会直接使用当前目录下的Chart配置进行升级。无论你是否修改了Chart配置，Helm都会为发布增加`REVISION`号。
+参数就无效了，会直接使用所引用目录下的Chart配置进行升级。**无论你是否修改了Chart配置**，Helm都会为发布增加`REVISION`号。
 当然，实际的K8s对象如Deployment只会在模板变化时重新部署Pod。
 
 实际环境中，我们通常会使用`-f values.yaml`参数来指定配置文件（或使用`--set`指定某个配置参数）进行升级。使用`helm upgrade -h`
