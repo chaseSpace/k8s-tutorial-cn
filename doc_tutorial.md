@@ -218,7 +218,7 @@ docker build . -t leigg/hellok8s:v1
 
 ```shell
 docker image prune -f
-# docker system prune # 删除
+# docker system prune # 删除未使用的容器/网络等资源
 ```
 
 测试运行：
