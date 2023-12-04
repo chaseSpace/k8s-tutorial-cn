@@ -107,7 +107,7 @@ spec:
 
 ### 2. 验证Chart
 
-发布前需要对Chart配置进行验证：
+发布前需要对Chart配置格式进行验证：
 
 ```shell
 $ helm lint example-chart
@@ -118,8 +118,8 @@ $ helm lint example-chart
 ```
 
 在最终执行`helm install`
-进行部署时，会将Chart文件解析为K8s能够识别的各种对象模板以进行部署。可使用`helm install --dry-run --debug [Chart目录位置]`
-来检查Chart生成的k8s对象模板。
+进行部署时，会将Chart文件解析为K8s能够识别的各种对象模板以进行部署。
+可使用`helm install --dry-run --debug [Chart目录位置]`来提前检查Chart生成的k8s对象模板是否正确。
 
 ```shell
 # 其中helm-nginx是发布名称，最后才是chart目录作为参数
@@ -284,7 +284,7 @@ REVISION	UPDATED                 	STATUS    	CHART              	APP VERSION	DES
 回滚：
 
 ```shell
-# 1是REVISION
+# 1是REVISION，不指定就默认上个版本
 $ helm rollback helm-nginx 1           
 Rollback was a success! Happy Helming!
 ```
