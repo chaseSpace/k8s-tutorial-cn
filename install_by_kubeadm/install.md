@@ -141,6 +141,12 @@ apt-get install -y kubelet=1.27.0-00 kubeadm=1.27.0-00 kubectl=1.27.0-00
 # 删除 apt-get remove  -y kubelet kubeadm kubectl
 ```
 
+注意更新节点时间（部署的Pod资源会使用节点的时间）：
+
+```shell
+ntpdate -u  pool.ntp.org
+```
+
 ## 4. 配置cgroup driver
 
 Container runtimes推荐使用`systemd`作为kubeadm的driver，而不是kubelet默认的`cgroupfs`driver。
