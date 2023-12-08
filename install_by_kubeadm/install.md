@@ -28,6 +28,10 @@
 为了提高命令行使用效率，建议先[安装ohmyzsh](../doc_install_ohmyzsh.md)。此外，本教程演示安装的K8s版本为 **v1.27.0**
 ，你也可以选择其他版本，但最好是官方[仍在维护的版本](https://kubernetes.io/releases/)。
 
+> 在生产环境中，你不必自行安装维护K8s集群基础组件，可以使用云厂商提供的K8s服务，如腾讯云 TKE和阿里云 ACK，国外有AWS EKS、Google
+> GKE、Azure
+> AKS等。
+
 ## 1. 准备资源
 
 ```
