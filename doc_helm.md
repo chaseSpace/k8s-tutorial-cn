@@ -253,7 +253,8 @@ REVISION: 2
 ），此时可以使用`helm upgrade helm-nginx example-chart --version x.x.x`来指定Chart版本进行升级。
 
 如果是本地的Chart目录，那`--version`
-参数就无效了，会直接使用所引用目录下的Chart配置进行升级。**无论你是否修改了Chart配置**，Helm都会为发布增加`REVISION`号。
+参数就无效了，会直接使用所引用目录下的Chart配置进行升级。**无论你是否修改了Chart中的任何一个文件**
+，Helm都会为发布增加`REVISION`号。
 当然，实际的K8s对象如Deployment只会在模板变化时重新部署Pod。
 
 实际环境中，我们通常会使用`-f values.yaml`参数来指定配置文件（或使用`--set`指定某个配置参数）进行升级。使用`helm upgrade -h`
@@ -268,6 +269,15 @@ REVISION: 2
 
 - [安装前自定义chart（官方文档）](https://helm.sh/zh/docs/intro/using_helm/#安装前自定义-chart)
 - [“set”参数的高级用法（英）](https://itnext.io/helm-chart-install-advanced-usage-of-the-set-argument-3e214b69c87a)
+
+> 最后，说一点笔者的个人建议。在实际的项目开发中，建议只需要在每个服务目录下保留`values.yaml`
+> 即可，而不需要保留`Chart.yaml`来定义其APP VERSION，
+> 因为这样就免去了在每个服务目录下维护两个helm配置文件的麻烦。在发布时我们只需要使用`--description`来简述
+> 本次发布的具体内容即可，并可以直接将镜像tag作为发布说明。这样也可以为回滚提供帮助。
+>
+> Helm不支持在Upgrade时设置`appVersion`，这是难以理解的。在 [ #3555](https://github.com/helm/helm/issues/3555) 这个讨论时间长达三年的
+> Issue中，官方最终也没有支持这种方式，而是推荐使用`helm package --app-version`的方式来设置`appVersion`，但打包就需要部署Helm仓库，增加了运维成本。
+> 社区中的另一种非常规做法则是在更新发布前使用`sed`命令修改了`Chart.yaml`中的`appVersion`。
 
 #### 5.2 回滚
 
@@ -291,7 +301,7 @@ $ helm rollback helm-nginx 1
 Rollback was a success! Happy Helming!
 ```
 
-注意，Helm默认最多保留10条发布记录，也就是说，当`REVISION`为11的时候（只能看到2到11），1就被删除了，也不能回滚到1了。
+注意，Helm默认最多保留10条发布记录，也就是说，当`REVISION`为11的时候（只能看到2~11的记录），1就被删除了，也不能回滚到1了。
 
 #### 5.3 删除
 
