@@ -1750,7 +1750,7 @@ docker push leigg/hellok8s:v3_nginxingress
 
 3. 更新deployment镜像：`kk set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v3_nginxingress`，并等待更新完成
 4. 部署 [deployment_httpd_svc.yaml](deployment_httpd_svc.yaml) 作为 Ingress 后端之一
-5. 定义 Ingress [ingress-hellok8s.yaml](ingress-hellok8s.yaml)，其中定义了路由规则，然后应用
+5. 部署 Ingress [ingress-hellok8s.yaml](ingress-hellok8s.yaml)，其中定义了路由规则
 6. 在节点上验证
 
 ```shell

@@ -224,7 +224,7 @@ appVersion: "1.16.0"
 ```shell
 # 首先修改Chart.yaml中的appVersion为 1.16.1
 
-# 然后更新发布
+# 然后更新发布，--description 增加发布说明
 $ helm upgrade helm-nginx example-chart
 Release "helm-nginx" has been upgraded. Happy Helming!
 NAME: helm-nginx
@@ -264,32 +264,34 @@ REVISION: 2
 
 其中`--set`可以指定多个键值对参数（只用于替换`values.yaml`中的配置），使用`helm show values example-chart`
 查看Chart的`values.yaml`配置。
-此外，它还有一些细节上的规范（比如如何设置值为数组的字段），
-但笔者没有找到相关官方文档，可以参考网络上的一些文章：
+此外，它还有一些细节上的规范（比如如何设置值为数组的字段），可以参考以下文档：
 
+- [安装前自定义chart（官方文档）](https://helm.sh/zh/docs/intro/using_helm/#安装前自定义-chart)
 - [“set”参数的高级用法（英）](https://itnext.io/helm-chart-install-advanced-usage-of-the-set-argument-3e214b69c87a)
-- [helm --set的使用示例及基本使用命令整理](https://blog.csdn.net/a772304419/article/details/125915827)
 
 #### 5.2 回滚
 
 查看helm发布的记录:
 
 ```shell
+# 在upgrade时使用--description设置的说明会覆盖这里的 DESCRIPTION
 $ helm history helm-nginx   
 REVISION	UPDATED                 	STATUS    	CHART              	APP VERSION	DESCRIPTION     
 1       	Mon Dec  4 20:23:48 2023	superseded	example-chart-0.1.0	1.16.0     	Install complete
 2       	Mon Dec  4 20:57:14 2023	superseded	example-chart-0.1.0	1.16.1     	Upgrade complete
 ```
 
-回滚：
+注意：`REVISION`是永远递增的。
+
+回滚到指定`REVISION`：
 
 ```shell
-# 1是REVISION，不指定就默认上个版本
+# 1是REVISION，不指定就默认上个REVISION
 $ helm rollback helm-nginx 1           
 Rollback was a success! Happy Helming!
 ```
 
-注意，Helm默认最多保留10条发布记录，也就是说，当REVISION为11的时候（只有2~11），1就被删除了，也不能回滚到1了。
+注意，Helm默认最多保留10条发布记录，也就是说，当`REVISION`为11的时候（只能看到2到11），1就被删除了，也不能回滚到1了。
 
 #### 5.3 删除
 
