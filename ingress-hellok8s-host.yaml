@@ -8,7 +8,7 @@ metadata:
 spec:
   ingressClassName: nginx  # 指定ingress控制器
   rules:
-    - host: hellok8s.foo.com
+    - host: hellok8s.foo.com # 一旦配置了host，就不能再通过IP访问（会得到404结果）
       http:
         paths:
           - path: /hello
