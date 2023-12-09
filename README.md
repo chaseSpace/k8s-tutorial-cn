@@ -10,7 +10,7 @@
 
 - [Kubernetes 版本发布历史](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG)
 - [kubectl 命令行教程](https://kubernetes.io/docs/reference/kubectl/cheatsheet/#zsh)
-- [Kubernetes API Groups on v1.28](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#api-groups)
+- [Kubernetes API Groups on v1.27](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#api-groups)
 
 ### 资料索引
 
