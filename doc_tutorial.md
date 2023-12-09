@@ -26,11 +26,52 @@ Kubernetes 是一项必不可少的技能。本教程致力于为初学者提供
 
 ## 1. 简介
 
-Kubernetes项目是Google公司在2014年启动（内部项目最初叫做Borg）。它建立在Google公司超过10多年的运维经验之上，Google所有的应用都运行在容器上。
+Kubernetes 的名字来自古希腊语，意思是“飞行员”或“舵手”（掌舵的人），其历史通常可以追溯到2013年，当时谷歌的三位工程师Craig
+McLuckie，Joe Beda和Brendan
+Burns提出了一个构建开源容器管理系统的想法。这些技术先驱正在寻找将谷歌内部基础设施专业知识引入大规模云计算领域的方法，并使谷歌能够与当时云提供商中无与伦比的领导者亚马逊网络服务（AWS）竞争。
+
+Kubernetes
+项目是Google公司在2014年正式启动（受到Google在2003年使用C++编写开发并使用十年之久的内部项目Borg的积极影响）。它建立在Google公司超过10多年的运维经验之上，Google所有的应用都运行在容器上。
 Kubernetes是目前最受欢迎的开源容器编排平台。
 
-Kubernetes可以实现容器集群的自动化部署、自动扩缩容、维护等功能。它拥有自动包装、自我修复、横向缩放、服务发现、负载均衡、
+Kubernetes v1.0于2015年7月21日发布。随着v1.0版本发布，谷歌与Linux基金会合作组建了Cloud
+Native Computing
+Foundation（CNCF）并将 Kubernetes 作为种子项目来孵化。项目开源伊始，众多国际大厂如微软、IBM、红帽、Docker、Mesosphere、CoreOS和SaltStack纷纷加入并表示将积极支持该项目。
+
+
+> CNCF由世界领先的计算公司的众多成员共同创建，包括Docker，Google，Microsoft，IBM和Red
+> Hat。CNCF的使命是“让云原生计算无处不在”。
+
+Kubernetes 可以实现容器集群的自动化部署、自动扩缩容、维护等功能。它拥有自动包装、自我修复、横向缩放、服务发现、负载均衡、
 自动部署、升级回滚、存储编排等特性。
+
+Kubernetes 开源已近十年时间，已有颇多荣誉和光荣事迹。这里进行简单罗列：
+
+- 2015年作为CNCF的第一个种子项目进行孵化，2016年正式托管，并于2018年成为CNCF的第一个毕业项目。
+- 2016 年 Q2-Q3: 以 Mirantis 为首的 OpenStack 厂商积极推动与 Kubernetes 的整合，避免站在 Kubernetes 的对立面，成为被
+  Kubernetes 推翻的“老一代技术”。
+- 2016 年 12 月，伴随着 Kubernetes 1.5 的发布，Windows Server 和 Windows 容器可以正式支持 Kubernetes，微软生态完美融入。
+- 2017 年 2 月，Kubernetes 官方微博报道了中国京东用 Kubernetes 替代了 OpenStack 中的大量服务和组件，实现全容器化私有云和公有云的建设，中国的
+  Kubernetes 用户案例首次登上国际舞台。
+- 2017 年 6 月，在北京召开的 LinuxCon 上，中国公司报道了 Kubernetes 在中国金融、电力、互联网行业的成功案例，标志着 Kubernetes
+  的终端用户群体走向国际化。
+- 2017年，Kubernetes 超越了Docker Swarm和Apache Mesos等竞争对手，成为容器编排行业的事实标准。
+- 同样在2017这一年里，主要竞争对手们Docker、VMWare、Mesos、Microsoft、AWS都围绕Kubernetes团结起来，宣布为其添加本地支持
+- 2 岁生日之际，Kubernetes 的用户涵盖了诸如金融（摩根斯坦利、高盛）、互联网（eBay、Box、GitHub）、传媒（Pearson、New York Times）
+  、通信（三星、华为）等行业的龙头企业。
+- 2018年3月6日，Kubernetes项目在GitHub项目列表中的提交数量排名第九，作者和问题排名第二，仅次于Linux内核。
+  ACK等。
+- 从CNCF创立至今， Kubernetes 一直都是其顶级项目，同时也是Go语言的成名开源项目之一（其他有Docker/Prometheus/etcd等）。CNCF管理下的大部分项目也都是围绕Kubernetes
+  生态建立的。
+
+截至今日（2023年底），Kubernetes
+项目的代码贡献者就多达3500+人，Star数高达10.4w（[总排名第40位](https://gitstar-ranking.com/repositories)）。除了主体代码库之外，还有约
+60 个其他的插件代码库。
+现今信息界常见的缩写手法“K8s”则是将“ubernete”八个字母缩写为“8”而来。
+
+**多云提供商支持**  
+Kubernetes 被广泛地支持和集成到各大云服务提供商的容器服务中，包括Google Kubernetes Engine（GKE）、Amazon
+Elastic Kubernetes Service（EKS）、Microsoft Azure Kubernetes Service（AKS）等，国内有腾讯云 TKE和阿里云 ACK等。
 
 ### 1.1 架构设计
 
@@ -2207,3 +2248,5 @@ busybox-use-downwardapi
 - [Docker教程](https://yeasy.gitbook.io/docker_practice/)
 - [kubectl全部命令-官方](https://kubernetes.io/docs/reference/kubectl/cheatsheet/)
 - [K8s对外服务之Ingress](http://www.uml.org.cn/yunjisuan/202303134.asp?artid=25653)
+- [从风口浪尖到十字路口，写在 Kubernetes 两周年之际](https://www.infoq.cn/article/qDYqsCTxCvKu8hXZuKme)
+- [Kubernetes Wikipedia](https://en.wikipedia.org/wiki/Kubernetes)
