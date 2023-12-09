@@ -73,8 +73,10 @@ Master由四个部分组成：
    集群中的大部分功能是由控制器执行的。理论上，以下每种控制器都是一个单独的进程，为了降低复杂度，它们都被编译、合并到单个文件中，
    并在单个进程中运行。
 
-- Node控制器：负责在Node故障时响应
-- Replication控制器：负责对系统重每个ReplicationController对象维护预期数量的Pod
+- Node控制器：负责管理和维护集群中的节点。比如节点的健康检查、注册/注销、节点状态报告、自动扩容等。
+- Replication控制器：确保集群中运行的 Pod 的数量与指定的副本数（replica）保持一致，稍微具体的说，对于每一个Replication控制器管理下的Pod组，具有以下逻辑：
+    - 当Pod组中的任何一个Pod被删除或故障时，Replication控制器会自动创建新的Pod来作为替代
+    - 当Pod组内的Pod数量超过所定义的`replica`数量时，Replication控制器会终止多余的Pod
 - Endpoint控制器：负责生成和维护所有Endpoint对象的控制器。Endpoint控制器用于监听Service和对应Pod副本的变化
 - ServiceAccount及Token控制器：为新的命名空间创建默认账户和API访问令牌。
 - 等等。
