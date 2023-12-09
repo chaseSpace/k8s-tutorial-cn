@@ -14,6 +14,7 @@
 
 ### 资料索引
 
+- [Gitbook：Awesome-Kubernetes](https://ramitsurana.gitbook.io/awesome-kubernetes/docs)
 - [kubectl 命令文档](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands)
 - 模板示例
     - [Pod示例集合](example_pod)
@@ -23,7 +24,6 @@
 
 ### 推荐的社区文章
 
-- [Gitbook：Awesome-Kubernetes](https://ramitsurana.gitbook.io/awesome-kubernetes/docs)
 - [InfoQ：首次部署 Kubernetes 应用，总会忽略这些事](https://www.infoq.cn/article/evv4tdg06s5y7yHV0tky)
 - [InfoQ：最佳实践丨使用 Rancher 轻松管理上万资源不是梦](https://www.infoq.cn/article/alauo5jmqwyoyj7ds0le)
 - [InfoQ：将 Kubernetes 扩展到超过 4k 个节点和 200k 个 Pod](https://www.infoq.cn/article/gJRYgXV0Mqj2DUugA6GU)
