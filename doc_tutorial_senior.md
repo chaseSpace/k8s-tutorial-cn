@@ -208,7 +208,7 @@ PVC通过`storageClass`、`accessModes`和存储空间这几个属性来为PVC�
 
 ```shell
 # 修改pvc中的storage为大于pv中容量的数字，比如5000Gi
-kk get pv,pvc,pod
+$ kk get pv,pvc,pod
 NAME                           CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
 persistentvolume/pv-hostpath   1Gi        RWX            Retain           Available           node-local              6s
 
@@ -601,6 +601,7 @@ k8s中，命名空间（namespace）是k8s中一种逻辑分组资源，可以�
 命名空间可以通过命令来创建：
 
 ```shell
+# namespace的缩写是ns
 $ kk create namespace test-namespace
 namespace/test-namespace created
 ```
@@ -684,13 +685,21 @@ roles                                    rbac.authorization.k8s.io/v1   true    
 csistoragecapacities                     storage.k8s.io/v1              true         CSIStorageCapacity
 ```
 
-类似的，使用参数`--namespaced=false`查看不在命名空间中的资源。
+使用参数`--namespaced=false`可以查看不在命名空间中的资源。
 
 **命名空间与集群DNS的关系**
 
 命名空间是集群资源的逻辑分组，集群DNS是负责集群**命名空间**范围中的服务发现。在 [Kubernetes 基础教程](doc_tutorial.md)
 中提到了Service的DNS，
 其具体访问方式为`<service-name>.<namespace-name>.svc.<cluster-domain>`，其中就包含了命名空间的名称。
+
+**删除命名空间**  
+这是一个比较危险的操作，因为删除一个命名空间会连带删除其作用域下所有的资源对象，包括Pod、Service、RC等。
+建议在删除前先确认命名空间下没有需要保留的资源对象，否则可能会误删。删除命令如下：
+
+```shell
+kk delete namespace <namespace-name>
+```
 
 #### 2.2.1 配置整体资源配额
 
