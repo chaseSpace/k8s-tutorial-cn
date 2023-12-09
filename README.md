@@ -68,10 +68,14 @@ Kubernetes Ingress:
 
 ### PDF&报告
 
-- [（英）2023年Kubernetes使用报告 来自VMWare](https://www.vmware.com/content/dam/digitalmarketing/vmware/en/pdf/docs/vmware-ebook-state-of-kubernetes.pdf)
+- [（英）2023年Kubernetes使用报告 来自VMware](https://www.vmware.com/content/dam/digitalmarketing/vmware/en/pdf/docs/vmware-ebook-state-of-kubernetes.pdf)
 - [（英）2023年Kubernetes 安全报告（23页）](https://www.redhat.com/en/resources/state-kubernetes-security-report-2023)
 - [（英）2019年Kubernetes 安全审查](https://github.com/trailofbits/audit-kubernetes/blob/master/reports/Kubernetes%20Security%20Review.pdf)
 
 ### License
 
 本仓库中的K8s教程均在 CC-BY-NC-SA 4.0 下发布（转载请注明作者及来源）。
+
+### Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=chaseSpace/k8s-tutorial-cn&type=Date)](https://star-history.com/#chaseSpace/k8s-tutorial-cn&Date)
