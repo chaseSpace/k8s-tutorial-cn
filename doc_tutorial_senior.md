@@ -402,7 +402,7 @@ parameters:
 
 > 开始下一节之前，请先删除本节创建的资源：`kk delete -f pod_use_storageclass.yaml`
 
-#### 1.3.7 使用StatefulSet
+## 2. 使用StatefulSet
 
 StatefulSet 是与Deployment同级的一种 **有状态**
 控制器，与无状态部署的Deployment控制器不同的是，StatefulSet可以保证Pod的顺序和唯一性。当有与部署顺序、持久数据或固定网络等有关等特殊应用需求时，
@@ -425,6 +425,8 @@ StatefulSet 控制器由3个部分组成：
 
 此外，StatefulSet控制器可以在其模板中配置`volumeClaimTemplate`来为Pod提供存储卷，不需要专门定义PVC。
 
+### 2.1 开始测试
+
 [stateful-svc.yaml](stateful-svc.yaml)
 是一个完整的示例，下面是具体的测试步骤（在开始前，为了让Pod调度到master，请先执行 [删除master污点](https://www.cnblogs.com/zouhong/p/17351418.html)）：
 
@@ -436,7 +438,7 @@ storageclass.storage.k8s.io/sc-hostpath created
 persistentvolume/pv-hostpath-0 created
 persistentvolume/pv-hostpath-1 created
 
-  # sts代指statefulset
+  # sts是statefulset的缩写
 $ kk get svc,sc,pv,pvc,pod,sts -o wide
 NAME                   TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)    AGE     SELECTOR
 service/kubernetes     ClusterIP   20.1.0.1     <none>        443/TCP    44h     <none>
@@ -458,7 +460,7 @@ pod/statefulset-0   1/1     Running   0                   103s   20.2.36.83     
 pod/statefulset-1   1/1     Running   0                   4s     20.2.235.196   k8s-master   <none>           <none>
 
 NAME                           READY   AGE     CONTAINERS            IMAGES
-statefulset.apps/statefulset   2/2     2m24s   python-svc-stateful   python:3.7
+statefulset.apps/statefulset   2/2     2m24s   python-svc-stateful   python:4.7
 ```
 
 观察测试结果，可以看到：
@@ -520,9 +522,10 @@ This host is statefulset-0!
 ```
 
 可以看到，Pod重建后仍然能够在之前的节点写入相同的数据。虽然这里使用hostpath作为存储后端来验证这个功能不太严谨（因为Pod-1占用了另一个节点的本地卷，所以0号Pod一定会在原来的节点重建），
-但 StatefulSet控制器 确实拥有这个功能，读者可以使用其他存储系统（如NFS）进行验证。
+但StatefulSet控制器确实拥有这个功能，读者可以使用其他存储系统（如NFS）进行验证。
 
-**StatefulSet的伸缩与更新**  
+### 2.2 伸缩与更新
+
 和Deployment一样，StatefulSet也支持动态伸缩，当StatefulSet的Replicas数量发生变化时（或直接通过`kubectl scale`
 指令），StatefulSet控制器会确保Pod数量最终符合预期。
 但不同的是，StatefulSet执行的是有序伸缩，具体来说是在扩容时从编号较小的开始逐个创建，而缩容时则是倒序进行。
@@ -538,14 +541,12 @@ StatefulSet有两种更新策略，可以通过`.spec.updateStrategy`字段进�
         - 比如，当 partition 设置为 1 时，StatefulSet 控制器只会更新序号大于等于 1 的
           Pod（如果大于replicas，则不会更新任何Pod）。当你需要进行分阶段（金丝雀）更新时才会用到这个参数。
 
-**PVC的保留**  
-默认情况下，当Pod被删除时，StatefulSet控制器不会删除这个Pod使用的PVC，在 k8s
-v1.27版本中，可以 [进行配置](https://kubernetes.io/zh-cn/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention)。
+### 2.3 PVC的保留
 
-**删除StatefulSet应用**  
-需要特别说明的是，PVC虽然是自动创建的，但不会跟随StatefulSet应用自动删除，需要进行手动删除（确定数据不再需要）。
+默认情况下，当Pod被删除时，StatefulSet控制器不会删除这个Pod使用的PVC。在 k8s
+v1.27版本中，可以[进行配置](https://kubernetes.io/zh-cn/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention)。
 
-## 2. 管理集群资源的使用
+## 3. 管理集群资源的使用
 
 在k8s集群中，资源分为以下几种：
 
@@ -565,7 +566,7 @@ k8s提供了多种资源管理方式，如：
     - 选择器（selector）：高层资源（如Deployment）可以通过选择器关联低层资源（如Pod）
     - 注解（annotations）：类似标签，但它更灵活，可以存储结构化数据。一般用于向对象添加元数据，实现对对象行为的进一步控制。
 
-### 2.1 控制Pod对计算资源的消耗
+### 3.1 控制Pod对计算资源的消耗
 
 容器运行时通常会提供一些机制来限制容器能够使用的资源大小，如果容器超额使用了资源，则容器会被终止。例如在Docker中，
 通过`docker run`命令中的`--cpu-shares/--cpu-quota/--memory`等参数进行资源限额控制。
@@ -594,7 +595,7 @@ test-limit-resource   0/1     CrashLoopBackOff   3 (6d17h ago)   2m32s
 
 如果模板中`requests`部分的配额直接超过集群最大单节点可分配额度，则Pod将无法启动（处于Pending状态），因为节点上没有足够的资源来满足Pod的资源请求。
 
-### 2.2 使用命名空间管理资源
+### 3.2 使用命名空间管理资源
 
 k8s中，命名空间（namespace）是k8s中一种逻辑分组资源，可以用来对k8s集群中的资源进行隔离。在使用k8s的用户增多以后，这个功能会十分有用。
 
@@ -701,7 +702,7 @@ csistoragecapacities                     storage.k8s.io/v1              true    
 kk delete namespace <namespace-name>
 ```
 
-#### 2.2.1 配置整体资源配额
+#### 3.2.1 配置整体资源配额
 
 在本节开头讲过，k8s可以针对整个命名空间进行资源配额限制，这个功能可以避免某个命名空间中滥用集群资源进而影响整个集群。
 当然，也支持针对命名空间中单个资源对象的资源配额限制。
@@ -763,7 +764,7 @@ Name:                   quota-default
   No LimitRange resource.
 ```
 
-#### 2.2.2 配额作用域
+#### 3.2.2 配额作用域
 
 每个配额都有一组相关的 scope（作用域），配额只会对作用域内的资源生效。 配额机制仅统计所列举的作用域的交集中的资源用量。
 当一个作用域被添加到配额中后，它会对作用域相关的资源数量作限制。下面是支持的作用域详情：
@@ -786,7 +787,7 @@ Name:                   quota-default
 关于作用域还有一些限制需要注意，比如`Terminating`和`NotTerminating`不能同时出现在一个命名空间中的同一个资源配额对象中，因为它们是互斥的；
 同理，`BestEffort`和`NotBestEffort`也是互斥的。
 
-#### 2.2.3 配置个体资源配额
+#### 3.2.3 配置个体资源配额
 
 前面讲了如何限制命名空间下的总资源配额限制，但很多时候，我们需要对单个资源进行配额限制，否则会出现单个Pod或容器过多占用资源的情况，从而影响命名空间下其他Pod。
 
@@ -836,7 +837,7 @@ PersistentVolumeClaim  storage   100Mi  1Gi  -                -              -
 
 当再次（于这个命名空间中）创建Pod或PVC时，配置的资源必须符合配额限制，否则无法创建。
 
-### 2.3 标签、选择器和注解
+### 3.3 标签、选择器和注解
 
 前面讲的命名空间是用来实现多租户的资源隔离的。在同一个命名空间下，还可以进一步实现资源的划分，对各个资源的身份进行标识。
 这里主要用到的是下面三种方法：
@@ -845,7 +846,7 @@ PersistentVolumeClaim  storage   100Mi  1Gi  -                -              -
 - 选择器：是用于按照标签进行筛选和选择资源的机制。在Pod或其他对象的定义中指定标签选择器，可以将特定标签的资源组合在一起；
 - 注解： 注解是Kubernetes对象上的键值对，用于存储与对象相关的任意非标识性信息。相对于标签，注解更适合存储元数据信息、文档、或其他与对象关联的描述性信息。
 
-#### 2.3.1 标签
+#### 3.3.1 标签
 
 标签（Labels） 在 Kubernetes 中是一种关键的元数据，用于标识和组织各种资源。与名称和 UID 不同，
 标签没有唯一性限制，允许多个资源携带相同的标签键值对。以下是标签的一些关键特性和用途：
@@ -903,7 +904,7 @@ kubectl label <资源类型> <资源名称> <key>-
 - 除非标签值为空，必须以字母数字字符（[a-z0-9A-Z]）开头和结尾
 - 可以包含破折号（-）、下划线（_）、点（.）和字母或数字
 
-#### 2.3.2 选择器
+#### 3.3.2 选择器
 
 选择器是 Kubernetes 中的一种机制，用于在集群中查找资源。选择器允许用户根据标签的键值对选择一组符合条件的资源。
 在查询时可以使用`=`,`==`,`!=`操作符进行**基于等值的查询**，以及逗号（相当于逻辑与`&&`）分割多个表达式以进行匹配，示例如下：
@@ -973,7 +974,7 @@ selector:
     - { key: environment, operator: NotIn, values: [ dev ] }
 ```
 
-#### 2.3.3 注解
+#### 3.3.3 注解
 
 注解也是一种类似标签的机制。但它比标签更自由，可以包含少量结构化数据，主要用来给资源对象添加非标识的元数据。
 
@@ -1066,7 +1067,7 @@ The `cURL` command is a powerful tool used to make HTTP requests from the comman
 
 这里需要注意的是，除了我们手动在模板中添加的注解之外，k8s还自动添加了关于Pod自身网络的注解信息。
 
-#### 2.3.4 对象名称和ID
+#### 3.3.4 对象名称和ID
 
 集群中的每一个对象都有一个名称（由用户提供）来标识在同类资源中的唯一性。
 
@@ -1089,7 +1090,7 @@ $ kubectl get pod cURL -o=jsonpath='{.metadata.uid}'
 37ea632b-2adc-4c0c-9133-5c2229480206
 ```
 
-#### 2.3.5 字段选择器
+#### 3.3.5 字段选择器
 
 “字段选择器（Field selectors）”允许你根据一个或多个资源字段的值筛选 Kubernetes 对象。 下面是一些使用字段选择器查询的例子：
 
@@ -1105,7 +1106,7 @@ kubectl get pods --field-selector status.phase=Running
 
 字段选择器的内容不算多，建议直接查看官方文档 [Kubernetes对象—字段选择器](https://kubernetes.io/zh-cn/docs/concepts/overview/working-with-objects/field-selectors/) 。
 
-## 3. 资源调度
+## 4. 资源调度
 
 在 Kubernetes 中，**资源调度** 是指将 Pod 放置到合适的节点上，以便对应节点上的 Kubelet 能够运行这些 Pod。
 
@@ -1121,7 +1122,7 @@ Server将调度结果写入etcd中。
 如果调度成功，Pod会绑定到目标节点上。如果调度失败，kube-scheduler会重新进行调度，直到成功或超出重试次数，在此期间
 Pod 处于Pending状态。
 
-### 3.1 调度阶段
+### 4.1 调度阶段
 
 调度主要分为3个阶段，分别如下：
 
@@ -1129,7 +1130,7 @@ Pod 处于Pending状态。
 2. 优选：调度器会根据优选策略给预选出的节点打分，并选择分值最高的节点（影响打分的因素可能有节点（反）亲和性、节点负载情况如硬件资源剩余/Pod运行数量等）；
 3. 绑定：选择分值最高的节点作为Pod运行的目标节点进行绑定（如有多个，则随机一个）。
 
-#### 3.1.1 预选阶段
+#### 4.1.1 预选阶段
 
 预选阶段使用了3大类策略，分别如下：
 
@@ -1161,7 +1162,7 @@ CheckNodeMemoryPressure：判断节点是否已经进入内存压力状态。如
 - NoVolumeZoneConflict：在给定区域限制前提下，检查在此节点上部署的Pod是否存在卷冲突（前提是存储卷没有区域调度约束）；
 - MaxCSI/MaxEBS/MaxGCEPD/MaxAzureDisk/MaxCinderVolumeCount：检查需要挂载的卷数量是否超过限制。
 
-#### 3.1.2 优选阶段
+#### 4.1.2 优选阶段
 
 优选阶段使用了4大类策略,分别如下:
 
@@ -1191,7 +1192,7 @@ CheckNodeMemoryPressure：判断节点是否已经进入内存压力状态。如
 - EqualPriorityMap：将所有节点设置相同的优先级。
 - EvenPodsSpreadPriority：实现最优的**pod的拓扑扩展约束**
 
-#### 3.1.3 自定义调度器
+#### 4.1.3 自定义调度器
 
 你可以通过编写配置文件，并将其路径传给 kube-scheduler 的命令行参数，定制 kube-scheduler 的行为。调度模板（Profile）允许你配置
 kube-scheduler 中的不同调度阶段。每个阶段都暴露于某个扩展点中。插件通过实现一个或多个扩展点来提供调度行为。
@@ -1234,7 +1235,7 @@ type ScorePlugin interface {
 熟悉Go的读者可以以 [k8s源码中 scheduler 的扩展点部分](https://github.com/kubernetes/kubernetes/blob/master/pkg/scheduler/framework/interface.go)
 为入口剖析其原理。
 
-### 3.2 硬性调度-指定节点标签（nodeSelector）
+### 4.2 硬性调度-指定节点标签（nodeSelector）
 
 这种方式是指将Pod调度到匹配**指定的一个或多个标签**的节点上运行，对应预选阶段中的 PodMatchNodeSelector 策略。
 并且它是一种**硬性调度要求**。具体在Pod或Deployment模板中配置：
@@ -1285,7 +1286,7 @@ $ kk delete po go-http
 
 使用这种方式需要注意的是，它**不会绕过污点机制**（所以上面有删除节点污点的步骤）。换句话说，如果Pod无法容忍目标节点存在的污点，也没有其他可调度的节点，则Pod调度失败。
 
-### 3.3 硬性调度-指定节点名称（nodeName）
+### 4.3 硬性调度-指定节点名称（nodeName）
 
 这是一种**最高优先级**的**硬性调度要求**，对应预选阶段中的 PodFitsHost 策略。它要求Pod必须调度到指定节点上运行。
 它的优先级高于使用 `nodeSelector` 或亲和性/反亲和性要求，同时也会**无视污点机制**。
@@ -1323,7 +1324,7 @@ $ kk delete po go-http
 
 这种调度干预方式因为不够灵活所以不会被经常用到。如果要进行硬性调度，建议使用**指定节点标签**或下面的**节点亲和性**。
 
-### 3.4 软硬皆可-节点亲和性（affinity）
+### 4.4 软硬皆可-节点亲和性（affinity）
 
 亲和性是指通过模板配置的方式使得Pod能够**尽可能**调度到具备某一类标签特征的节点上，同时也支持硬性调度配置。
 
@@ -1342,7 +1343,7 @@ $ kk delete po go-http
 节点亲和性配置是一种比较常见的调度干预方式。此外，你还可以通过使用定义调度器配置模板的方式来抽离出节点亲和性的配置，
 然后在Pod/Deployment模板中引用定义的配置，具体请参考 [官方文档—逐个调度方案中设置节点亲和性](https://kubernetes.io/zh-cn/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity-per-scheduling-profile) 。
 
-### 3.5 软硬皆可-Pod亲和性和反亲和性
+### 4.5 软硬皆可-Pod亲和性和反亲和性
 
 某些时候，我们希望将Pod调度到正在运行具有某些标签特征的Pod所在节点上，或者反过来，使Pod远离这些节点。
 这对应预选阶段的 MatchInterPodAffinity 策略。它仍然是一种软硬皆可的调度干预方式。
@@ -1382,7 +1383,7 @@ $ kk delete -f pod_affinityPod.yaml && kk delete -f pods_diff_labels.yaml
 
 > 官方提示：Pod 间亲和性和反亲和性都需要相当的计算量，因此会在大规模集群中显著降低调度速度。不建议在包含数百个节点的集群中使用这类设置。
 
-### 3.6 污点和容忍度
+### 4.6 污点和容忍度
 
 前面提到的亲和性是指将Pod吸引到一类特定的节点上，而污点相反——它使节点能够排斥一类特定的 Pod。
 污点（Taints）一般和节点绑定，如果节点存在某个污点，那表示该节点不适合允许Pod，一个节点可以有多个污点。
@@ -1393,7 +1394,7 @@ $ kk delete -f pod_affinityPod.yaml && kk delete -f pods_diff_labels.yaml
 
 > 污点会被 [指定节点名称（nodeName）](#33-硬性调度-指定节点名称nodename) 的Pod调度方式无视。
 
-#### 3.6.1 污点的影响方式
+#### 4.6.1 污点的影响方式
 
 污点是以类似标签的键值对形式存在节点上的。它通过绑定`effect`（影响）来排斥Pod，一共有三种`effect`：
 
@@ -1410,7 +1411,7 @@ $ kk delete -f pod_affinityPod.yaml && kk delete -f pods_diff_labels.yaml
 
 前两种影响对应预选阶段的 PodToleratesNodeTaints 策略，最后一种影响对应优选阶段的 TaintTolerationPriority 策略。
 
-#### 3.6.2 污点管理
+#### 4.6.2 污点管理
 
 污点常规是键值对加一个effect的格式，但value可省略，下面的污点都是合法的：
 
@@ -1441,7 +1442,7 @@ $ kubectl taint nodes k8s-master role/log-
 node/k8s-master untainted                                                                                                                     
 ```
 
-#### 3.6.3 容忍度设置
+#### 4.6.3 容忍度设置
 
 容忍度在PodSpec（模板）的`spec.tolerations`部分进行配置：
 
@@ -1475,7 +1476,7 @@ Pod 还能继续在节点上运行的时间。在这个时间之后如果污点�
 
 查看Pod的容忍度信息的指令是：`kubectl get pod <daemonset-pod-name> -o=jsonpath='{.spec.tolerations}'`。
 
-#### 3.6.4 集群内置污点
+#### 4.6.4 集群内置污点
 
 当某种条件为真时，节点控制器会自动给节点添加一个污点。当前内置的污点包括：
 
@@ -1498,7 +1499,7 @@ node.kubernetes.io/not-ready 和 node.kubernetes.io/unreachable 污点中。 如
 某些时候，如果节点失联（如网络原因导致），API 服务器无法与节点上的 kubelet 进行通信。在与 API 服务器的通信被重新建立之前，删除
 Pod 的决定无法传递到 kubelet。同时，被调度进行删除的那些 Pod 可能会继续运行在失联（通常叫做Partition）的节点上。
 
-#### 3.6.5 测试
+#### 4.6.5 测试
 
 这里只测试污点影响为最为严重的`NoExecute`的场景：
 
@@ -1541,7 +1542,7 @@ go-http-tolerance   1/1     Running   0          2s    20.2.36.122   k8s-node1  
 
 如果被驱逐的Pod是由控制器管理的（例如Deployment），则驱逐会触发对它们的重新调度。
 
-#### 3.6.6 应用场景
+#### 4.6.6 应用场景
 
 以下是一些污点的应用场景：
 
@@ -1556,7 +1557,7 @@ go-http-tolerance   1/1     Running   0          2s    20.2.36.122   k8s-node1  
   被调度到同一类节点上，从而实现故障域隔离。
 - **版本控制**： 在进行软件升级或配置更改时，可以设置污点，防止新的 Pod 被调度到尚未升级或配置更改的节点上。
 
-### 3.7 优先级与抢占式调度
+### 4.7 优先级与抢占式调度
 
 当集群资源（CPU、内存、磁盘）不足时，新创建的Pod将无法被调度到节点上，直到有资源足够的节点可用前，Pod会一直处于Pending状态。
 为了让新的Pod能够被调度，Kubernetes提供了PriorityClass和Pod优先级抢占式调度机制。
@@ -1572,7 +1573,7 @@ go-http-tolerance   1/1     Running   0          2s    20.2.36.122   k8s-node1  
 谨慎使用此功能，通过设置Pod优先级进行抢占式调度是一种**较强**的调度干预行为。在资源紧张时，会增加集群的复杂性，带来不稳定因素。
 如果资源不足，优先考虑的应该是扩容。即使要使用，也应该仅用于最重要的少部分Pod。
 
-#### 3.7.1 PriorityClass
+#### 4.7.1 PriorityClass
 
 PriorityClass 是一个无命名空间对象，它定义了一个优先级类名称到优先级整数值的映射关系。值越大，优先级越高。PriorityClass
 对象的名称必须是有效的 DNS 子域名， 并且它不能以 `system-` 为前缀。
@@ -1617,7 +1618,7 @@ NAME                   VALUE        GLOBAL-DEFAULT   AGE
 system-node-critical   2000001000   false            15d
 ```
 
-#### 3.7.2 设置非抢占式
+#### 4.7.2 设置非抢占式
 
 此特性在 Kubernetes v1.24 中稳定。
 
@@ -1630,7 +1631,7 @@ preemptionPolicy 默认值为 `PreemptLowerPriority`。
 - 如果尝试调度非抢占式Pod失败，则它们将以更低的频率被重试，从而允许其他优先级较低的 Pod 排在它们之前
 - 非抢占式 Pod 仍可能被其他高优先级 Pod 抢占
 
-#### 3.7.3 抢占原理
+#### 4.7.3 抢占原理
 
 Pod 被创建后会进入队列等待调度，调度器从队列中挑选一个 Pod 并尝试将它调度到某个节点上。 如果没有找到满足 Pod
 的所指定的所有要求的节点，则触发对现有Pod的抢占逻辑：
@@ -1663,7 +1664,7 @@ N 的名称。
 
 查看该字段信息的命令为：`kubectl get pod <pod-name> -o=jsonpath='{.spec.nominatedNodeName}'`
 
-#### 3.7.4 限制特定优先级类的使用
+#### 4.7.4 限制特定优先级类的使用
 
 在一个并非所有用户都是可信的集群中，恶意用户可能以最高优先级创建 Pod， 导致其他 Pod 被驱逐或者无法被调度。 管理员可以使用
 `ResourceQuota` 来阻止用户创建高优先级的 Pod。
@@ -1709,7 +1710,7 @@ spec:
 - Pod 的 `priorityClassName` 设置值不是 `cluster-services`
 - Pod 的 `priorityClassName` 设置值为 `cluster-services`，并且它将被创建于 `kube-system` 命名空间中，并且它已经通过了资源配额检查。
 
-## 4. API Server
+## 5. API Server
 
 Kubernetes API Server 是 Kubernetes 集群中的核心组件之一，它充当了整个系统的控制面的入口点，负责处理集群内部和外部的 API
 请求。API Server 提供了一组 Restful API，允许用户和其他组件通过 HTTP 请求与 Kubernetes 集群进行交互。
@@ -1757,9 +1758,9 @@ API组的版本控制通过携带`Alpha/Beta`这样的版本名称来实现，�
 当API版本从Beta转为正式版本后，其版本标签将仅含版本号，如`v1`
 。此外，还可以 [启用或禁用API组](https://kubernetes.io/zh-cn/docs/reference/using-api/#enabling-or-disabling) 。
 
-### 4.1 基本操作
+### 5.1 基本操作
 
-#### 4.1.1 启动反向代理
+#### 5.1.1 启动反向代理
 
 为了快速演示如何使用原始的Restful API的方式访问API Server，我们使用`kubectl proxy`来启动一个针对API Server的反向代理服务：
 
@@ -1772,7 +1773,7 @@ Starting to serve on 127.0.0.1:8080
 这个命令会启动一个临时的API Server的反向代理服务，它把本机8080端口收到的请求转发到Master节点的 `kube-apiserver`
 Pod进程（6443端口）中，并在转发过程中使用当前环境kubectl命令使用的身份进行认证。这样，我们在访问8080端口的时候就不需要携带任何凭据了。
 
-#### 4.1.2 使用cURL访问API
+#### 5.1.2 使用cURL访问API
 
 接下来以操作Pod为例，演示如何使用Restful API。首先从前面提到的官方文档中获知Pod的几个常用API如下：
 
@@ -1842,7 +1843,7 @@ nginx   1/1     Running   0          2m
 
 更多API的使用请直接查看官方文档。
 
-### 4.2 身份认证
+### 5.2 身份认证
 
 在上一节中，我们使用kubectl的反向代理来帮我们完成了发给API Server的请求的身份认证操作。但是，在实际环境中，
 我们极少通过Master节点来直接访问API Server，而是通过创建好的拥有各类角色的凭据来访问API Server。
@@ -1913,7 +1914,7 @@ $ cURL --insecure https://localhost:6443/api/v1/namespaces/default/pods/nginx
 
 通常情况下，集群的用户账号可能会从企业数据库进行同步。而服务账号有意做的更轻量，允许集群用户为了具体的任务按需创建服务账号（遵从权限最小化原则）。
 
-#### 4.2.1 用户账号—x509证书
+#### 5.2.1 用户账号—x509证书
 
 通过x509证书进行用户认证，需要提前通过`--client-ca-file=SOMEFILE`将用于验证客户端身份的CA根证书文件传递给API
 Server作为启动参数。
@@ -2000,7 +2001,7 @@ kubectl config use-context kubernetes-admin@kubernetes
 # kubectl --context=user2@kubernetes get pods
 ```
 
-#### 4.2.2 用户账号—静态令牌文件
+#### 5.2.2 用户账号—静态令牌文件
 
 这种方式通过在API Server的启动参数中指定一个文件作为可用token列表即可，原理和使用方式都很简单。但由于是在一个文件中存储了多个明文token的方式，
 一旦文件泄露，则这些token全部暴露（需要废弃），**因此不建议使用**。
@@ -2063,7 +2064,7 @@ $ curl --insecure https://localhost:6443/api/v1/namespaces/default/pods -H "Auth
 
 和之前的示例一致，我们的身份可以被识别，只是没有通过授权来执行命令。
 
-#### 4.2.3 服务账号
+#### 5.2.3 服务账号
 
 服务账号（ServiceAccount，简称SA）认证主要是提供给Pod中的进程使用，以便Pod可以从内部访问API
 Server。用户账号认证不限制命名空间，但服务账号认证局限于它所在的命名空间。
@@ -2228,7 +2229,7 @@ root@nginx:/# curl --cacert $CACERT --header "Authorization: Bearer $TOKEN" http
 > 如果在Pod模板内映射`serviceAccountToken`时指定了`expirationSeconds`
 > 字段，则kubelet会自动为token完成续期，但Pod内的应用需要自己定时从文件中读取新的token。
 
-#### 4.2.4 用户伪装
+#### 5.2.4 用户伪装
 
 一个用户可以通过伪装（Impersonation）头部字段来以另一个用户的身份执行操作。例如，管理员可以使用这一功能特性来临时伪装成另一个用户，查看请求是否被拒绝，
 从而调试鉴权策略中的问题。
@@ -2295,7 +2296,7 @@ rules:
 
 你可以在阅读完下面 **4.3** 章节中的RBAC内容后再来理解这个角色模板。
 
-### 4.3 授权
+### 5.3 授权
 
 当API Server收到外部请求时，首先会对其进行身份认证，通过后再鉴权。鉴权是指检查用户是否拥有访问指定资源的权限。
 如果鉴权结果为拒绝，则返回HTTP状态码403。
@@ -2337,7 +2338,7 @@ $ kubectl auth can-i list pods \
 no
 ```
 
-#### 4.3.1 RBAC
+#### 5.3.1 RBAC
 
 RBAC基于角色和角色绑定来定义在 Kubernetes 中用户或服务账户对资源的访问权限。
 
@@ -2351,7 +2352,7 @@ K8s中支持以两种方式使用RBAC:
 
 RBAC 鉴权机制使用 `rbac.authorization.k8s.io` API 组来驱动鉴权决定。
 
-##### 4.3.1.1 Role和RoleBinding
+##### 5.3.1.1 Role和RoleBinding
 
 示例如下：
 
@@ -2418,7 +2419,7 @@ root@nginx-sa-longtime:/# curl --cacert $CACERT --header "Authorization: Bearer 
 ...省略
 ```
 
-##### 4.3.1.2 ClusterRole和ClusterRoleBinding
+##### 5.3.1.2 ClusterRole和ClusterRoleBinding
 
 ClusterRole 和 ClusterRoleBinding 属于集群范围，不限制于单一命名空间，所以它能够授权的权限范围比Role更大（包含），这体现在它能够为以下资源授权：
 
@@ -2474,7 +2475,7 @@ $ curl --cert ./client.crt --key ./client.key --cacert apiserver-ca.crt -X DELET
 
 如上所示，测试情况符合预期。你可以在 [rbac_clusterrole.yaml](rbac_clusterrole.yaml) 中添加`delete`动词（verbs）然后再尝试删除。
 
-##### 4.3.1.3 聚合的 ClusterRole
+##### 5.3.1.3 聚合的 ClusterRole
 
 我们可以通过标签将多个ClusterRole聚合到一起，然后生成一个新的ClusterRole。
 [rbac_aggregate_clusterrole.yaml](rbac_aggregate_clusterrole.yaml) 是一个简单的示例。
@@ -2486,7 +2487,7 @@ $ curl --cert ./client.crt --key ./client.key --cacert apiserver-ca.crt -X DELET
 kk get clusterrole <aggregate-clusterole-name> -o jsonpath='{.rules}'
 ```
 
-##### 4.3.1.4 默认创建的角色和绑定资源
+##### 5.3.1.4 默认创建的角色和绑定资源
 
 API 服务器创建了一组默认的 ClusterRole 和 ClusterRoleBinding 对象。 这其中许多是以`system:`为前缀。通过以下命令查看：
 
@@ -2536,7 +2537,7 @@ Server在启动时自动覆盖，这是通过 [自动协商](https://kubernetes.
 这些角色可以被用户直接使用（绑定自定义账户），请在阅读 [面向用户的角色](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/rbac/#user-facing-roles)
 来了解每个角色的规则之后再进行使用。
 
-##### 4.3.1.5 预防特权提升
+##### 5.3.1.5 预防特权提升
 
 RBAC API 会阻止用户通过编辑角色或者角色绑定来提升权限。 这一点是在 API 级别实现的，所以在 RBAC 鉴权组件未启用的状态下依然可以正常工作。
 
@@ -2552,13 +2553,13 @@ RBAC API 会阻止用户通过编辑角色或者角色绑定来提升权限。 �
 
 [rbac_role_granter.yaml](rbac_role_granter.yaml) 是一个为指定用户授予`rolebindings`+`ClusterRole`权限的示例。
 
-##### 4.3.1.6 命令行工具使用
+##### 5.3.1.6 命令行工具使用
 
 参考 [官方文档](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/rbac/#command-line-utilities) 。
 
 其中可能需要额外注意`kubectl auth reconcile`命令的使用，这条命令经常用来按指定方式更新模板中的角色权限，可以删除角色中未包含的权限和主体。
 
-##### 4.3.1.7 使用建议
+##### 5.3.1.7 使用建议
 
 - 若要为应用开发用户分配权限，建议将账户绑定默认创建的集群角色`edit`
 - 若要为普通管理员（运维人员）分配权限，建议将账户绑定默认创建的集群角色`admin`
@@ -2566,7 +2567,7 @@ RBAC API 会阻止用户通过编辑角色或者角色绑定来提升权限。 �
 - 若要为命名空间中的任何Pod分配默认权限，可以为default账户绑定特定角色
 - 不要为新的账户绑定`cluster-admin`角色，除非你真的需要
 
-#### 4.3.2 其他鉴权方式
+#### 5.3.2 其他鉴权方式
 
 本章节只详细讲述了K8s的主要鉴权方式RBAC。若要了解其他鉴权方式的细节，请点击以下官方链接：
 
@@ -2574,7 +2575,7 @@ RBAC API 会阻止用户通过编辑角色或者角色绑定来提升权限。 �
 - [Node鉴权](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/node/)
 - [Webhook鉴权](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/webhook/)
 
-### 4.4 准入控制器
+### 5.4 准入控制器
 
 准入控制器（Admission Controller）是 Kubernetes 中一种用于执行请求准入控制（Admission Control）的插件机制。它允许管理员在 API
 请求到达 Kubernetes API 服务器之前**变更和验证**这些请求。准入控制器主要用于确保 Kubernetes 集群中运行的工作负载的安全性和一致性。
@@ -2626,11 +2627,11 @@ $ ps aux | grep kube-apiserver |grep admission-plugins
 标志中显式指定，在 [这个页面](https://kubernetes.io/zh-cn/docs/reference/command-line-tools-reference/kube-apiserver/#options)
 中搜索`--enable-admission-plugins`以查看默认启用的准入控制器列表。
 
-## 5. 扩展—自定义资源和特性门控
+## 6. 扩展—自定义资源和特性门控
 
 本章节属于扩展内容，这里仅作基本介绍，更多细节请查阅官方文档。
 
-### 5.1 自定义资源
+### 6.1 自定义资源
 
 自定义资源是 Kubernetes 中的一种扩展机制，允许用户定义和使用自己的资源类型。
 
@@ -2703,17 +2704,17 @@ CRD属性中的`spec.versions`字段可以用来定义多个版本的CRD，这�
 由于本章节属于扩展内容，所以具体详细不会一一介绍。
 
 **实例**    
-在本教程中后面的 **6.1.1** 小节中安装的Cert-Manager就是一种自定义资源，[cert-manager.yaml](cert-manager.yaml)
+在本教程中后面的 **7.1.1** 小节中安装的Cert-Manager就是一种自定义资源，[cert-manager.yaml](cert-manager.yaml)
 是它的完整定义，可供参考。
 
-### 5.2 特性门控
+### 6.2 特性门控
 
 特性门控（Feature Gates）是K8s组件中的一种机制，用于在K8s中启用或禁用实验性或新引入的特性。
 特性门控允许K8s团队和社区在引入新特性时逐步进行测试和部署，而无需立即对所有集群启用。
 
 特性门控通过命令行标志或配置文件中的设置来控制。这使得 Kubernetes 集群管理员可以选择性地启用或禁用特定的功能，以适应他们的需求和风险接受程度。
 
-#### 5.2.1 特性门控的状态
+#### 6.2.1 特性门控的状态
 
 每个特性门控从发布开始到最终消失都会经历一个或多个状态（Alpha->Beta->GA），说明如下：
 
@@ -2744,7 +2745,7 @@ CRD属性中的`spec.versions`字段可以用来定义多个版本的CRD，这�
 - [已毕业和已废弃的特性门控](https://kubernetes.io/zh-cn/docs/reference/command-line-tools-reference/feature-gates/#feature-gates-for-graduated-or-deprecated-features)
 - [已移除的特性门控](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates-removed/)
 
-#### 5.2.2 启用和禁用
+#### 6.2.2 启用和禁用
 
 特性门控是描述 Kubernetes 特性的一组键值对。你可以在 Kubernetes 的各个组件中使用 `--feature-gates` 标志来启用或禁用这些特性。
 
@@ -2829,7 +2830,7 @@ $ kk delete po kube-proxy-xxx -nkube-system
 然后修改其中的容器启动字段（添加`--feature-gates`标志）即可，修改后对应Pod会检测到模板改动并立即重启，通过Pod
 log可以查看它们的错误日志。
 
-## 6. 扩展—可视化面板
+## 7. 扩展—可视化面板
 
 拥有一个K8s的可视化面板能帮助我们更轻松地监视和管理 Kubernetes 集群。本文主要介绍以下几种可视化面板：
 
@@ -2841,7 +2842,7 @@ log可以查看它们的错误日志。
 此外，社区也涌现出一些优秀的可视化面板，例如**Kuboard**、**Kubesphere**以及**Rancher**，它们都是开源项目，
 并且比上面的两个项目具有更加丰富的功能和完善的中文支持，但相应的，上手和运维成本也会增加。
 
-### 6.1 Kubernetes Dashboard
+### 7.1 Kubernetes Dashboard
 
 安装之前，需要先通过Dashboard的 [官方仓库发布](https://github.com/kubernetes/dashboard/releases)
 页面中找到兼容你安装的k8s集群版本的最新Dashboard版本以及yaml文件下载链接。例如，`v2.7.0`
@@ -2878,7 +2879,7 @@ $ ctr image ls |grep kubernetesui
 - 部署Cert-Manager：这个CRD用来自动化证书的创建、颁发和续期等管理工作
 - 部署Dashboard本身
 
-#### 6.1.1 部署Cert-Manager
+#### 7.1.1 部署Cert-Manager
 
 如果你的节点无法直连海外，则需要提前拉取镜像。此外，由于Cert-Manager部署的Pod默认是调度到非Master节点，所以实际生产环境中，如果你有多个普通节点，
 建议你修改yaml文件中kind为`Deployment`的对象，在其中添加**Node亲和性配置**，便于提前知晓Pod调度的目标节点，然后再去目标节点提前拉取镜像，
@@ -2923,7 +2924,7 @@ replicaset.apps/cert-manager-cainjector-84bdff4846   1         1         1      
 replicaset.apps/cert-manager-webhook-85b6b76d9b      1         1         1       9s
 ```
 
-#### 6.1.2 部署Dashboard
+#### 7.1.2 部署Dashboard
 
 ```shell
 # 部署
@@ -2958,7 +2959,7 @@ ingress.networking.k8s.io/kubernetes-dashboard   nginx   localhost             8
 如上所示，Dashboard部署了3个Deployment，且每个Deployment都只有一个Pod副本。其中名为`kubernetes-dashboard-web`
 的Pod是我们需要访问的WebUI服务。
 
-#### 6.1.3 访问Dashboard
+#### 7.1.3 访问Dashboard
 
 从上一小节中`kubectl`查询的Dashboard部署的对象列表中可以看到，它是以Ingress+ClusterIP的方式暴露的服务。我们查看yaml文件中关于Ingress的部分如下：
 
@@ -3070,7 +3071,7 @@ https://10.0.0.2:30415
 注意：这里只是为了能够通过浏览器快速访问Dashboard的WebUI，所以才注释了`host`配置。在生产环境中，
 推荐的方式应该是为Dashboard配置单独的域名（替换`localhost`），然后使用域名访问（需要更换`secretName`）。
 
-#### 6.1.4 登录认证
+#### 7.1.4 登录认证
 
 Dashboard支持多种方式的登录认证策略，官方介绍在 [这里](https://github.com/kubernetes/dashboard/blob/master/docs/user/access-control/README.md) 。
 
@@ -3153,11 +3154,11 @@ token:      eyJhbGciOiJSUzI1NiIsImtpZCI6IllBVHZuRUEx...
 关于使用方面，笔者在测试过程中发现Dashboard的语言设置（在`Settings`
 中）不生效，暂不清楚原因。读者若有问题可以到 [Dashboard仓库](https://github.com/kubernetes/dashboard) 提Issue。
 
-### 6.2 K9s
+### 7.2 K9s
 
 [K9s](https://github.com/derailed/k9s) 是一个终端UI风格的K8s集群管理工具，旨在提供一种比WebUI更加轻便的方式来监控和管理K8s集群。
 
-#### 6.2.1 在Linux上安装
+#### 7.2.1 在Linux上安装
 
 K9s支持多平台以及多种方式安装部署，这里我们介绍在Linux上的安装方式。
 
@@ -3199,7 +3200,7 @@ k9s --readonly
 
 ![k9s.png](img/k9s.png)
 
-#### 6.2.2 使用介绍
+#### 7.2.2 使用介绍
 
 K9s默认使用环境变量`$KUBECONFIG`指向的kubeconfig文件作为访问K8s API Server的凭证，
 你可以在K9s启动时附加`--kubeconfig`参数指向其他kubeconfig文件。
@@ -3240,7 +3241,7 @@ K9s面板支持多种简单的指令以及快捷键功能：
 
 关于这些功能的更多细节，请下载使用以及查看K9s官方仓库的说明。
 
-## 7. 扩展—大杀器之Helm
+## 8. 扩展—大杀器之Helm
 
 当你看完了 [Kubernetes 基础教程](doc_tutorial.md) 以后，你很可能会想到在K8s集群中部署和维护一套包含前后端服务的完整业务应用是一件
 非常繁琐 的事情，因为在这个过程中我们需要维护可能包括Pod、Deployment、ConfigMap、Secret、PVC/PV、Service等在内的多个模板文件。
@@ -3253,7 +3254,7 @@ K9s面板支持多种简单的指令以及快捷键功能：
 
 而Helm，正是当下解决这些问题的最佳方案。
 
-### 7.1 简介
+### 8.1 简介
 
 Helm 是 Kubernetes 生态中的一个包管理工具。使用Helm，我们可以：
 
@@ -3272,7 +3273,7 @@ Helm 是 Kubernetes 生态中的一个包管理工具。使用Helm，我们可�
 总体来说，Helm 提供了一种更高层次的抽象，使得 Kubernetes 应用程序的管理变得更加简便、可重用和可配置。它成为了 Kubernetes
 生态系统中一个受欢迎的工具，特别是在处理复杂应用程序部署时。
 
-### 7.2 安装和基本使用
+### 8.2 安装和基本使用
 
 Helm支持多种方式安装，参阅 [Helm Install](https://github.com/helm/helm#install) 来了解更多细节。这里介绍在Linux-amd64上的安装步骤。
 
@@ -3313,9 +3314,9 @@ $ helm repo add bitnami https://charts.bitnami.com/bitnami
 # 查看仓库中所有的Charts
 $ helm search repo bitnami
 NAME                                        	CHART VERSION	APP VERSION  	DESCRIPTION                                       
-bitnami/airflow                             	16.1.6       	2.7.3        	Apache Airflow is a tool to express and execute...
+bitnami/airflow                             	17.1.6       	2.7.3        	Apache Airflow is a tool to express and execute...
 bitnami/apache                              	10.2.3       	2.4.58       	Apache HTTP Server is an open-source HTTP serve...
-bitnami/apisix                              	2.2.7        	3.7.0        	Apache APISIX is high-performance, real-time AP...
+bitnami/apisix                              	2.2.7        	4.7.0        	Apache APISIX is high-performance, real-time AP...
 ...省略
 ```
 
