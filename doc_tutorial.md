@@ -2242,7 +2242,7 @@ busybox-use-downwardapi
 
 ## 参考
 
-- [guangzhengli的k8s教程](https://github.com/guangzhengli/k8s-tutorials/blob/main/docs/pre.md)
+- [guangzhengli的k8s教程](https://github.com/guangzhengli/k8s-tutorials/)
 - [k8s官方教程](https://kubernetes.io/zh-cn/docs)
 - [Kubernetes从入门到实践 @赵卓](https://www.epubit.com/bookDetails?id=UB72096269c1157)
 - [Docker教程](https://yeasy.gitbook.io/docker_practice/)
