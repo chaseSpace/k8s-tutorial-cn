@@ -1737,8 +1737,8 @@ API组通常会出现在Restful API路径中，还有资源模板的`apiVersion`
 - apps/v1 （ReplicaSet/Deployment/DaemonSet）
 - networking.k8s.io/v1 (Ingress)
 
-k8s使用的API组列表在 [API Groups](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#api-groups)
-可见（链接携带版本）。
+k8s使用的API组列表在 [API Groups K8s v1.27](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#api-groups)
+可见（链接带有版本信息）。
 
 API组的版本控制通过携带`Alpha/Beta`这样的版本名称来实现，比如你可能会看见`api/v1alpha1`或`api/v1beta1`这样的API路径。不同名称的用法如下：
 
@@ -2040,8 +2040,8 @@ $ vi /etc/kubernetes/manifests/kube-apiserver.yaml
 
 > - 如果`kube-apiserver`Pod重启失败，你可以通过`crictl logs <container-id>`
     > 来查看错误日志。
-> - kube-apiserver宕机会导致几乎所有kubectl命令不可用，虽然不会影响运行中的Pod，但仍需要尽快修复。
-    通过`journalctl -u kubelet`会看到大量错误日志。
+> - kube-apiserver宕机会导致几乎所有kubectl命令不可用，虽然不会立即影响运行中的Pod，但仍需要尽快修复。
+    通过`journalctl -u kubelet`会看到相关错误日志。
 
 现在我们可以在HTTP请求中携带这个token进行访问了：
 
@@ -2556,7 +2556,7 @@ RBAC API 会阻止用户通过编辑角色或者角色绑定来提升权限。 �
 
 参考 [官方文档](https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/rbac/#command-line-utilities) 。
 
-> 其中可能需要额外注意`kubectl auth reconcile`命令的使用，这条命令经常用来按指定方式更新模板中的角色权限，可以删除角色中未包含的权限和主体。
+其中可能需要额外注意`kubectl auth reconcile`命令的使用，这条命令经常用来按指定方式更新模板中的角色权限，可以删除角色中未包含的权限和主体。
 
 ##### 4.3.1.7 使用建议
 
