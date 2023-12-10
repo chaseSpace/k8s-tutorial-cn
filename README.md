@@ -38,6 +38,7 @@
 - [InfoQ：最佳实践丨使用 Rancher 轻松管理上万资源不是梦](https://www.infoq.cn/article/alauo5jmqwyoyj7ds0le)
 - [InfoQ：将 Kubernetes 扩展到超过 4k 个节点和 200k 个 Pod](https://www.infoq.cn/article/gJRYgXV0Mqj2DUugA6GU)
 - [InfoQ：利用零信任原则保障 Kubernetes 环境访问安全](https://www.infoq.cn/article/ZjHZmjMXuUwSDubtjEa0)
+- [InfoQ：从滴滴的（K8s升级）故障我们能学到什么🔥](https://www.infoq.cn/article/lGzz3DULicICzvOIbPXh)
 - [微信文章：万级K8s集群背后etcd稳定性及性能优化实践](https://mp.weixin.qq.com/s?__biz=MzI5ODQ2MzI3NQ%3D%3D&chksm=eca427d0dbd3aec636ef425c8f36c93d2de0666144f604723d89ac5f6b19e3e33393267f0163&idx=2&mid=2247491220&scene=27&sn=1c818ace53ed059f9cd28fac65fdecb9)
 - [微信文章：K8s-apiserver工作原理](https://mp.weixin.qq.com/s?__biz=MzI5ODQ2MzI3NQ%3D%3D&chksm=eca4246ddbd3ad7babd20232aa4dd063dfe9854a508ee9749d890bb01e4a89e9ec4e1335ca28&idx=2&mid=2247490857&scene=27&sn=ecbd558968f98f548338179bde0f649e)
 - [微信文章：K8s 为什么要弃用 Docker？](https://mp.weixin.qq.com/s?__biz=MzI5ODQ2MzI3NQ%3D%3D&chksm=eca79d7adbd0146c0c286273b6da96293bb2faf22d65a798e3c777a5423501a80991517aa722&idx=1&mid=2247509054&scene=27&sn=14886df58080dbb277b3605cac041d82)
