@@ -404,8 +404,8 @@ parameters:
 
 ## 2. 使用StatefulSet
 
-StatefulSet 是与Deployment同级的一种 **有状态**
-控制器，与无状态部署的Deployment控制器不同的是，StatefulSet可以保证Pod的顺序和唯一性。当有与部署顺序、持久数据或固定网络等有关等特殊应用需求时，
+StatefulSet 是与ReplicaSet同级的一种 **有状态**
+控制器，与无状态部署的ReplicaSet控制器不同的是，StatefulSet可以保证Pod的顺序和唯一性。当有与部署顺序、持久数据或固定网络等有关等特殊应用需求时，
 可以上使用 StatefulSet 来部署应用。它可以提供的功能特性如下：
 
 - 有序性：严格按照定义的顺序部署和扩展Pod，每个 Pod 都有一个唯一的索引，从 0 开始；
@@ -420,7 +420,7 @@ StatefulSet 控制器由3个部分组成：
 - StatefulSet：用于控制Pod的创建和销毁。
 
 考虑这样一种场景，我们需要在集群中部署3个mysql实例，由于是数据库服务，每个实例都需要一个独立的存储空间，而且它们保存的数据各不相同，
-就不能相互替代，如果使用Deployment部署，Pod在重建后，volume虽然没有删除，但没有一种机制让新的Pod实例继续使用之前的volume提供服务，而且重建后的Pod名称也是随机的，
+就不能相互替代，如果使用（由Deployment管理的）ReplicaSet部署，Pod在重建后，volume虽然没有删除，但没有一种机制让新的Pod实例继续使用之前的volume提供服务，而且重建后的Pod名称也是随机的，
 客户端无法知晓新的Pod实例名以读取之前的数据。而使用 StatefulSet 部署就可以提供所需要这些功能。
 
 此外，StatefulSet控制器可以在其模板中配置`volumeClaimTemplate`来为Pod提供存储卷，不需要专门定义PVC。
