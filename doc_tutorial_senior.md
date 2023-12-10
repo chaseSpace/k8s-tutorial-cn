@@ -3076,7 +3076,7 @@ https://10.0.0.2:30415
 Dashboard支持多种方式的登录认证策略，官方介绍在 [这里](https://github.com/kubernetes/dashboard/blob/master/docs/user/access-control/README.md) 。
 
 常用的有kubeconfig、Token和用户名密码三种方式。不过从K8s的v1.19版本开始，**用户名密码**方式已经被替换为基于Token的认证方式了，
-所以这里剩下两种登录方式。
+所以这里只剩下两种登录方式。
 
 **使用kubeconfig文件登录**  
 在集群创建后，Master节点会默认包含kubeconfig文件（`/etc/kubernetes/admin.conf`），其内容可以通过`kubectl config view`
@@ -3256,7 +3256,7 @@ K9s面板支持多种简单的指令以及快捷键功能：
 
 ### 8.1 简介
 
-Helm 是 Kubernetes 生态中的一个包管理工具。使用Helm，我们可以：
+Helm早在2016年就已经发布，它是 Kubernetes 生态中的一个非常重要且受到官方推荐的包管理工具。Helm 能够帮助我们：
 
 - **简化部署流程**：Helm将K8s各类应用打包为一种称作“Charts”的可重用包，Charts 包含了应用程序的全部资源定义、依赖关系、变量和默认配置
 - **提高可重用性**：Helm Charts 是可重用的，并且可以轻松地在不同的 Kubernetes
@@ -3271,7 +3271,8 @@ Helm 是 Kubernetes 生态中的一个包管理工具。使用Helm，我们可�
   的文化，提高了开发者和运维团队的效率。
 
 总体来说，Helm 提供了一种更高层次的抽象，使得 Kubernetes 应用程序的管理变得更加简便、可重用和可配置。它成为了 Kubernetes
-生态系统中一个受欢迎的工具，特别是在处理复杂应用程序部署时。
+生态系统中一个受欢迎的工具，特别是在处理复杂应用程序部署时。许多第三方知名应用都支持通过Helm
+Chart（一种Helm包格式）进行快速安装部署，比如Nginx、Prometheus等。
 
 ### 8.2 安装和基本使用
 
