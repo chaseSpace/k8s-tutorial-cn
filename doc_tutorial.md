@@ -1961,7 +1961,7 @@ $ kk get pods -n dev
 
 ## 10. 使用ConfigMap和Secret
 
-ConfigMap 和 Secret 用来保存配置数据和敏感数据，在模板定义和使用上没有大太差别。
+ConfigMap 和 Secret 都是用来保存配置数据的，在模板定义和使用上没有大太差别。唯一的区别就是Secret是用来保存敏感型的配置数据，比如证书密钥、token之类的。
 
 ### 10.1 ConfigMap
 
@@ -2030,7 +2030,7 @@ The ConfigMap "hellok8s-configmap" is invalid: data: Forbidden: field is immutab
 ```
 
 最后需要注意的是，在上面提到的四种使用configmap的方式中，只有挂载volume和调用k8s
-API的方式会收到configmap的更新影响，其余两种则需要重启Pod才能看到更新。
+API的方式会接收到configmap的更新（具有一定延迟），其余两种则需要重启Pod才能看到更新。
 
 ### 10.2 Secret
 
@@ -2076,7 +2076,7 @@ Secret用于存储敏感信息，例如密码、Token、（证书）密钥等，
 #      optional: true
 ```
 
-k8s允许在其他位置引用Secret时添加`optional: true`属性，以允许Secret中的字段不存在时不会影响Pod启动（但Secret本身必须存在）。
+k8s允许在引用Secret时添加`optional: true`属性，以确保Secret中的字段不存在时不会影响Pod启动（但Secret对象本身必须存在）。
 
 #### 10.2.3 拉取私有镜像使用Secret
 
