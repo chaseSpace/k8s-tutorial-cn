@@ -2,14 +2,23 @@ apiVersion: v1
 kind: Service
 metadata:
   name: service-hellok8s-loadbalancer
+  annotations: # 这里是使用阿里云私网SLB的配置示例，SLB一般使用注解来控制LB的具体行为
+    # 指明SLB实例地址类型为私网类型。
+    service.beta.kubernetes.io/alibaba-cloud-loadbalancer-address-type: intranet
+    # 修改为您的私网SLB实例ID。
+    service.beta.kubernetes.io/alibaba-cloud-loadbalancer-id: <YOUR_INTRANET_SLB_ID>
+    # 是否自动创建SLB端口监听（会覆写已有端口监听），也可手动创建端口监听。
+    service.beta.kubernetes.io/alibaba-cloud-loadbalancer-force-override-listeners: 'true'
 spec:
+  type: LoadBalancer
   selector:
     app: hellok8s
   ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 8080
-#      nodePort: 30080 # 可选，不设置就自动选择
-  type: LoadBalancer
+    - port: 80
+      name: http
+      targetPort: 80
+    - port: 443
+      name: https
+      targetPort: 443
 #  externalTrafficPolicy: Local # or Cluster, Local表示保留客户端源IP，Cluster（默认）表示不保留源IP但有较好的集群内负载均衡效果
 #  healthCheckNodePort: 80 # 可选，设置节点的健康检查端口（不设置也会自动选择一个端口用作健康检查）
