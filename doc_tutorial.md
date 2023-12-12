@@ -1211,7 +1211,7 @@ Service类型的选择取决于你的应用程序的具体要求以及你希望�
 
 ClusterIP通过分配集群内部IP来在集群内（包含节点）暴露服务，这样就可以在集群内通过 `clusterIP:port` 访问到pod服务，集群外则无法访问。
 
-> 这种方式适用于那些不需要对外暴露的服务，如节点守护agent等。
+> 这种方式适用于那些不需要对外暴露的集群内基础设施服务，如节点守护agent/数据库等。
 
 准备工作：
 
@@ -1291,7 +1291,7 @@ service-hellok8s-clusterip   20.2.36.72:3000,20.2.36.75:3000   17m
 `ClusterIP`除了在节点上可直接访问，在集群内也是可以访问的。下面启动一个Nginx Pod来访问这个虚拟的ClusterIP （`20.1.120.16`）。
 
 1. 定义 [pod_nginx.yaml](pod_nginx.yaml)，并应用它，不再演示。(
-   可提前在node上拉取镜像：`ctr images pull docker.io/library/nginx:latest`)
+   可提前在node上拉取镜像：`ctr -n k8s.io images pull docker.io/library/nginx:latest`)
 2. 进入nginx pod shell，尝试访问 `service-hellok8s-clusterip`提供的endpoint
 
 ```shell
@@ -1314,7 +1314,9 @@ root@nginx:/# curl 20.1.120.16:3000
 
 **Service访问及负载均衡原理**  
 如果还记得文章开头的架构图，就会发现每个节点都运行着一个kube-proxy组件，这个组件会跟踪Service和Pod的动态变化，并且最新
-的Service和Pod的映射关系会被记录到iptables中，这样每个节点上的iptables规则都会被更新。而iptables使用NAT技术将虚拟IP的流量转发到Endpoint。
+的Service和Pod的映射关系会被记录到**每个节点**的iptables中，这样每个节点上的iptables规则都会随着Service和Pod资源自动更新。
+
+iptables使用NAT技术将虚拟IP（也叫做VIP）的流量转发到Endpoint。
 
 通过在master节点（其他节点也可）`iptables -L -v -n -t nat`可以查看其配置，这个结果会很长。这里贴出关键的两条链：
 
@@ -1364,7 +1366,7 @@ hellok8s-go-http-6bb87f8cb5-wtdht   1/1     Running   0          52m   20.2.36.7
 
 ### 7.3 Service类型之NodePort
 
-ClusterIP 只能在集群内访问Pod服务，而 NodePort 则进一步将服务暴露到集群节点的静态端口上。
+ClusterIP 只能在集群内访问Pod服务，而 NodePort 则进一步将服务暴露到集群节点的静态端口上，可以认为NodePort是ClusterIP的增强模式。
 
 比如k8s集群有2个节点：node1和node2，暴露后就可以通过 `node1-ip:port` 或 `node2-ip:port` 的方式来稳定访问Pod服务。
 
@@ -1396,9 +1398,17 @@ $ curl 10.0.2.3:30000
 
 ### 7.4 Service类型之LoadBalancer
 
-LoadBalancer 是通过使用云提供商的负载均衡器（一般叫做SLB，Service LoadBalancer）的方式向外暴露服务。
-负载均衡器可以将集群外的流量转发到集群内的节点，后者再转发到Pod，
-假如你在 AWS 的 EKS 集群上创建一个 Type 为 LoadBalancer 的 Service。它会自动创建一个 ELB (Elastic Load Balancer)
+上一节的NodePort是通过节点端口的方式向外暴露服务，这其实已经距离集群外访问服务只有一步之遥了。此时我们有两种方式在集群外访问服务：
+
+- 第一种是比较简单的方式：使用节点的公网IP进行访问（将节点IP配置到域名A记录同理）
+- 第二种是比较稳妥的方式：单独部署一套负载均衡服务（它会再提供一个VIP供外部访问），负责将集群外部的流量转发到集群内部。
+    - 负载均衡服务一般是做四层转发（大部分也支持七层转发），主要作用是防DDos攻击以及提高应用并发的能力。
+    - 现代云厂商一般都有提供软件负载均衡服务产品，并且支持按需的防DDos攻击能力、跨地区容灾等Nginx具备或不具备的能力。
+
+LoadBalancer 正是通过使用云厂商提供的负载均衡器（Service LoadBalancer，一般叫做SLB）的高可用方式向外暴露服务。
+负载均衡器将集群外的流量转发到集群内的Node，后者再基于ClusterIP的方式转发到Pod。可以说 LoadBalancer 是 NodePort 的进一步增强。
+
+假如你在 AWS 的 EKS 集群上创建一个 Type 为 `LoadBalancer` 的 Service。它会自动创建一个 ELB (Elastic Load Balancer)
 ，并可以根据配置的 IP 池中自动分配一个独立的 IP 地址，可以供外部访问。
 
 这一步由于没有条件，不再演示。LoadBalancer 架构图如下：
