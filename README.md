@@ -55,6 +55,7 @@ Kubernetes 安全：
 
 Kubernetes 网络：
 
+- [Kubernetes 流量链路剖析 - bilibili@phoa-ldnn](https://www.bilibili.com/video/BV1fv411F7Yv)
 - [（英）Kubernetes 网络讲解-初学者指南](https://spacelift.io/blog/kubernetes-networking)
 - [（英）理解 Kubernetes 网络架构（深度长文）](https://cloudnativenow.com/topics/cloudnativenetworking/understanding-kubernetes-networking-architecture/)
 - [（英）深入了解 Kubernetes 网络模型和通信](https://addozhang.medium.com/deep-dive-into-kubernetes-network-model-and-communication-57a2bffc852e)
