@@ -1104,7 +1104,215 @@ $ kubectl get pod cURL -o=jsonpath='{.metadata.uid}'
 kubectl get pods --field-selector status.phase=Running
 ```
 
-字段选择器的内容不算多，建议直接查看官方文档 [Kubernetes对象—字段选择器](https://kubernetes.io/zh-cn/docs/concepts/overview/working-with-objects/field-selectors/) 。
+字段选择器的内容不算多，请直接查看官方文档 [Kubernetes对象—字段选择器](https://kubernetes.io/zh-cn/docs/concepts/overview/working-with-objects/field-selectors/) 。
+
+### 3.4 使用HPA水平扩缩Pod
+
+HPA（HorizontalPodAutoscaler）中文名叫做水平Pod自动扩缩器，是API Server中的一种控制器，由K8s
+API进行控制，用于根据定义的指标在超出/低于预期值时对Pod的副本数进行自动扩缩。使用HPA可以帮助我们减少集群资源浪费、提高资源利用率以及保证系统的稳定性。
+
+HPA允许定义的指标包括平均 CPU 利用率、平均内存利用率或指定的任何其他自定义指标。
+
+使用HPA需要注意以下几点：
+
+- HPA 仅适用于Deployment、StatefulSet 或其他类似资源，不适用于DaemonSet；
+- HPA 本身有一个运行间隔，并不是实时监控的，所以当指标变化时，需要一段时间才会生效；
+    - 这个间隔由 `kube-controller-manager` 的 `--horizontal-pod-autoscaler-sync-period` 参数设置（默认间隔为 15 秒）
+- 可以指定监控Pod中的某个容器的指标（而不是整个Pod），这在使用Sidecar模式部署应用时非常有用
+- 可以同时指定多个指标作为扩缩Pod副本数量的参考，HPA会针对每个指标分别计算扩缩副本数，并取最大值进行扩缩，但最大值不应超过设定的最大副本数（笔者注：缩容时获取应该取最小值）
+    - 若此时有任何一个指标获取失败，且其他指标的计算结果是缩容时，则本次缩容跳过；若其他指标的计算结果是扩容时，则继续扩容。
+- 使用HPA时必须为Pod设置CPU或内存资源的请求属性（`resources.request`），以便于HPA计算资源利用量
+- HPA 允许设定**稳定窗口**来避免在指标波动时频繁扩缩Pod，提供系统稳定性
+- 支持自定义指标以及外部指标（比如Ingress收到的QPS）
+
+#### 3.4.1 安装Metrics Server插件
+
+Metrics Server插件为HPA和[VPA](https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler/)
+（垂直Pod自动扩缩器）提供运行状态的Pod的基本指标（CPU和内存），当HPA和VPA需要这些指标时，就必须安装Metrics
+Server，否则它们无法正常运作。
+
+> 倘若你的HPA或VPA并不是根据Pod的CPU/内存指标来完成自动扩缩的话（取决于你的模板定义），则不需要安装Metrics
+> Server（这应该是少数情况）。
+
+安装Metrics Server后，Kubernetes API 的客户端就可以使用`kubectl top`命令查询这些信息。
+
+**Metrics Server原理**  
+K8s的API
+Server定义了一套[Metrics API](https://kubernetes.io/zh-cn/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/#metrics-api)
+，用以上报和查询关于节点和 Pod
+的资源使用情况的信息。查询是简单，使用kubectl命令（或调用Rest API）就行，但问题是默认安装的集群并没有组件来上报这些信息。
+K8s官方提供了一个名为[Metrics Server](https://github.com/kubernetes-sigs/metrics-server)
+的插件，它将定期从每个节点上运行的kubelet获取有关节点和Pod的指标信息通过调用Metrics
+API上报给K8s API Server。
+
+Metrics
+Server的安装步骤如下（若你的K8s版本是1.19以下，你需要根据 [兼容矩阵](https://github.com/kubernetes-sigs/metrics-server#compatibility-matrix)
+来选择一个合适的metris-server版本）：
+
+```shell
+$ wget https://hub.gitmirror.com/?q=https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml -O metrics-server.yaml
+
+$ vi metrics-server.yaml
+# 在Deployment中添加启动参数 --kubelet-insecure-tls 以禁用与kubelet通信时的tls检查（若不添加此参数则metrics-server的Pod无法达到Running状态）
+#    spec:
+#      containers:
+#      - args:
+#        - --cert-dir=/tmp
+#        - --secure-port=4443
+#        - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+#        - --kubelet-use-node-status-port
+#        - --metric-resolution=15s
+#        - --kubelet-insecure-tls
+
+$ kk apply -f metrics-server.yaml
+```
+
+安装时添加`--kubelet-insecure-tls`
+参数的问题来源请参考[无法在 kubeadm 集群中安全地使用 metrics-server](https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/troubleshooting-kubeadm/#无法在-kubeadm-集群中安全地使用-metrics-server) ，
+链接中提到了更安全的做法（但也稍微麻烦），这里是测试，所以从简。
+
+此外，如果是国内网络，在安装时大概率会无法拉取镜像`registry.k8s.io/metrics-server/metrics-server:v0.6.4`
+从而导致Deployment状态异常，通过以下方式解决：
+
+```shell
+# 在node1上手动拉取该镜像的docker仓库备份
+ctr -n k8s.io image pull docker.io/anjia0532/google-containers.metrics-server.metrics-server:v0.6.4
+
+# tag
+ctr -n k8s.io i tag docker.io/anjia0532/google-containers.metrics-server.metrics-server:v0.6.4 registry.k8s.io/metrics-server/metrics-server:v0.6.4
+
+# 查看下载的镜像
+ctr -n k8s.io i ls |grep metrics
+crictl images |grep metrics
+
+# 然后删除metrics-server Pod触发重建即可
+```
+
+最后，你可以使用命令`kk get -f metrics-server.yaml`查看Metric Server所安装的各项资源状态（主要是Deployment资源是否Ready）。
+
+使用`kubectl top`命令查看Pod和Node的CPU和内存资源使用情况：
+
+```shell
+$ kk top pod
+NAME                                CPU(cores)   MEMORY(bytes)   
+busybox                             0m           0Mi             
+hellok8s-go-http-66459fdc45-jrm2t   1m           4Mi             
+hellok8s-go-http-66459fdc45-q6s7l   0m           0Mi             
+nginx-hpa-test-85694d4764-855x2     0m           2Mi 
+
+$ kk top node
+NAME         CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%   
+k8s-master   288m         14%    1165Mi          62%       
+k8s-node1    57m          2%     710Mi           35%
+```
+
+在较大规模的K8s集群中，你可能需要部署多个Metrics
+Server Pod副本（可以均衡单个Metrics Server
+Pod的负载），具体步骤请查看[官方指导](https://github.com/kubernetes-sigs/metrics-server#high-availability)。
+
+#### 3.4.2 开始测试
+
+测试会用到两个模板文件：
+
+- [pod_nginx_svc.yaml](pod_nginx_svc.yaml) ：定义了一个名为`nginx-hpa-test`的Deployment和与之对应的Service对象，Deployment中的PodSpec部分包含一个nginx的容器。
+- [hpa_nginx.yaml](hpa_nginx.yaml)：定义了一个HPA对象，它绑定了上述名为`nginx-hpa-test`的Deployment对象，并设置了Pod的资源指标预期。
+
+测试步骤如下：
+
+```shell
+# 创建deployment对象
+$ kk apply -f pod_nginx_svc.yaml               
+deployment.apps/nginx-hpa-test created
+service/nginx-hpa-test created
+
+# 创建绑定deployment对象的hpa对象
+$ kk apply -f hpa_nginx.yaml    
+horizontalpodautoscaler.autoscaling/nginx-hpa-test created
+
+# 查看hpa状态
+# 若Metric Server成功安装，则可以在 TARGETS 列看到所监控的 Deployment对象下所有Pod当前的 平均CPU利用率/hpa设置的预期值
+# - REPLICAS 列表示当前的Pod副本数
+$ kk get hpa
+NAME             REFERENCE                   TARGETS   MINPODS   MAXPODS   REPLICAS   AGE
+nginx-hpa-test   Deployment/nginx-hpa-test   0%/50%    1         5         1          2d3h
+```
+
+创建好Deployment和HPA资源后，现在开始增加Pod的CPU负载以测试HPA的扩容配置：
+
+```shell
+# 创建一个Pod，并使用wget不断访问目标Service，以模拟Pod的CPU负载（稍后按ctrl+C停止）
+$ kk run -i --tty load-generator --rm --image=busybox --restart=Never -- /bin/sh -c "while sleep 0.001; do wget -q -O- http://nginx-hpa-test; done"
+
+# 打开另一个终端，持续监控当前的Deployment对象的平均CPU利用率以及Pod副本数
+$ kk get hpa nginx-hpa-test --watch
+
+# 在笔者的环境中大概过了30s左右，hpa显示的平均CPU负载达到58%（可能与你的环境有些差别），超过了预设值50%，此时发生了扩容
+# 并且看到Pod副本数从1个扩容到3个，同时可以在describe中看到相应的扩容事件
+$ kk describe hpa 
+...
+│ Conditions:                                                                                                                                                                   │
+│   Type            Status  Reason               Message                                                                                                                        │
+│   ----            ------  ------               -------                                                                                                                        │
+│   AbleToScale     True    SucceededGetScale    the HPA controller was able to get the target's current scale                                                                  │
+│   ScalingActive   True    FailedGetPodsMetric  ...                                                                                                       │
+│   ScalingLimited  False   DesiredWithinRange   the desired count is within the acceptable range
+│ Events:                                                                                                                                                                       │
+│   Type     Reason                        Age    From                       Message                                                                                            │
+│   ----     ------                        ----   ----                       -------                                                                                            │
+│   Normal   SuccessfulRescale             115s   horizontal-pod-autoscaler  New size: 2; reason: cpu resource utilization (percentage of request) above target                 │
+│   Normal   SuccessfulRescale             100s   horizontal-pod-autoscaler  New size: 3; reason: cpu resource utilization (percentage of request) above target
+```
+
+扩容没有问题，现在我们回到第一个终端按Ctrl+C停止发送请求，再继续观察HPA状态。大概经过5分钟之后，你才会看到Pod副本数降低到1。
+为什么扩容是在指标超出预设值时很快发生，而缩容不是在指标低于预设值时很快发生呢？
+
+这是因为HPA有一个默认的扩缩策略，其中缩容时设置了一个稳定窗口时间为300秒，在上次扩/缩容后的300秒内，即使指标低于预设值，也不会触发缩容。
+
+**HPA的状态条件**  
+观察上面通过describe得到的HPA`Conditions`信息，这部分信息告诉我们当前HPA是否能够进行扩缩以及进一步的情况说明。这里依次对HPA的几个状态条件进行简单的说明：
+
+- AbleToScale：表明是否可以获取和更新扩缩信息。Message部分说明可以会为什么不可以。
+- ScalingActive：表明 HPA 是否被启用（即目标的副本数量不为零）以及是否能够完成扩缩计算。
+    - 当这一状态为 False 时，通常表明获取度量指标存在问题
+- ScalingLimited：表明所需扩缩的值被 HPA控制器 所定义的最大或者最小值所限制（即已经达到最大或者最小扩缩值）。
+    - 通常表面这个时候你可能需要调整所设置的最大最小扩缩值了
+
+**创建HPA的快捷命令**  
+你可以使用`kubectl autoscale deployment <deployment名称> --cpu-percent=50 --min=1 --max=10`来代替模板创建HPA。
+
+#### 3.4.3 定义扩缩策略
+
+上节说到，HPA的缩容并不是立即发生的，而是有一个稳定窗口时间，在这个稳定窗口时间内，即使指标低于预设值，也不会触发缩容。
+这样防止因为瞬时的负载波动而触发不必要的缩放操作（也叫做抖动），从而提高系统的稳定性和可靠性。当然，也可以针对扩容行为设置稳定窗口。
+
+扩缩策略还支持设置扩/缩容时创建/删除Pod的速率，以及是否完全禁用扩容或缩容行为。下面是两个进行详细说明的模板：
+
+- [hpa_nginx_behavior.yaml](hpa_nginx_behavior.yaml) 是一个解释扩容策略字段的模板。
+- [hpa_nginx_behavior_default.yaml](hpa_nginx_behavior_default.yaml) 是集群默认的扩缩策略。
+
+#### 3.4.4 平滑迁移现有应用
+
+如果你希望将现有的Deployment或StatefulSet应用迁移到由HPA管理Pod副本数量，可以参照下面的步骤进行：
+
+- 删除（注释）现有Deployment或StatefulSet应用中的`spec.replicas`字段，但不要马上`apply`（会导致Pod副本数减至默认值1）
+- 执行`kubectl apply edit-last-applied deployment/<Deployment 名称>`
+    - 在打开的编辑器中删除`spec.replicas`字段，并保存退出
+- 现在可以`apply`第一步中更改的Deployment对象模板，此操作不会影响Pod副本数量。
+
+#### 3.4.5 删除HPA
+
+如果想要为Deployment或类似对象删除（禁用）HPA，必须先设置Deployment或类似对象的`spec.replicas`为一个符合当前情况的数值（可以与当前副本数保持一致）
+，然后才可以安全的删除HPA资源。
+
+> 直接删除HPA会导致Pod副本数一次性降级（减至默认值1），若此时流量过大，这可能会导致服务过载。
+
+#### 3.4.6 使用多项指标和自定义指标
+
+你可以在HPA的模板定义中配置多项指标用于作为扩缩参考。此外，
+除了默认支持的CPU或内存作为Pod副本扩缩的参考指标，还可以使用自定义指标。比如平均每个Pod收包数。但自定义指标属于定制化方案，
+需要部署相应指标方案的适配器才能支持（就像部署Metrics Server支持默认的CPU/内存指标一样）。
+
+这部分内容属于扩展，具体请参考[官方文档](https://kubernetes.io/zh-cn/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/#autoscaling-on-multiple-metrics-and-custom-metrics)。
 
 ## 4. 资源调度
 
@@ -2864,11 +3072,11 @@ $ cat kubernetes-dashboard.yaml|grep image:
           image: docker.io/kubernetesui/dashboard-web:v1.0.0
           image: docker.io/kubernetesui/metrics-scraper:v1.0.9
 
-# 一次性拉取三个镜像
-$ grep -oP 'image:\s*\K[^[:space:]]+' kubernetes-dashboard.yaml | xargs -n 1 ctr image pull
+# 一次性拉取三个镜像（k8s.io是containered中管理k8s镜像的命名空间）
+$ grep -oP 'image:\s*\K[^[:space:]]+' kubernetes-dashboard.yaml | xargs -n 1 ctr -n k8s.io image pull
 
 # 查看下载的镜像
-$ ctr image ls |grep kubernetesui
+$ ctr -n k8s.io image ls |grep kubernetesui
 ```
 
 在开始部署前，你可以查看模板文件来了解Dashboard需要部署的资源对象有哪些。
@@ -2896,7 +3104,7 @@ $ cat cert-manager.yaml |grep image:
           image: "quay.io/jetstack/cert-manager-webhook:v1.13.2"
 
 # 提前拉取cert-manager镜像（在node1上执行）
-$ grep -oP 'image:\s*\K[^[:space:]]+' cert-manager.yaml | xargs -n 1 ctr image pull
+$ grep -oP 'image:\s*\K[^[:space:]]+' cert-manager.yaml | xargs -n 1 ctr -n k8s.io image pull
 
 # 部署（回到master）
 $ kubectl apply -f cert-manager.yaml
