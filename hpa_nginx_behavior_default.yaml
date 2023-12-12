@@ -1,0 +1,39 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nginx-hpa-behavior-default-test
+spec:
+  # 绑定需要自动扩缩的资源对象，如deployment/statefulset等
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx-hpa-test
+  # 设置扩缩时的最大最小副本数
+  minReplicas: 1
+  maxReplicas: 5
+  # 设置扩缩参考的指标（可设置多个指标）
+  # 这里的指标表示期望的Pod总负载的平均CPU利用率为50%左右，若超出则考虑增加Pod数量，若不足则考虑减少Pod数量
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+  behavior: # 以下是K8s默认的扩缩行为配置
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+      selectPolicy: Max

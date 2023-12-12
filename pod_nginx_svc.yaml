@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-hpa-test
+  labels:
+    app: nginx
+spec:
+  # 如果一开始就要对deployment设计hpa对象，则不要设置replicas（默认1），而是由hpa对象来动态控制
+  # -- 若显式设置replica为0，则会禁用绑定的hpa策略。直到你修改为大于0的值
+  # replicas:  2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx-container
+          image: nginx
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-hpa-test
+  labels:
+    app: nginx
+spec:
+  ports:
+    - port: 80
+  selector:
+    app: nginx

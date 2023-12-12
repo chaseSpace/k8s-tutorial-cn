@@ -1,0 +1,48 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nginx-hpa-behavior-test
+spec:
+  # 绑定需要自动扩缩的资源对象，如deployment/statefulset等
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx-hpa-test
+  # 设置扩缩时的最大最小副本数
+  minReplicas: 1
+  maxReplicas: 5
+  # 设置扩缩参考的指标（可设置多个指标）
+  # 这里的指标表示期望的Pod总负载的平均CPU利用率为50%左右，若超出则考虑增加Pod数量，若不足则考虑减少Pod数量
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+  behavior: # 此字段用来进一步控制扩缩时的行为，可选
+    scaleDown: # scaleDown控制缩容时的行为
+      policies: # 如果存在多个策略，则默认选择【最大更改量】的策略
+        # 第一个策略表示在60s内最多缩容4个Pod副本
+        - type: Pods
+          value: 4
+          periodSeconds: 60 # 最大1800（半小时）
+        # 第二个策略表示在60s内最多缩容当前副本个数的10%
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+      selectPolicy: Disabled # 表示禁用scaleDown策略（也不会使用默认，完全禁用缩容行为）。其他可选值：Max, Min，分别表示使用策略组中【每次扩缩时对每个策略计算后所得副本数】最大/最小的策略
+      # 此字段表示（缩容时的）稳定窗口时间（秒）
+      # 当用于扩缩的指标不断波动时，此字段（稳定窗口）用于限制Pod副本数的变动（即避免短时间内频繁创建/删除Pod）。默认300（5min）
+      # 默认值可通过API服务的 --horizontal-pod-autoscaler-downscale-stabilization 参数进行修改
+      stabilizationWindowSeconds: 10
+    scaleUp: # scaleUp控制扩容时的行为
+      policies:
+        - periodSeconds: 15
+          type: Pods
+          value: 4
+        - periodSeconds: 15
+          type: Percent
+          value: 100
+      selectPolicy: Max
+      stabilizationWindowSeconds: 10
