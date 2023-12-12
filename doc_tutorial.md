@@ -1175,13 +1175,13 @@ ReplicaSetController也可通过模板创建，可自行查询。需要注意的
   那如何获取稳定的pod访问地址呢？
 - deployment通常会包含多个pod，如何进行负载均衡？
 
-`Service` 就是用来解决上述问题的。
+Service 就是用来解决上述问题的。
 
-kubernetes 提供了一种名叫 `Service` 的资源帮助解决这些问题，它为 pod 提供一个稳定的 Endpoint。`Service` 位于 pod 的前面，
-负责接收请求并将它们传递给它后面的所有pod。一旦服务中的 Pod 集合发生更改，Endpoints 就会被更新，请求的重定向自然也会导向最新的
-pod。
+Kubernetes 提供了一种名叫 Service 的资源帮助解决这些问题，它为Pod提供一个可稳定访问的端点（以ServiceName作为虚拟域名的形式）。Service
+位于Pod的前面，负责接收请求并将它们传递给它后面的所有Pod。 在Service内部动态维护了一组Pod资源的访问端点（Endpoints），一旦服务中的
+Pod集合发生更改，Endpoints 就会被更新，请求的重定向自然也会导向最新的Pod。
 
-> `Service`为Pod提供了网络访问、负载均衡以及服务发现等功能。
+Service为Pod提供了网络访问、负载均衡以及服务发现等功能。从网络分层上看，Service是作为一个四层网络代理。
 
 ### 7.1 不同类型的Service
 
@@ -1209,7 +1209,8 @@ Service类型的选择取决于你的应用程序的具体要求以及你希望�
 
 ### 7.2 Service类型之ClusterIP
 
-ClusterIP通过分配集群内部IP来在集群内（包含节点）暴露服务，这样就可以在集群内通过 `clusterIP:port` 访问到pod服务，集群外则无法访问。
+ClusterIP通过分配集群内部IP来在**集群内**（包含节点）暴露服务，这样就可以在集群内通过 `clusterIP:port` 访问到pod服务，集群外则无法访问。
+ClusterIP又可以叫做Service VIP（虚拟IP）。
 
 > 这种方式适用于那些不需要对外暴露的集群内基础设施服务，如节点守护agent/数据库等。
 
@@ -1232,7 +1233,7 @@ kk set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v3_hostname
 kk get pods --watch
 ```
 
-4. deployment更新成功后，编写 `Service` 配置文件 [service-clusterip.yaml](service-clusterip.yaml)
+4. deployment更新成功后，编写 Service 配置文件 [service-clusterip.yaml](service-clusterip.yaml)
 5. 应用Service配置文件，并观察Endpoint资源
 
 ```shell
@@ -1340,13 +1341,13 @@ Chain KUBE-SVC-BRULDGNIV2IQDBPU (1 references)
 ...
 ```
 
-这里有 `KUBE-SERVICES`和 `KUBE-SVC-BRULDGNIV2IQDBPU`两条链，前者引用了后者，在第一条链中，可以看到 **target**
-为`20.1.120.16`(ClusterIP)的流量将转发至3个目标 `KUBE-SVC-BRULDGNIV2IQDBPU`：
+这里有 `KUBE-SERVICES`和 `KUBE-SVC-BRULDGNIV2IQDBPU`两条链，前者引用了后者。第一条链中，可以看到目标为`20.1.120.16`
+的流量将被转发至`KUBE-SVC-BRULDGNIV2IQDBPU`链，即第二条链。在第二条链中又定义了3条转发规则：
 
-- 第一条规则会对除了 20.2.0.0/16 地址范围之外的且目标是3000端口的所有来源的tcp协议数据包执行MASQ动作，即NAT操作（把数据包的源IP转换为目标IP）
+- 第一条规则会对源不是`20.2.0.0/16`地址范围内且目标端口是3000的所有tcp数据包执行MASQ动作，即NAT操作（转发时执行源IP替换）
 - 第二条规则将任意链内流量转发到目标`KUBE-SEP-JCBKJJ6OJ3DPB6OD`，尾部`probability`说明应用此规则的概率是0.5
 - 第三条规则将任意链内流量转发到目标`KUBE-SEP-YHSEP23J6IVZKCOG`，概率也是0.5（1-0.5）
-  而这2和3两个规则中的目标其实就是指向两个后端Pod IP，可通过`iptables-save | grep KUBE-SEP-YHSEP23J6IVZKCOG`查看其中一个目标明细：
+  而这2和3两条规则中的目标其实就是指向两个后端Pod IP，可通过`iptables-save | grep KUBE-SEP-YHSEP23J6IVZKCOG`查看其中一个目标明细：
 
 ```shell
 $ iptables-save | grep KUBE-SEP-YHSEP23J6IVZKCOG
@@ -1638,18 +1639,25 @@ $ kk exec -it curl --  sh
 
 ## 8. 使用Ingress
 
-上节中的Service可以通过 NodePort 或者 LoadBalancer 或者 配置externalIP 或 Pod中配置HostPort 的方式对外暴露服务，
-这些方式都有一个严重问题，那就是需要占用节点端口。当需要暴露的服务逐渐增加，节点端口的占用会越来越多，且增加很大管理成本。
-除此之外，这些方式也都不支持域名以及SSL配置，还需要额外配置Nginx等反向代理组件。
+上一章节中，我们知道有以下几种方式可以实现**对外**暴露服务：
 
-Ingress就是为了解决这个问题而设计的，它允许你将 Service 映射到集群对外提供的某个端点上（即url路径，无需占用节点端口），从而实现对外部提供服务的功能。
+- NodePort（Pod设置HostNetWork同理）
+- LoadBalancer
+- ExternalIP
 
-举个例子：集群对外的统一端点是`api.example.com:80`，可以这样为集群内的两个Service（backend:8080、frontend:8082）配置映射：
+但在实际环境中，我们很少**直接使用**这些方式来对外暴露服务，因为它们都有一个比较严重的问题，那就是需要占用节点端口。也就是说，占用节点端口的数量会随着服务数量的增加而增加，这就产生了很大的端口管理成本。
+除此之外，这些方式也不支持域名以及SSL配置（除了LoadBalancer），还需要额外配置其他具有丰富功能的反向代理组件，如Nginx、Kong等。
+
+Ingress就是为了解决这些问题而设计的，它允许你将 Service
+映射到集群对外提供的某个端点上（由域名和端口组成的地址），这样我们就可以在Ingress中将多个Service配置到同一个域名的不同路径下对外提供服务，避免了对节点端口的过多占用。
+Ingress还支持路由规则和域名配置等高级功能，就像Nginx那样能够承担业务最外层的反向代理+网关的角色。。
+
+举个栗子：集群对外的统一端点是`api.example.com:80`，可以这样为集群内的两个Service（backend:8080、frontend:8082）配置对外端点映射：
 
 - api.example.com/backend 指向 backend:8080
 - api.example.com/frontend 指向 frontend:8082
 
-Ingress可以为多个主机名配置不同的路由规则，提供与Nginx功能相似的服务。
+除此之外，Ingress还可以为多个域名配置不同的路由规则，在仅**占用单个节点端口**的同时实现灵活的路由配置功能。
 
 总的来说，Ingress提供以下功能：
 
@@ -1662,7 +1670,9 @@ Ingress可以为多个主机名配置不同的路由规则，提供与Nginx功�
 - **自定义错误页面**：你可以定义自定义错误页面，以提供用户友好的错误信息；
 - **插件和控制器**：社区提供了多个 Ingress 控制器，如 Nginx Ingress Controller 和 Traefik，它们为 Ingress 提供了更多功能和灵活性。
 
-Ingress 可以简单理解为集群服务的网关（Gateway），它是所有流量的入口，经过配置的路由规则，将流量重定向到后端的服务。
+Ingress 可以简单理解为集群服务的网关（Gateway），它是所有流量的入口，经过配置的路由规则，将流量重定向到后端的服务。从网络分层上看，Ingress是作为一个七层网络代理。
+
+> 但是在使用 LoadBalancer 的方式时，Ingress就不是最外层的流量入口了，而是接收来自 LoadBalancer 传入的流量再进行二次路由转发。
 
 ### 8.1 Ingress控制器
 
@@ -1671,14 +1681,27 @@ Ingress 可以简单理解为集群服务的网关（Gateway），它是所有�
 - **Ingress**：是 Kubernetes 中的一种 API 资源类型，它定义了从集群外部访问集群内服务的规则。通常，这些规则涉及到 HTTP 和
   HTTPS 流量的路由和负载均衡。
   Ingress 对象本身只是一种规则定义，它需要一个 Ingress 控制器来实际执行这些规则。
-- **Ingress 控制器**：是 Kubernetes 集群中的一个独立组件或服务，它实际处理 Ingress 规则，根据这些规则配置集群中的代理服务器（如
-  Nginx、HAProxy、Traefik 等）来处理流量路由和负载均衡。
-  Ingress 控制器负责监视 Ingress 对象的变化，然后动态更新代理服务器的配置以反映这些变化。Kubernetes社区提供了一些不同的
-  Ingress 控制器，您可以根据需求选择合适的控制器。
+- **Ingress 控制器**：是 Kubernetes 集群中的一个独立组件或服务，以Pod形式存在。它实际处理 Ingress 规则，根据这些规则配置集群中的代理服务器（如
+  Nginx、Traefik 等）来处理流量路由和负载均衡。
+    - Ingress 控制器负责监视 Ingress 对象的变化，然后动态更新代理服务器的配置以反映这些变化。Kubernetes社区提供了一些不同的
+      Ingress 控制器，您可以根据需求选择合适的控制器。
+    - Ingress 控制器是实际**承载流量转发**的组件。每次更新Ingress规则后，都会动态加载到控制器中。
 
-Ingress控制器不会随集群一起安装，需要单独安装。可以选择的Ingress控制器很多，这里是
-[社区提供的Ingress控制器列表](https://kubernetes.io/zh-cn/docs/concepts/services-networking/ingress-controllers/)，
-可根据情况自行选择，常用的是Nginx、Traefik。
+使用Ingress访问服务的流量链路如下：
+
+- 用户流量通过公网DNS流入Ingress Controller Pod
+- Ingress Controller Pod根据配置的规则找到并转发流量给对应后端服务所在的Node
+    - （下面描述的是在集群内通过ServiceName访问服务的流量转发流程）
+    - 首先会通过集群内的CoreDNS服务查询ServiceName对应的ClusterIP
+    - 然后通过节点所在的kube-proxy所配置好的iptables规则将流量转发给Pod所在的Node
+        - 在iptables规则中可以找到ClusterIP的下一跳，即Pod所在的Node IP
+        - 若有多个Pod后端，则iptables中也会存在多条能匹配目标ClusterIP的规则，此时会按规则概率进行转发（默认都具有相同概率，也就是均衡）
+- Node接收到流量后再根据（kube-proxy所配置好的）本地iptables将流量转发给本地的Pod
+
+如果你使用了LoadBalancer，则用户流量通过公网DNS流入LoadBalancer，后者再通过转发至Ingress Controller Pod，然后继续上述流程。
+
+Ingress控制器不会随集群一起安装，需要单独安装。可以选择的Ingress控制器很多，可查看[官方提供的Ingress控制器列表](https://kubernetes.io/zh-cn/docs/concepts/services-networking/ingress-controllers/)，
+再根据情况自行选择，常用的是Nginx、Traefik。
 
 ### 8.2 安装Nginx Ingress控制器
 
@@ -1916,7 +1939,7 @@ $ kk apply -f deploy.yaml # 更新部署
    然后可以直接将Ingress节点公网IP填到域名CNAME记录中。    
    笔者提供测试通过Ingress-nginx模板供读者练习：[ingress-nginx-deployment-nodeport.yaml](ingress-nginx-deployment-nodeport.yaml)
    ，主要修改了2处：
-    - `Service`模块下`spec.ports`部分新增`nodePort: 30080`和`nodePort: 30443`（注意nodePort设置的端口受到范围限制：30000-32767）
+    - Service模块下`spec.ports`部分新增`nodePort: 30080`和`nodePort: 30443`（注意nodePort设置的端口受到范围限制：30000-32767）
 
    这种方式不适用于对外暴露80/443端口的应用。
 
