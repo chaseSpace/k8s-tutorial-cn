@@ -1214,7 +1214,8 @@ Pod的负载），具体步骤请查看[官方指导](https://github.com/kuberne
 
 测试会用到两个模板文件：
 
-- [pod_nginx_svc.yaml](pod_nginx_svc.yaml) ：定义了一个名为`nginx-hpa-test`的Deployment和与之对应的Service对象，Deployment中的PodSpec部分包含一个nginx的容器。
+- [pod_nginx_svc.yaml](pod_nginx_svc.yaml) ：定义了一个名为`nginx-hpa-test`
+  的Deployment和与之对应的Service对象，Deployment中的PodSpec部分包含一个nginx的容器。
 - [hpa_nginx.yaml](hpa_nginx.yaml)：定义了一个HPA对象，它绑定了上述名为`nginx-hpa-test`的Deployment对象，并设置了Pod的资源指标预期。
 
 测试步骤如下：
@@ -1322,12 +1323,13 @@ $ kk describe hpa
 Pod 调度到一个合适的节点上来运行。 调度器会依据下文的调度原则来做出调度选择。
 
 **kube-scheduler**  
-集群资源的调度工作都是由kube-scheduler来完成的，可以称其为调度器。所有Pod都要经过调度器才能分配到具体节点上运行。
-调度时，kube-scheduler会考虑资源需求、节点负载情况以及用户设定的硬性/软性条件限制来完成调度工作。kube-scheduler执行的各项工作都是基于API
+集群资源的调度工作都是由`kube-scheduler`来完成的，可以称其为调度器。所有Pod都要经过调度器才能分配到具体节点上运行。
+调度时，`kube-scheduler`会考虑资源需求、节点负载情况以及用户设定的硬性/软性条件限制来完成调度工作。`kube-scheduler`
+执行的各项工作都是基于API
 Server进行的，比如它会通过API Server的Watch接口监听新建的Pod，再进行合适的节点分配，调度完成后，再通过API
 Server将调度结果写入etcd中。
 
-如果调度成功，Pod会绑定到目标节点上。如果调度失败，kube-scheduler会重新进行调度，直到成功或超出重试次数，在此期间
+如果调度成功，Pod会绑定到目标节点上。如果调度失败，`kube-scheduler`会重新进行调度，直到成功或超出重试次数，在此期间
 Pod 处于Pending状态。
 
 ### 4.1 调度阶段
@@ -1346,9 +1348,8 @@ Pod 处于Pending状态。
 
 - PodFitsResources：节点空闲资源是否满足Pod的资源需求（`requests.cpu/memory`）；
 - PodFitsHostPorts：节点上是否已经有Pod或其他服务占用了待调度Pod想要使用的节点端口（`hostPort`）；
--
-
-CheckNodeMemoryPressure：判断节点是否已经进入内存压力状态。如果进入，则只允许调度内存标记为0的Pod（未设置`requests.memory`）；
+- CheckNodeMemoryPressure：判断节点是否已经进入内存压力状态。
+  如果进入，则只允许调度内存标记为0的Pod（未设置`requests.memory`）；
 
 - CheckNodePIDPressure：判断节点是否存在进程ID资源紧张状态；
 - CheckNodeDiskPressure：判断节点是否已经进入磁盘压力状态（已满或快满）；
@@ -1402,12 +1403,12 @@ CheckNodeMemoryPressure：判断节点是否已经进入内存压力状态。如
 
 #### 4.1.3 自定义调度器
 
-你可以通过编写配置文件，并将其路径传给 kube-scheduler 的命令行参数，定制 kube-scheduler 的行为。调度模板（Profile）允许你配置
-kube-scheduler 中的不同调度阶段。每个阶段都暴露于某个扩展点中。插件通过实现一个或多个扩展点来提供调度行为。
+你可以通过编写配置文件，并将其路径传给`kube-scheduler`的命令行参数，定制`kube-scheduler`的行为。调度模板（Profile）允许你配置
+kube-scheduler 中的不同调度阶段。每个阶段都暴露于某个**扩展点**中。插件通过实现一个或多个扩展点来调整调度行为。
 
-具体请参考 [官方文档-调度器配置](https://kubernetes.io/zh-cn/docs/reference/scheduling/config) 。
+具体请参考[官方文档-调度器配置](https://kubernetes.io/zh-cn/docs/reference/scheduling/config)。
 
-在k8s源码中，每一个**扩展点**都是一个Interface，比如 Score：
+在k8s源码中，每一个扩展点都是一个Interface，比如 Score：
 
 ```go
 package framework
@@ -1430,7 +1431,6 @@ type ScorePlugin interface {
 	// ScoreExtensions returns a ScoreExtensions interface if it implements one, or nil if does not.
 	ScoreExtensions() ScoreExtensions
 }
-
 ```
 
 实现Score的插件有 [ImageLocality](https://github.com/kubernetes/kubernetes/blob/master/pkg/scheduler/framework/plugins/imagelocality/image_locality.go)
@@ -1445,8 +1445,13 @@ type ScorePlugin interface {
 
 ### 4.2 硬性调度-指定节点标签（nodeSelector）
 
-这种方式是指将Pod调度到匹配**指定的一个或多个标签**的节点上运行，对应预选阶段中的 PodMatchNodeSelector 策略。
-并且它是一种**硬性调度要求**。具体在Pod或Deployment模板中配置：
+这种方式是指要求将Pod调度到具有**指定的一个或多个标签**的节点上运行，对应预选阶段中的 `PodMatchNodeSelector` 策略。
+并且它是一种**硬性调度要求**。
+
+> 硬性调度要求：要求调度器**必须**将Pod调度到符合要求的节点上运行，否则Pod将无法运行。  
+> 软性调度要求：要求调度器**尽可能**将Pod调度到符合要求的节点上运行。
+
+具体在Pod或Deployment模板中配置：
 
 ```yaml
 # ...省略部分
