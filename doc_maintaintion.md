@@ -323,6 +323,211 @@ crictl ps
 crictl logs $CONTAINER_ID
 ```
 
+#### 1.5.1 使用kubetail查看Pod日志
+
+kubetail是一个开源脚本工具，可以用于方便聚合查看多个Pod的聚合日志。下面是简单的安装步骤：
+
+```shell
+wget https://raw.gitmirror.com/johanhaleby/kubetail/master/kubetail
+chmod +x kubetail                     
+mv kubetail /usr/local/bin
+
+# 设置别名
+echo alias tt="kubetail" >> ~/.zshrc
+source ~/.zshrc
+
+$ tt -v                                              
+1.6.19-SNAPSHOT
+```
+
+使用步骤：
+
+```shell
+# 查看当前空间下所有pod日志
+tt
+
+tt pod1
+tt pod1,pod2
+
+tt pod1 -c container1
+tt pod1 -c container1 -c container2
+
+tt -n ns1 pod1
+
+tt '(service|consumer|thing)' -e regex
+tt 'pod_name_contains_me' -e substring
+
+tt '(service|consumer|thing)' --regex # 等价于 -e regex
+
+# label筛选pod
+tt -l some-label=xxx
+
+# 起始时间为1min前
+tt pod1 -s 1m
+
+# 最近100行（但笔者发现有bug，最多只能查看最近3行，这个问题比较严重！暂时可以用-s替代）
+tt pod --tail 100
+```
+
+这里使用代码[main_log.go](main_log.go)进行测试：
+
+```shell
+docker build . -t leigg/hellok8s:log_test
+docker push leigg/hellok8s:log_test
+kk apply -f deployment_logtest.yaml
+
+$ kk get deploy hellok8s-logtest              
+NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+hellok8s-logtest   2/2     2            2           32s
+
+# 查看一个pod的日志
+$ tt hellok8s-logtest-7f658bb745-9522d         
+Will tail 1 logs...
+hellok8s-logtest-7f658bb745-9522d
+[hellok8s-logtest-7f658bb745-9522d] 2023/12/14 10:42:39 log test 36
+[hellok8s-logtest-7f658bb745-9522d] 2023/12/14 10:42:42 log test 37
+[hellok8s-logtest-7f658bb745-9522d] 2023/12/14 10:42:45 log test 38
+[hellok8s-logtest-7f658bb745-9522d] 2023/12/14 10:42:48 log test 39
+
+# 查看deployment下所有pod日志（不同pod的日志使用颜色区分）
+$ tt -l app=hellok8s                              
+Will tail 2 logs...
+hellok8s-logtest-7f658bb745-9522d
+hellok8s-logtest-7f658bb745-vvxhk
+[hellok8s-logtest-7f658bb745-9522d] 2023/12/14 10:43:39 log test 56
+[hellok8s-logtest-7f658bb745-9522d] 2023/12/14 10:43:42 log test 57
+[hellok8s-logtest-7f658bb745-9522d] 2023/12/14 10:43:45 log test 58
+[hellok8s-logtest-7f658bb745-vvxhk] 2023/12/14 10:43:39 log test 56
+[hellok8s-logtest-7f658bb745-vvxhk] 2023/12/14 10:43:42 log test 57
+[hellok8s-logtest-7f658bb745-vvxhk] 2023/12/14 10:43:45 log test 58
+```
+
+#### 1.5.2 使用Kail查看Pod日志
+
+Kail具有kubetail相似的功能，还有一些新功能，下面是安装步骤：
+
+```shell
+wget https://hub.gitmirror.com/?q=https://github.com/boz/kail/releases/download/v0.17.1/kail_v0.17.1_linux_amd64.tar.gz -O kail.gz
+tar zxf kail.gz
+chmod +x kail         
+mv kail /usr/local/bin
+
+$ kail version
+v0.17.1 (24da853)
+```
+
+使用示例：
+
+```shell
+# 不带参数时输出当前空间下所有pod日志
+kail
+
+kail -l some_label=xxx
+
+kail -p pod1
+
+# 指定deployment
+kail -d hellok8s-logtest
+
+kail --svc xxx
+
+# 指定statefulSet
+kail --sts xxx
+
+# 指定node（上的所有pod）
+kail --node node1
+
+# 指定ingress（下的后端svc的所有pod）
+kail --ing xxx
+
+# 指定job
+kail -j xxx
+```
+
+kail不支持查看最近N行的功能，也不支持颜色打印（无法区分不同Pod，有点伤！）。
+
+#### 1.5.3 使用stern查看Pod日志
+
+stern是笔者推荐的Pod日志查看工具，它具有多个必备的实用功能，包括颜色打印、正则匹配和查看最近N行日志。安装步骤：
+
+```shell
+wget https://hub.gitmirror.com/?q=https://github.com/stern/stern/releases/download/v1.27.0/stern_1.27.0_linux_amd64.tar.gz -O stern.gz
+tar zxf stern.gz
+chmod +x stern
+mv stern /usr/local/bin 
+
+# 设置别名
+echo alias sn="stern" > ~/.zshrc
+source ~/.zshrc
+
+$ sn -v       
+version: 1.27.0
+commit: 67c7c9b5eff869662033015d0af7b96c25272d1b
+built at: 2023-11-15T02:11:41Z
+```
+
+使用示例:
+
+```shell
+# 不带参数则打印help
+sn
+
+# 默认使用正则匹配pod，匹配 *test*，且输出全部日志
+sn test
+
+# 最近10行
+sn test --tail 10
+
+# -i使用正则匹配指定字符串的日志行，不必再使用grep
+sn test -i 11:35
+
+# 指定node
+sn test --node k8s-node1
+
+# 每一行日志带上节点时间戳
+sn test -t
+
+# label过滤，-A全部空间
+sn -l app=hellok8s -A
+
+# 包含斜杠，则是 resource/name 的完全匹配方式（不是正则）
+# resource支持 pod/rc/rs/svc/daemonset/deployment/sts/job
+sn deploy/hellok8s-logtest
+```
+
+支持`--output {format}`指定格式打印：
+
+```shell
+# 支持三种格式
+# 默认: podName, containerName, msg
+# raw：msg
+# json：将msg、node、namespace、podName、containerName序列化为JSON打印
+sn logtest -o json
+
+sn logtest -o json |jq
+```
+
+如果Pod日志原本就是JSON，可以使用以下命令格式化打印（以[main_log_json.go](main_log_json.go)为例）：
+
+```shell
+$ sn logtest -o raw |xargs -0 -d'\n' -l jq -s
+{
+  "time": "2023-12-14 12:48:04",
+  "number": 34,
+  "field1": "abcdefghijklmn",
+  "field2": "0123456789",
+  "field3": "Golang",
+  "field4": "Kubernetes"
+}
+{
+  ...
+}
+```
+
+此外，还支持`--since`
+、定制颜色、指定容器、指定context。它最特色的功能是支持[模板化输出](https://github.com/stern/stern?tab=readme-ov-file#templates)
+，这个就需要读者自行去了解了。
+
 ## 2. 镜像管理
 
 镜像的存放位置在 Kubernetes 集群中取决于所采用的容器运行时。K8s与容器运行时之间的通信遵循 CRI（Container
