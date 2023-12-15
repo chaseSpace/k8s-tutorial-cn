@@ -11,7 +11,7 @@ func main() {
 		i := 0
 		for {
 			i++
-			time.Sleep(time.Second * 3)
+			time.Sleep(time.Second)
 			log.Println("log test", i)
 		}
 	}()
