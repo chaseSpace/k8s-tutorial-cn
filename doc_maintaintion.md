@@ -288,7 +288,7 @@ K8s调度器会保证节点上有足够的资源供其上的所有 Pod 使用。
 
 如果要为非Pod进程预留资源，参考[为系统守护进程预留资源](https://kubernetes.io/zh-cn/docs/tasks/administer-cluster/reserve-compute-resources/#system-reserved) 。
 
-### 1.5 日志管理
+### 1.5 日志查看
 
 节点分为主节点和普通节点。主节点运行多个K8s组件，如API Server、Controller Manager、Scheduler等。
 普通节点则运行两个K8s组件：kubelet和kube-proxy。
