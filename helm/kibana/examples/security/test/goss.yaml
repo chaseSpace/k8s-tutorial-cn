@@ -1,0 +1,18 @@
+http:
+  https://localhost:5601/api/status:
+    status: 200
+    timeout: 2000
+    allow-insecure: true
+    request-headers:
+      - "Authorization: Bearer {{ .Env.ELASTICSEARCH_SERVICEACCOUNTTOKEN}}"
+    body:
+      - '"number":"8.5.1"'
+
+file:
+  /usr/share/kibana/config/kibana.yml:
+    exists: true
+    contains:
+      - "server.ssl.certificate: /usr/share/kibana/config/certs/elastic-certificate.pem"
+      - "server.ssl.enabled: true"
+      - "server.ssl.key: /usr/share/kibana/config/certs/elastic-certificate.pem"
+      - "xpack.security.encryptionKey:"
