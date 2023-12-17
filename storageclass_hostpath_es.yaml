@@ -1,0 +1,36 @@
+# https://kubernetes.io/zh-cn/docs/concepts/storage/storage-classes/#local
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: elasticsearch
+provisioner: kubernetes.io/no-provisioner # 使用hostpath（节点磁盘）作为存储后端
+# WaitForFirstConsumer 表示等待Pod调度到节点后才会申领实际的卷空间；
+# - 默认是Immediate，表示直接在创建PVC时直接使用后端存储空间
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true # 允许PV扩容（不允许缩容）
+reclaimPolicy: Delete # 默认Delete
+
+---
+# PersistentVolume
+# 仅当StorageClass使用节点磁盘作为后端时，才需要显式声明PV（PersistentVolume）
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: elasticsearch
+spec:
+  capacity:
+    storage: 100Gi # 创建时并不会验证实际有这么多空间
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain # 手动创建本地卷时，仅支持Retain
+  storageClassName: elasticsearch
+  local:
+    path: /home/k8s-elasticsearch-data # 必须在节点手动创建
+  nodeAffinity: # 创建本地卷的必须字段，k8s会在匹配下面条件的节点上创建PV，如果没有匹配的节点，则引用的Pod和PV都会一直pending（通过describe可以查看原因）
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - k8s-node1
