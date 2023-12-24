@@ -83,7 +83,7 @@ K8s集群节点拥有Master和Node两种角色。它们的职责如下：
 
 - Master：官方叫做控制平面（Control
   Plane）。主要负责整个集群的管控，包含监控、编排、调度集群中的各类资源对象（如Pod/Deployment等）。通常Master会占用一台独立的服务器，基于高可用可能会占用多台，参考[kubeadm搭建高可用集群](https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/high-availability/)。
-- Node：则是集群中的承载实际工作任务的节点，直接负责对容器的控制，可以无限扩展。
+- Node：数据平面。是集群中的承载实际工作任务的节点，直接负责对容器资源的控制，可以无限扩展。
 
 K8s架构图如下：
 <div align="center">
@@ -149,7 +149,7 @@ kubelet会定期调用Master节点上的API Server的REST API以报告自身状�
 3. **容器运行时**  
    负责直接管理容器生命周期的软件。k8s支持包含docker、containerd在内的任何基于k8s cri（容器运行时接口）实现的runtime。
 
-### 1.4 k8s的核心对象
+### 1.4 K8s的核心对象
 
 为了完成对大规模容器集群的高效率、全功能性的任务编排，k8s设计了一系列额外的抽象层，这些抽象层对应的实例由用户通过Yaml或Json文件进行描述，
 然后由k8s的API Server负责解析、存储和维护。
@@ -193,12 +193,20 @@ Service对象就是为了解决这个问题。Service可以自动跟踪并绑定
 4. **资源划分**
 
 - 命名空间（Namespace）：k8s通过namespace对同一台物理机上的k8s资源进行逻辑隔离。
--
+- 标签（Labels）：是一种语义化标记，可以附加到Pod、Node等对象之上，然后更高级的对象可以基于标签对它们进行筛选和调用，
+  例如Service可以将请求只路由到指定标签的Pod，或者Deployment可以将Pod只调度到指定标签的Node。
 
-标签（Labels）：是一种语义化标记，可以附加到Pod、Node等对象之上，然后更高级的对象可以基于标签对它们进行筛选和调用，例如Service可以将请求只路由到指定标签的Pod，或者Deployment可以将Pod只调度到指定标签的Node。
+- 注解（Annotations）：也是键值对数据，但更灵活，它的value允许包含结构化数据。一般用于元数据配置，不用于筛选。
+  例如Ingress中通过注解为nginx控制器配置禁用ssl重定向。
 
-- 注解（Annotations）：也是键值对数据，但更灵活，它的value允许包含结构化数据。一般用于元数据配置，不用于筛选。例如Ingress中通过注解为nginx控制器配置
-  **禁用ssl重定向**。
+### 1.5 在K8s上运行应用的流程
+
+- 将某种编程语言所构建的应用打包为镜像
+- 将该应用需要的镜像版本和所需CPU、内存等资源需求定义到K8s Pod模板（术语：**PodSpec**）
+- 部署Pod模板并观察运行状态
+- 调整模板配置以适应新的需求
+
+如果应用需要故障自愈等高级功能，则使用更高级的控制器如Deployment、DaemonSet等定义Pod模板即可。
 
 ## 2. 创建程序和使用docker管理镜像
 
