@@ -95,6 +95,8 @@ K8s废弃了docker-shim以后，Docker公司也声明了会和Mirantis公司继�
 
 这里只列出了常见的容器运行时及对应的socket端点。
 
+>containerd对CRI的支持最开始也是单独的一个项目，叫做[<u>cri</u>][cri]（但对外叫`cri-containerd`），后来被集成到containerd中。
+
 ### 2.3 安装Containerd
 
 kubernetes 1.24.x及以后版本默认CRI为containerd。安装containerd时自带的命令行工具是`ctr`，我们可以使用`ctr`
@@ -826,3 +828,4 @@ default        hellok8s-go-http-999f66c56-j5dhx     1/1     Running   0         
 - [掘金-冰_点-Kubernetes 之7大CNI 网络插件用法和对比](https://juejin.cn/post/7236182358817800251)
 
 [OCI]:https://opencontainers.org/about/overview/
+[cri]:https://github.com/containerd/cri
