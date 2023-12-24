@@ -34,6 +34,10 @@ Kubernetes
 项目是Google公司在2014年正式启动（受到Google在2003年使用C++编写开发并使用十年之久的内部项目Borg的积极影响）。它建立在Google公司超过10多年的运维经验之上，Google所有的应用都运行在容器上。
 Kubernetes是目前最受欢迎的开源容器编排平台。
 
+> 所谓编排（orchestrator），即对资源进行分配、调度、调优等操作。如果将Kubernetes比做是一个足球教练，
+> 那它对集群内各类资源的编排操作可以简单理解为教练对球员们的指导操作（包括位置分配、战术指挥以及场上突发状况处理等）。
+> 它们有一个共同目标就是让集群内所有资源（球员）协同工作，发挥出最大的效能。
+
 Kubernetes v1.0于2015年7月21日发布。随着v1.0版本发布，谷歌与Linux基金会合作组建了Cloud
 Native Computing
 Foundation（CNCF）并将 Kubernetes 作为种子项目来孵化。项目开源伊始，众多国际大厂如微软、IBM、红帽、Docker、Mesosphere、CoreOS和SaltStack纷纷加入并表示将积极支持该项目。
