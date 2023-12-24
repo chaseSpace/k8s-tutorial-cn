@@ -217,7 +217,8 @@ Service对象就是为了解决这个问题。Service可以自动跟踪并绑定
 每个K8s集群都有自己独立的DNS服务，用于为集群中的Pod提供域名解析服务。集群DNS服务有一个静态IP，每个新启动的Pod内部都会在`/etc/resolve.conf`
 中硬编码这个IP作为DNS服务器。
 
-每当新的Service被发布到集群中的时候，同时也会在集群DNS服务中创建一个域名记录（对应其后端Pod IP），这样Pod就可以通过Service的域名访问其对应的服务。一些比较特殊的Pod也会注册到集群DNS服务器，
+每当新的Service被发布到集群中的时候，同时也会在集群DNS服务中创建一个域名记录（对应其后端Pod
+IP），这样Pod就可以通过Service的域名访问其对应的服务。一些比较特殊的Pod也会注册到集群DNS服务器，
 比如StatefulSet管理下的每个Pod（以`PodName-0-*`, `PodName-1-*`的形式）。
 
 集群的DNS服务器由集群内一个名为`kube-dns`的Service提供，它将DNS请求均衡转发到每个节点上的`coredns-*`Pod。
@@ -321,6 +322,14 @@ docker push leigg/hellok8s:v1
 
 ## 3. 使用Pod
 
+在VMware的世界中，调度的原子单位是虚拟机（VM）；在Docker的世界中，调度的原子单位是容器（Container）；而在
+Kubernetes的世界中，调度的原子单位是Pod。 ——Nigel Poulton
+
+> Pod术语的起源：在英语中，会将a group of whales（一群鲸鱼） 称作*a Pod of whales*
+> ，Pod就是来源于此。因为Docker的Logo是鲸鱼拖着一堆集装箱（表示Docker托管一个个容器），
+> 所以在K8s中，Pod就是一组容器的集合。———参考自 Kuberenetes 修炼手册
+
+K8s当然支持容器化应用，但是，用户无法直接在集群中运行一个容器，而是需要将容器定义在Pod中来运行。
 Pod 是 Kubernetes 中最小的可部署和调度单元，通常包含一个或多个容器。这些紧密耦合容器共享名字空间和文件系统卷，类似运行在同一主机上的应用程序和其辅助进程。
 
 Pod有两种运行方式。一种是单独运行（叫做单例），这种方式运行的Pod没有自愈能力，一旦因为各种原因被删除就不会再重新创建。
