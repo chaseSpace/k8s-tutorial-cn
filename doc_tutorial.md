@@ -82,7 +82,9 @@ Elastic Kubernetes Service（EKS）、Microsoft Azure Kubernetes Service（AKS�
 K8s集群节点拥有Master和Node两种角色。它们的职责如下：
 
 - Master：官方叫做控制平面（Control
-  Plane）。主要负责整个集群的管控，包含监控、编排、调度集群中的各类资源对象（如Pod/Deployment等）。通常Master会占用一台独立的服务器，基于高可用可能会占用多台，参考[kubeadm搭建高可用集群](https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/high-availability/)。
+  Plane）。主要负责整个集群的管控，包含监控、编排、调度集群中的各类资源对象（如Pod/Deployment等）。
+  通常Master会占用一个单独的集群节点（不会运行应用容器），基于高可用可能会占用多台，参考[kubeadm搭建高可用集群](https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/high-availability/)。
+  （提供K8s集群托管的云厂商也会为你的集群主节点提供高可用部署）
 - Node：数据平面。是集群中的承载实际工作任务的节点，直接负责对容器资源的控制，可以无限扩展。
 
 K8s架构图如下：
@@ -105,6 +107,7 @@ Master由四个部分组成：
 
 2. **etcd**  
    K8s使用etcd作为内部数据库，用于保存集群配置以及所有对象的状态信息。只有API Server进程能直接读写etcd。为了保证集群数据安全性，建议为其考虑备份方案。
+   如果etcd不可用，应用容器仍然会继续运行，但用户无法对集群做任何操作（包括对任何资源的增删改查）。
 
 
 3. **调度器（Scheduler）**  
@@ -202,7 +205,7 @@ Service对象就是为了解决这个问题。Service可以自动跟踪并绑定
 ### 1.5 在K8s上运行应用的流程
 
 - 将某种编程语言所构建的应用打包为镜像
-- 将该应用需要的镜像版本和所需CPU、内存等资源需求定义到K8s Pod模板（术语：**PodSpec**）
+- 将该应用需要的镜像版本、对外暴露端口号和所需CPU、内存等需求定义到K8s Pod模板（术语：**PodSpec**）
 - 部署Pod模板并观察运行状态
 - 调整模板配置以适应新的需求
 
@@ -212,8 +215,7 @@ Service对象就是为了解决这个问题。Service可以自动跟踪并绑定
 
 ### 2.1 安装docker
 
-如果安装的k8s版本不使用docker作为容器运行时，那只需要在master节点（或专门的镜像部署节点）安装docker。
-我们需要docker来构建和推送镜像。
+如果安装的K8s版本不使用Docker作为容器运行时，则不需要在任何K8s节点上安装Docker。但为了方便测试，笔者选择在master节点安装docker以便构建和推送镜像到仓库。
 
 ```shell
 yum install -y yum-utils device-mapper-persistent-data lvm2
