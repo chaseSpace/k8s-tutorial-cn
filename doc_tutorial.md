@@ -212,6 +212,18 @@ Service对象就是为了解决这个问题。Service可以自动跟踪并绑定
 
 如果应用需要故障自愈等高级功能，则使用更高级的控制器如Deployment、DaemonSet等定义Pod模板即可。
 
+### 1.6 K8s DNS
+
+每个K8s集群都有自己独立的DNS服务，用于为集群中的Pod提供域名解析服务。集群DNS服务有一个静态IP，每个新启动的Pod内部都会在`/etc/resolve.conf`
+中硬编码这个IP作为DNS服务器。
+
+每当新的Service被发布到集群中的时候，同时也会在集群DNS服务中创建一个域名记录（对应其后端Pod IP），这样Pod就可以通过Service的域名访问其对应的服务。一些比较特殊的Pod也会注册到集群DNS服务器，
+比如StatefulSet管理下的每个Pod（以`PodName-0-*`, `PodName-1-*`的形式）。
+
+集群的DNS服务器由集群内一个名为`kube-dns`的Service提供，它将DNS请求均衡转发到每个节点上的`coredns-*`Pod。
+
+集群DNS服务使用[CoreDNS][coredns]作为后端，CoreDNS是一个由Go实现的高性能且灵活的DNS Server，支持使用自定义插件来扩展功能。
+
 ## 2. 创建程序和使用docker管理镜像
 
 ### 2.1 安装docker
@@ -2298,3 +2310,5 @@ busybox-use-downwardapi
 - [K8s对外服务之Ingress](http://www.uml.org.cn/yunjisuan/202303134.asp?artid=25653)
 - [从风口浪尖到十字路口，写在 Kubernetes 两周年之际](https://www.infoq.cn/article/qDYqsCTxCvKu8hXZuKme)
 - [Kubernetes Wikipedia](https://en.wikipedia.org/wiki/Kubernetes)
+
+[coredns]:https://github.com/coredns/coredns
