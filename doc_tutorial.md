@@ -118,8 +118,9 @@ Master由四个部分组成：
 
 
 4. **控制器管理器（kube-controller-manager）**  
-   集群中的大部分功能是由控制器执行的。理论上，以下每种控制器都是一个单独的进程，为了降低复杂度，它们都被编译、合并到单个文件中，
-   并在单个进程中运行。
+   Controller管理器实现了全部的后台控制循环，完成对集群的健康并对事件做出响应。Controller管理器是各种Controller的管理者，负责创建controller，并监控它们的执行。
+   这些Controller包括NodeController、ReplicationController等，每个controller都在后台启动了一个独立的监听循环（可以简单理解为一个线程），负责监控API
+   Server的变更。
 
 - Node控制器：负责管理和维护集群中的节点。比如节点的健康检查、注册/注销、节点状态报告、自动扩容等。
 - Replication控制器：确保集群中运行的 Pod 的数量与指定的副本数（replica）保持一致，稍微具体的说，对于每一个Replication控制器管理下的Pod组，具有以下逻辑：
@@ -129,7 +130,7 @@ Master由四个部分组成：
 - ServiceAccount及Token控制器：为新的命名空间创建默认账户和API访问令牌。
 - 等等。
 
-kube-controller-manager所执行的各项操作也是基于API Server进程的。
+`kube-controller-manager`所执行的各项操作也是基于API Server进程的。
 
 ### 1.3 Node
 
