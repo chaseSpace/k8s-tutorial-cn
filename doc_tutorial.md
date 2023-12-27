@@ -327,7 +327,7 @@ Kubernetes的世界中，调度的原子单位是Pod。 ——Nigel Poulton
 
 > Pod术语的起源：在英语中，会将a group of whales（一群鲸鱼） 称作*a Pod of whales*
 > ，Pod就是来源于此。因为Docker的Logo是鲸鱼拖着一堆集装箱（表示Docker托管一个个容器），
-> 所以在K8s中，Pod就是一组容器的集合。———参考自 Kuberenetes 修炼手册
+> 所以在K8s中，Pod就是一组容器的集合。———参考自 Kubernetes 修炼手册
 
 K8s当然支持容器化应用，但是，用户无法直接在集群中运行一个容器，而是需要将容器定义在Pod中来运行。
 Pod 是 Kubernetes 中最小的可部署和调度单元，通常包含一个或多个容器。这些紧密耦合容器共享名字空间和文件系统卷，类似运行在同一主机上的应用程序和其辅助进程。
@@ -655,21 +655,18 @@ hellok8s-go-http-58cb496c84-sdrt2   1/1     Running             0          1s
 
 这一步通过修改main.go来模拟实际项目中的服务更新，修改后的文件是 [main2.go](./main2.go)。
 
-重新构建镜像：
+重新构建&推送镜像：
 
 ```shell
 docker build . -t leigg/hellok8s:v2
-```
-
-再次push镜像到仓库：
-
-```shell
 docker push leigg/hellok8s:v2
 ```
 
 然后更新deployment：
 
 ```shell
+# set image是一种命令式的更新操作，是一种临时性的操作方式，会导致当前状态与YAML清单定义不一致，生产环境中不推荐；
+# 生产环境推荐通过修改YAML清单再apply的方式进行更新
 $ kk set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v2
 
 $ # 查看更新过程（如果镜像已经拉取，此过程会很快，你可能只会看到最后一条输出）
@@ -708,8 +705,8 @@ $ curl http://localhost:3000
 
 > 通过`kk get deploy -o wide`或`kk describe deploy ...`命令可以查看Pod内每个容器使用的镜像名称（含版本）。
 
-Deployment的镜像更新或回滚都是通过 **创建新的Replicaset和终止旧的Replicaset** 来完成的，你可以通过`kk get rs -w`来观察这一过程。
-在更新完成后，应当看到新旧Replicaset是同时存在的：
+Deployment的镜像更新或回滚都是通过 **创建新的ReplicaSet和终止旧的ReplicaSet** 来完成的，你可以通过`kk get rs -w`来观察这一过程。
+在更新完成后，应当看到新旧ReplicaSet是同时存在的：
 
 ```shell
 $ kk get rs -o wide
@@ -719,7 +716,7 @@ hellok8s-go-http-668c7f75bd   3         3         3       6m23s   hellok8s     l
 ```
 
 **注意**
-：k8s使用旧的Replicaset作为Deployment的更新历史，回滚时会用到，所以请不要手动删除旧的replicaset。通过`kubectl rollout history deployment/hellok8s-go-http`
+：k8s使用旧的ReplicaSet作为Deployment的更新历史，回滚时会用到，所以请不要手动删除旧的ReplicaSet。通过`kubectl rollout history deployment/hellok8s-go-http`
 可以查看上线历史：
 
 ```shell
@@ -868,7 +865,7 @@ spec:
 省略其他熟悉的配置项。。。
 ```
 
-这样，我们通过`k apply`命令时会以滚动更新方式进行。
+这样，我们通过`kk apply`命令时会以滚动更新方式进行。
 > 从`maxSurge: 1`可以看出更新时最多会出现4个pod，从`maxUnavailable: 1`可以看出最少会有2个pod正常运行。
 
 注意：无论是通过`kk set image ...`还是`kk rollout restart deployment xxx`方式更新deployment都会遵循配置进行滚动更新。
@@ -1044,6 +1041,10 @@ kk rollout undo deployment hellok8s-go-http --to-revision=N
 kk rollout resume deploy hellok8s-go-http
 ```
 
+另一种稍微麻烦但更稳妥的方式是部署一个使用新镜像的Deployment，
+它与旧Deployment有着相同标签组但不同名（比如`deployment-xxx-v2`），
+相同标签可以让新Deployment与旧Deployment同时接收外部流量，若新Deployment稳定运行一段时间后没有问题则停止旧Deployment。
+
 ### 4.10 底层控制器ReplicaSet
 
 实际上，Pod的副本集功能并不是由Deployment直接提供的，而是由Deployment管理的 **ReplicaSet** 控制器来提供的。
@@ -1051,7 +1052,7 @@ kk rollout resume deploy hellok8s-go-http
 ReplicaSet 是一个相比Deployment更低级的控制器，它负责维护一组在任何时候都处于运行状态且符合预期数量的 Pod 副本的稳定集合。
 然而由于 ReplicaSet 不具备滚动更新和回滚等一些业务常用的流水线功能，所以通常情况下，我们更推荐使用
 Deployment或DaemonSet等其他控制器 而不是直接使用
-ReplicaSet。你可以通过 [官方文档](https://kubernetes.io/zh-cn/docs/concepts/workloads/controllers/replicaset)
+ReplicaSet。你可以通过 [官方文档](https://kubernetes.io/zh-cn/docs/concepts/workloads/controllers/ReplicaSet)
 了解更多ReplicaSet细节。
 
 [replicaset.yaml](replicaset.yaml) 是一个可参考的示例。
