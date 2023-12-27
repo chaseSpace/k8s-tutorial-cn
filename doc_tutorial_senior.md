@@ -526,7 +526,7 @@ This host is statefulset-0!
 
 ### 2.2 伸缩与更新
 
-和Deployment一样，StatefulSet也支持动态伸缩，当StatefulSet的Replicas数量发生变化时（或直接通过`kubectl scale`
+和Deployment一样，StatefulSet也支持Pod副本动态伸缩，当StatefulSet的Replicas数量发生变化时（或直接通过 `kubectl scale`
 指令），StatefulSet控制器会确保Pod数量最终符合预期。
 但不同的是，StatefulSet执行的是有序伸缩，具体来说是在扩容时从编号较小的开始逐个创建，而缩容时则是倒序进行。
 
@@ -541,10 +541,11 @@ StatefulSet有两种更新策略，可以通过`.spec.updateStrategy`字段进�
         - 比如，当 partition 设置为 1 时，StatefulSet 控制器只会更新序号大于等于 1 的
           Pod（如果大于replicas，则不会更新任何Pod）。当你需要进行分阶段（金丝雀）更新时才会用到这个参数。
 
-### 2.3 PVC的保留
+### 2.3 删除StatefulSet
 
-默认情况下，当Pod被删除时，StatefulSet控制器不会删除这个Pod使用的PVC。在 k8s
-v1.27版本中，可以[进行配置](https://kubernetes.io/zh-cn/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention)。
+删除StatefulSet不会按Pod序号的倒序来删除Pod，若希望这样，可以先将StatefulSet缩容至0副本后再删除。
+此外，每个Pod所申请的PVC也会被保留下来，需要手动删除，不过这一点在k8s
+v1.27版本中可以[进行配置](https://kubernetes.io/zh-cn/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention)。
 
 ## 3. 管理集群资源的使用
 
