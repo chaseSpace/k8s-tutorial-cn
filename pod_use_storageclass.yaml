@@ -12,6 +12,8 @@ allowVolumeExpansion: true # 允许PV扩容（不允许缩容）
 reclaimPolicy: Delete # 默认Delete
 
 ---
+# 注意：一个PV只能绑定一个PVC。也就是说，使用hostpath搭配StorageClass时，当这个PV被任何一个Pod占用时（生成一个PVC），则这个PV无法再被其他Pod占用
+# - 所以在下面的 matchExpressions 处一般只会匹配一个节点；若要使用其他节点，则要再创建同storageClassName而不同名的PV资源
 apiVersion: v1
 kind: PersistentVolume
 metadata:
