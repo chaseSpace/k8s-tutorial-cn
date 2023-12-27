@@ -19,6 +19,7 @@ metadata:
 spec:
   serviceName:  "nginx"
   replicas: 2
+  podManagementPolicy: Parallel # 控制Pod扩缩行为。Parallel表示Pod扩缩时同时启停多个Pod，而不是一个一个进行（即默认的OrderedReady）
   updateStrategy:
     rollingUpdate:
       partition: 0

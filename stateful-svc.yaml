@@ -41,7 +41,7 @@ spec: # 这部分字段类似 Deployment
               name: stateful-data
           ports:
             - containerPort: 80
-  volumeClaimTemplates: # StatefulSet特有字段
+  volumeClaimTemplates: # StatefulSet特有字段，配置每个Pod的卷需求（Pod创建时将自动创建一个名称包含pod序号的PVC，若已存在同名PVC则不会重复创建）
     - metadata:
         name: stateful-data
       spec:
