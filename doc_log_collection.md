@@ -4,6 +4,10 @@
 
 除了容器应用日志以外，集群组件（控制面Pod、kubelet）也会产生日志，这些日志对于集群的运行和维护同样重要。
 
+**笔者提醒**  
+本文档讲述如何自行收集K8s集群日志，部署和维护这些组件都需要一定的人力和技术成本。除非你已经相当熟悉这些组件或你的团队具备这样运维能力的成员或你是在一个私有环境下运行K8s集群，否则不建议自行部署和维护。
+笔者推荐直接采用云厂商提供的开箱即用的日志收集&查询产品，可以使你有限的团队资源专注于业务开发。
+
 ### 1. 日志分类
 
 在K8s系统中，日志一共分为以下几类：
@@ -117,11 +121,14 @@ K8s官方本身没有提供原生的日志收集解决方案，但推荐了下�
 
 #### 2.1 使用节点级日志代理
 
-通过在节点上以DaemonSet方式部署日志代理，然后将节点上所有Pod的stdout&stderr输出作为日志收集的输入。
+通过在节点上以DaemonSet方式部署日志代理，然后将节点上所有Pod的stdout&stderr输出（落地到节点的`/var/log/pods`目录）作为日志收集的输入。
 
-- 优点（相对Sidecar模式而言）：部署和维护成本低，资源消耗低；
-- 缺点：需要统一所有容器的日志输出目录（需要映射到节点目录）和日志格式，灵活性和扩展性较差。
-    - 此方式也无法通过`kubelet logs`命令查看容器日志，因为已经写入文件。
+- 优点（相对Sidecar模式而言）：
+    - 部署和维护成本低（一个节点只部署一个日志代理实例），资源消耗低；
+    - 仍然可以使用`kubectl logs`命令查看Pod日志；
+- 缺点：
+    - 一个日志代理实例收集节点上所有Pod的日志，业务隔离性较差；
+    - 节点级的单点故障；
 
 这种方式适用于业务不多的集群。
 
@@ -129,12 +136,12 @@ K8s官方本身没有提供原生的日志收集解决方案，但推荐了下�
 
 这种方式还可细分为两种部署模式：
 
-- Sidecar容器将应用容器的日志输出到自己的stdout（或直接传送到日志后端）；
+- Sidecar容器将应用容器的日志输出到自己的stdout；
     - 在部分场景下：可能在一个容器中输出了不止一条日志流（比如分为2个日志文件）用以区分不同业务日志，这时需要在一个Pod中部署2个Sidecar容器分别跟踪两个日志文件，以便在收集时区分。
     - [pod_two_sidecar_container.yaml](pod_two_sidecar_container.yaml)是来自官方的示例。
-- Sidecar容器运行一个日志代理，收集应用容器的日志（stdout&stderr或文件）并传送到日志后端；
-    - 建议应用容器通过stdout&stderr方式输出日志，否则无法通过`kubelet logs`
-      命令即时查看容器日志（即使我们可以在日志后端查看，但有时通过`kubectl logs`命令更快）。
+- Sidecar容器运行一个日志代理，收集应用容器的日志文件内容（通过`tail`）并传送到日志后端；
+    - 注意此时K8s不会负责应用容器自身写入的日志文件的轮转，需要应用自身负责；
+    - 若希望通过`kubectl logs`命令查看Pod日志，可为日志代理配置多一个输出到stdout（不过这样会过多占用节点磁盘空间，因为日志数据正在两次写入磁盘）；
     - **后文将主要介绍这种方式**。
 
 这种方式的利弊如下：
@@ -157,20 +164,20 @@ K8s官方本身没有提供原生的日志收集解决方案，但推荐了下�
 
 ### 3. 使用EFK架构部署Sidecar模式
 
-EFK架构是Kubernetes集群日志收集的常用架构（Sidecar模式），它由Elasticsearch、Fluentd和Kibana三大开源软件构成。
+EFK架构是Kubernetes集群日志收集的常用架构（Sidecar模式），它由Elasticsearch、Filebeat和Kibana三大开源软件构成。
 它们分别用途是：
 
 - Elasticsearch（通常简称ES）：用于存储、索引和搜索大量的结构化和非结构化数据。
-- Fluentd：用于采集、转换和发送日志数据到Elasticsearch，支持多种数据源。
+- Filebeat：由ES官方维护。用于采集、转换和发送日志数据到Elasticsearch，支持多种数据源。
 - Kibana：用于可视化和分析从Elasticsearch中检索到的数据。
 
 EFK架构的**工作流程**如下：
 
-- Fluentd 收集日志： Fluentd 在集群中的每个节点上运行，收集来自应用程序、容器和其他服务的日志数据。Fluentd
+- Filebeat 收集日志： Filebeat 在集群中的每个节点上运行（也可以是Sidecar方式），收集来自应用程序、容器和其他服务的日志数据。Filebeat
   具有丰富的插件，可与各种数据源和目标集成。
-- Fluentd 过滤和转发： Fluentd 可以对收集到的日志数据进行过滤和转换，然后将其发送到 Elasticsearch 进行持久性存储。这使得日志数据能够在
-  Elasticsearch 中被高效地检索和分析。
-- Elasticsearch 存储和索引： Elasticsearch 接收来自 Fluentd 的日志数据，将其索引到分布式的数据存储中。Elasticsearch
+- Filebeat 过滤和转发： Filebeat 可以对收集到的日志数据进行过滤和转换，然后将其发送到 Elasticsearch 进行持久性存储。这使得日志数据能够在
+  Elasticsearch 中被高效地检索和分析（也可以转发到其他目标，如MongoDB, Hadoop，AWS，GCP等）。
+- Elasticsearch 存储和索引： Elasticsearch 接收来自 Filebeat 的日志数据，将其索引到分布式的数据存储中。Elasticsearch
   提供灵活的查询语言，支持实时搜索和聚合操作。
 - Kibana 可视化和查询： Kibana 提供 Web 界面，允许用户通过直观的界面查询和可视化 Elasticsearch
   中的日志数据。用户可以创建仪表板、图表和报表，以监控系统的状态和性能。
@@ -178,19 +185,15 @@ EFK架构的**工作流程**如下：
 使用EFK架构可以帮助我们快速发现问题、进入故障定位和监控系统状态。ES的横向扩展能力，可以支持大规模集群的日志收集，
 而且都是这几个组件都是开源项目，拥有活跃的社区支持和丰富的文档资源。
 
-**Fluentd Vs Logstash**  
-常用来与EFK比较的是ELK架构，它们的区别在于Fluentd（F）和Logstash（L）。之所以在集群中推荐使用Fluentd，是因为它是一个比Logstash更轻量级的日志收集器，注重简单性和性能。
+**Filebeat Vs Logstash**  
+常用来与EFK比较的是ELK架构，它们的区别在于Filebeat（F）和Logstash（L）。之所以在集群中推荐使用Filebeat，是因为它是一个比Logstash更轻量级的日志收集器，注重简单性和性能。
 Logstash是基于 Java 编写的，运行在 JVM 上，这导致它需要更多的资源来运行。Logstash支持更丰富的功能，包括多种输入和输出插件、强大的过滤器和转换功能，这也导致它更高的配置难度以及文档复杂性。
 
-**Fluentd Vs Filebeat**  
-Filebeat也是一个日志转发工具。它与Fluentd的区别在于，就像Fluentd比Logstash轻量一样，Filebeat比Fluentd还要轻量级。这体现在它支持更少的输入源，更少的输出模板以及更简单的过滤功能。
-虽然Filebeat也支持通过插件扩展，但Fluentd已经有一个丰富的插件生态，并提供了一个大型的插件存储库，可以轻松集成用于各种目的，如数据收集，解析，缓冲等。
-
-此外，还有其他的日志转发工具可用，例如Fluentbit、Vector（Rust实现，性能极高）和Promtail，读者可以自行了解。
+此外，还有其他的日志转发工具可用，例如Fluentd、Fluent-bit、Vector（Rust实现，性能极高）和Promtail，读者可以自行了解。
 
 下面的章节将介绍如何使用Helm来快速安装EFK各组件。
 
-> Helm是K8s生态中一个非常流行的包管理工具，它允许用户通过一个chart包来安装和配置K8s集群上的各种应用。
+> Helm是K8s生态中一个非常流行的包管理工具，它允许用户通过一个chart包来快速安装和配置K8s集群上的各种应用。
 > 你可以查看 [Helm手记](doc_helm.md)
 > 来快速上手Helm。
 
@@ -215,68 +218,44 @@ $ ls elasticsearch
 Chart.yaml  examples  Makefile  README.md  templates  values.yaml
 ```
 
-接下来，需要编辑`values.yaml`以适应我们的需求。[values.yaml](helm/elasticsearch/values.yaml)
-是一个副本示例。下面`values.yaml`中常见的修改位置：
+接下来，需要编辑`values.yaml`以适应我们的需求。[values-deploy.yaml](helm/elasticsearch/values-deploy.yaml)是本次测试部署时需要修改的参数。
 
-```yaml
-# 笔者只有一个普通节点（默认3）。
-# 由于是statefulSet部署并且设置了Pod反亲和性（表示每个节点最多存在一个es pod），所以副本数量不应该超过节点数量。
-replicas: 1
-minimumMasterNodes: 1 # 默认最小2个master实例
+其中的`.Values.sslEnabled`变量是我们在`values-deploy.yaml`中新增的一个变量。这样就可以实现禁用es的ssl连接，且不影响kibana安装。
 
-# 因为笔者的测试节点内存较少，所以修改默认资源配置
-resources:
-  requests: # 降低
-    cpu: "100m"
-    memory: "200M"
-  limits: # 不变
-    cpu: "1000m"
-    memory: "2Gi"
+> 你可以在[这个页面](helm/elasticsearch/README.md)找到配置指导以及每个字段的解释。
 
-# 设置ES密码（留空自动生成）
-secret:
-  enabled: true
-  password: "123"
+由于是部署单节点集群，所以需要禁用StatefulSet模板中的`discovery.seed_hosts`字段：
 
-# 客户端连接端口（kibana使用）
-protocol: https
-httpPort: 9200
-
-# 默认传输数据的端口
-transportPort: 9300
-
-# 默认开启持久化（否则数据存在内存中）
-# 且需要30G空间（不会立即占用，部署时也不会检查磁盘可用>=30G）
-persistence:
-  enabled: true
-volumeClaimTemplate:
-  accessModes: [ "ReadWriteOnce" ]
-  resources:
-    requests:
-      storage: 30Gi
+```shell
+# elasticsearch/templates/statefulset.yaml
+# 通过下面方式注释这三行代码，你可以直接删除
+{{/*          {{- else }}*/}}
+{{/*          - name: discovery.seed_hosts*/}}
+{{/*            value: "{{ template "elasticsearch.masterService" . }}-headless"*/}}
 ```
-
-> 你可以在[这个页面](https://github.com/elastic/helm-charts/blob/main/elasticsearch/README.md)找到每个字段的解释。
 
 部署前检查chart生成的各项K8s对象模板：
 
 ```shell
-helm install --dry-run --debug es ./elasticsearch
+helm install --dry-run --debug es ./elasticsearch -f elasticsearch/values-deploy.yaml
 ```
 
 提取去普通节点拉取镜像（如果是本地仓库则不需要）：
 
 ```shell
-ctr -n k8s.io i pull docker.elastic.co/elasticsearch/elasticsearch:8.5.1
+ctr -n k8s.io i pull docker.io/library/elasticsearch:8.5.1
 ```
 
-准备存储后端（使用[storageclass_hostpath_es.yaml](storageclass_hostpath_es.yaml)）：
+准备存储后端（使用[storageclass_hostpath_es.yaml](efk-arch/storageclass_hostpath_es.yaml)）：
 
 - 注意：elasticsearch是数据库类应用，需要用到磁盘，在实际部署时需要为其提前准备。
 - 如果只是体验，可以将上面的`persistence.enables`设置为`false`，这样数据会保存在内存中。
 
 ```shell
-kk apply -f storageclass_hostpath_es.yaml
+# 在部署es的目标节点执行
+$ mkdir /home/k8s-pv-elasticsearch
+
+$ kk apply -f storageclass_hostpath_es.yaml
 
 $ kk get sc,pv         
 NAME                                        PROVISIONER                    RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
@@ -284,21 +263,18 @@ storageclass.storage.k8s.io/elasticsearch   kubernetes.io/no-provisioner   Delet
 
 NAME                             CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS    REASON   AGE
 persistentvolume/elasticsearch   100Gi      RWO            Retain           Available           elasticsearch            6m12s
-
-# 在部署es的目标节点执行
-$ mkdir /home/k8s-elasticsearch-data
 ```
 
 安装chart：
 
 ```shell
 # 将es安装在单独的namespace: efk 中，同时设置storageClassName以便在对应的sc中申请存储卷
-helm install elasticsearch elasticsearch \
+helm install elasticsearch elasticsearch -f elasticsearch/values-deploy.yaml \
   --set volumeClaimTemplate.storageClassName=elasticsearch \
   -n efk --create-namespace
 ```
 
-查看部署状态（主要观察Pod是否`Running`状态）：
+查看部署状态（主要观察Pod是否`Running`状态以及Ready列是否`1/1`）：
 
 ```shell
 helm status elasticsearch --show-resources -nefk
@@ -319,6 +295,16 @@ helm status elasticsearch --show-resources -nefk
 kubectl get secrets --namespace=efk elasticsearch-master-credentials -ojsonpath='{.data.password}' | base64 -d
 ```
 
+查看ES集群状态：
+
+```shell
+# 进入elasticsearch-master-0 shell
+curl -u elastic:123 --cacert /usr/share/elasticsearch/config/certs/ca.cert http://elasticsearch-master.efk.svc.cluster.local:9200/_cluster/health?pretty
+curl -u elastic:123 --cacert /usr/share/elasticsearch/config/certs/ca.cert http://elasticsearch-master.efk.svc.cluster.local:9200/_cluster/allocation/explain?pretty
+```
+
+> 如果你要重装ES，记得清空k8s-node1中的数据目录，使用`rm -rf /home/k8s-pv-elasticsearch/*`。
+
 #### 3.2 使用Helm部署Kibana
 
 下载并解压chart包：
@@ -327,37 +313,14 @@ kubectl get secrets --namespace=efk elasticsearch-master-credentials -ojsonpath=
 helm pull elastic/kibana --version=8.5.1 --untar
 ```
 
-编辑`values.yaml`，[values.yaml](helm/kibana/values.yaml)是一个副本示例。下面是常见的修改位置：
+编辑`values.yaml`，[values-deploy.yaml](helm/kibana/values-deploy.yaml)是本次测试部署时需要修改的参数。
 
-```yaml
-# 默认1个Pod副本，无需更改
-replicas: 1
-
-# 笔者测试环境内存不足，所以降低一些资源消耗
-resources:
-  requests:
-    cpu: "100m"
-    memory: "200Mi"
-  limits:
-    cpu: "1000m"
-    memory: "2Gi"
-
-# web端口，默认5601
-httpPort: 5601
-
-# 为了方便测试（跳过ingress），service使用NodePort类型
-service:
-  type: NodePort
-
-# 其中的 `elasticsearchCredentialSecret` 字段用以配置访问ES的密码，它会与前面安装ES时使用的Secret名称一致
-```
-
-> 你可以在[这个页面](https://github.com/elastic/helm-charts/blob/main/kibana/README.md)找到每个字段的解释。
+> 你可以在[这个页面](helm/kibana/README.md)https://artifacthub.io/packages/helm/elastic/kibana)找到每个字段的解释。
 
 检查模板：
 
 ```yaml
-helm install --dry-run --debug kibana ./kibana
+helm install --dry-run --debug kibana ./kibana -f kibana/values-deploy.yaml
 ```
 
 提取去普通节点拉取镜像（如果是本地仓库则不需要）：
@@ -370,7 +333,7 @@ ctr -n k8s.io i pull docker.elastic.co/kibana/kibana:8.5.1
 
 ```shell
 # 安装在单独的namespace: efk 中
-helm install kibana ./kibana -n efk
+helm install kibana ./kibana -n efk -f kibana/values-deploy.yaml
 ```
 
 查看部署状态（主要观察Pod是否`Running`状态）：
@@ -386,6 +349,108 @@ helm status kibana --show-resources -nefk
 
 [kibana-plugin]:https://github.com/elastic/helm-charts/blob/main/kibana/README.md#how-to-install-plugins
 
-#### 3.3 使用Helm安装Fluentd
+#### 3.3 Sidecar模式部署Filebeat
+
+Filebeat主要由以下部件组成：
+
+- Input（输入）
+- Harvesters（收集器）
+- Registry file（注册表文件）
+- Output（输出）
+
+它们协作起来完成日志文件的跟踪、状态保存，以及将事件数据转发到指定的输出。
+
+**harvesters（收集器）**  
+每个日志文件都会分配一个单独的收集器。收集器负责逐行读取每个文件，并将内容发送到输出。即使文件被删除或重命名，收集器也会继续读取文件，
+直到设置的`close_inactive`时间到达（收集器的最大空闲时间）。
+
+**input（输入）**  
+与其他日志收集器类似，输入也是负责设置事件源。Filebeat支持多种输入类型，包括HTTP/TCP/UDP/MQTT/文件流/Kafka/journald等等，请查阅[完整的Input列表](https://www.elastic.co/guide/en/beats/filebeat/8.5/configuration-filebeat-options.html#filebeat-input-types)。
+每个输入类型都可以多次指定。
+
+**registry file（注册表文件）**  
+Filebeat自身维护一个注册表文件来存储它所收集到的所有新文件的状态（包括文件被转发的状态），并且会经常刷新数据到注册表中。所以如果你的用例涉及每天创建大量新文件，你可能会发现注册表文件变得太大。
+参考[这里](https://www.elastic.co/guide/en/beats/filebeat/8.5/reduce-registry-size.html)进行优化。
+
+**Output（输出）**
+
+**至少一次转发**
+如果Filebeat在转发事件的过程中关闭，它在关闭之前不会等待输出确认所有事件。任何发送到输出但在Filebeat关闭前未确认的事件，
+都会在Filebeat重新启动时再次发送。这样可以确保每个事件至少发送一次，但最终可能会将重复的事件发送到输出。
+你可以通过设置`shutdown_timeout`选项将Filebeat配置为在关闭前等待特定的时间。
+
+Filebeat架构图如下：
+![filebeat.png](img/filebeat.png)
+
+**目录布局**  
+以下布局供参考，具体可能因安装平台而异。
+
+```shell
+/usr/share/filebeat   -- home目录
+/usr/share/filebeat/bin -- bin文件
+/etc/filebeat -- config目录
+/var/lib/filebeat -- 数据目录
+/var/log/filebeat -- 日志目录
+```
+
+Filebeat只是Elastic公司开源的Beats系列软件之一，还有用来采集其他类型数据（如metric、uptime等）的软件，请参考[Beats系列](https://www.elastic.co/guide/en/beats/filebeat/8.5/filebeat-installation-configuration.html#_whats_next)。
+
+##### 3.4 模块（Modules）
+
+Filebeat 模块是 Filebeat 配置文件的集合，它们提供了一种方便的方式来收集特定类型（如Nginx）的日志。Filebeat 模块可以自动配置
+Filebeat，借此简化日志格式的收集、解析和可视化。
+
+参考[这里](https://www.elastic.co/guide/en/beats/filebeat/8.5/filebeat-installation-configuration.html#collect-log-data)
+了解如何使用模块。
+
+你也可以手动配置输入源，不使用模块。
+
+##### 3.5 ECS记录器
+
+虽然Filebeat可用于收集原始的纯文本应用程序日志，但Filebeat官方建议在收集时对日志进行结构化。
+这使你可以提取字段，如日志级别和异常堆栈跟踪。
+
+ECS是Elastic Common Schema的缩写，它为日志数据定义了一组通用的字段，以便可视化分析。ECS是ElasticSearch的一项功能。
+
+官方通过以各种流行的编程语言提供应用程序日志格式化程序来简化此过程。这些插件将日志格式化为兼容ECS的JSON，从而无需手动解析日志。
+
+本文档不使用ECS记录器，查看[这里](https://www.elastic.co/guide/en/ecs-logging/overview/master/intro.html)了解更多。
+
+##### 3.6 开始测试
+
+准备下面两个模板：
+
+- [filebeat-configmap.yaml](efk-arch/filebeat-configmap.yaml)
+- [filebeat-sidecar-example.yaml](efk-arch/filebeat-sidecar-example.yaml)
+
+依次部署：
+
+```shell
+kk apply -f filebeat-configmap.yaml
+
+# 导出之前安装的es的ca证书，并用它创建secret（filebeat使用https链接es需要用到）
+kubectl get secret elasticsearch-master-certs -n efk -o jsonpath='{.data.ca\.crt}' | base64 --decode > ca.crt
+kubectl create secret generic elastic-ca.crt --from-file=ca.crt
+
+kk apply -f filebeat-sidecar-example.yaml
+```
+
+进入filebeat容器内验证ES能否正常连接：
+
+```shell
+# 使用你的pod-id替换
+kubectl exec -it hellok8s-filebeat-test-557bccdcf9-jnj64 -c filebeat -- sh -c 'filebeat test output -e -c /etc/filebeat.yml'
+```
+
+查看ES日志：
+
+```shell
+kk logs -n efk elasticsearch-master-0 -f
+```
+
+若输入包含`creating index`的日志，则说明filebeat成功发送日志到ES。
 
 TODO
+
+- [Filebeat Docs](https://docs.Filebeat.org/)
+- [基于 EFK 的 Kubernetes 日志采集方案](https://xie.infoq.cn/article/fea1fe9dffe70b1d729dc04cb)
