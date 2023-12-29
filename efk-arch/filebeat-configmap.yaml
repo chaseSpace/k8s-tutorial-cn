@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-config
+  labels:
+    k8s-app: filebeat
+data:
+  # 配置规范：https://www.elastic.co/guide/en/beats/libbeat/8.5/config-file-format.html
+  # 支持折叠：parent.child: xxx
+  # 支持CLI选项覆盖默认配置）（折叠语法）：-E parent.child: xxx
+  # 支持数据类型：bool/number/str/duration/regexp(双引号)/format-str
+  # 支持使用env：先在外部指定，然后在配置中使用：${VAR}，${VAR: default_value}，${VAR:?error_text}（自定义变量未指定时的错误信息），CLI选项指定：-E name=${NAME}
+  # 支持引用已存在的设置项：语法同env，只能使用折叠语法，例如先有：es.host: '${ES_HOST:localhost}' ，后在其他位置引用: ${es.host}；可以引用具有缩进配置的变量
+  # 支持正则（部分配置项）：注意使用单引号包起来，参考：https://www.elastic.co/guide/en/beats/filebeat/8.5/regexp-support.html
+
+  # 如何避免重复发送某些数据到ES：https://www.elastic.co/guide/en/beats/filebeat/8.5/filebeat-deduplication.html
+
+  # 验证此配置格式，进入启动后的容器执行：filebeat test config filebeat.yml
+  # filebeat test config filebeat.yml
+  filebeat.yml: |
+    # 这里演示的是收集单个日志文件，但更常见是采用轮转策略的日志文件集合，采集它们请参考：https://www.elastic.co/guide/en/beats/filebeat/8.5/file-log-rotation.html
+    filebeat.inputs:
+      - type: filestream  # 不同类型支持不同的配置项
+        id: my-filestream-id
+        enabled: true # 默认true，可省略
+        encoding: plain # plain 不做任何编码验证和转换
+        # include_lines优先于exclude_lines执行（若同时配置）
+        #exclude_lines: [ '^DBG' ]  # 排除一些行
+        #include_lines: [ '^ERR', '^WARN' ] # 仅包含一些行
+        tags: # 给每条导出数据带上tag，方便kibana筛选
+          - ${SVC_NAME}
+        prospector.scanner.include_files: ['/var/log/biz/container.log']
+        paths:
+          # 可以使用 /var/log/*.log  /var/log/*/*.log（不含/var/log/*.log）
+          - /var/log/biz/container.log
+        
+        # 给每条数据添加额外的key
+        fields_under_root: false # true则将key置于JSON最外层
+        fields:
+          svc: ${SVC_NAME}
+        
+        # 保留value为null的key
+        keep_null: true
+        
+        # 默认会给每条数据都添加一个key: "host.name" 
+        # true则禁用
+        publisher_pipeline.disable_host: false
+      
+        # 经过parsers验证通过的事件才会被导出，支持（multiline/ndjson/container/syslog），可同时多项
+        # 上面的include_lines过滤之后，才会通过parsers.include_message
+        # -- parsers 处理过的数据会发送到下面的processors再次处理 --
+        parsers:
+          - multiline: # 若要处理包含多行的事件，比如java exception
+              type: pattern
+              pattern: '^\['
+              match: after
+              max_lines: 500
+              timeout: 5s
+              skip_newline: false
+          #- include_message.patterns:
+              #- "^ERR"
+              #- "^WARN"
+          - ndjson:
+              target: "raw_msg" # 解析后的源JSON数据
+              message_key: raw_msg # 将源JSON数据用于过滤和多行聚合
+              keys_under_root: false
+              add_error_key: true # 当源数据行解析json错误时会在导出的数据中包含err key作为提示
+          #- container: # 采集容器日志（需要将paths设置为/var/log/containers/*.log）
+          #  stream: all # 支持stdout、stderr、all
+        
+        # processors 过滤和增强导出的数据（直接使用官方定制的各类processor）
+        # 流程：event -> processor 1 -> event1 -> processor 2 -> event2 ...
+        # 参考：https://www.elastic.co/guide/en/beats/filebeat/8.5/filtering-and-enhancing-data.html
+        # -- processors可以放在全局作用域，不仅限于inputs --
+        processors:
+          - add_fields: # 给每条数据添加额外的字段。old: {"x":1}  new: {"x":1, "@metadata": {"some_field":"xxx"}}
+              target: '@metadata'
+              fields:
+                some_field: xxx
+          - add_id: # 为每条数据生成一个唯一id（可用于ES建立唯一索引，避免重复数据）
+              target_field: event_id  # 默认 @metadata._id 
+            # 若数据已经包含唯一id，可提取
+            #      - decode_json_fields:
+            #          document_id: "myid"
+            #          fields: ["message"]
+            #          max_depth: 1
+            #          target: ""
+        # 日志轮转时（旋转文件在文件名末尾附加了递增索引数字：x.log.1）启用，若附加的是日期：apache.log-20210527 则启用下面两个子项
+        #rotation.external.strategy.copytruncate:
+        #  suffix_regex: \.\d$
+        #  suffix_regex: \-\d{6}$
+        #  dateformat: -20060102
+    
+    ############
+    # 全局设置 #
+    ############
+    timestamp.precision: microsecond # 所有时间戳精度，选项：millisecond（默认）, microsecond, nanosecond  
+    tags: ["my-service", "hardware", "test"] # 给所有input每条数据打tag
+    # 给每条数据添加额外的key
+    fields_under_root: false # true则将key置于JSON最外层
+    fields:
+      unified_field: xxx
+    #processors: # processor 可以放在全局
+  
+    output.elasticsearch: # 参考：https://www.elastic.co/guide/en/beats/filebeat/8.5/elasticsearch-output.html
+      compression_level: 5
+      # loadbalance: true  # 如果指定了多个host，则建议开启
+      hosts: [ '${ELASTICSEARCH_ADDR}' ]
+      # 支持三种认证方式：账号密码/token/证书
+      username: ${ELASTICSEARCH_USERNAME}
+      password: ${ELASTICSEARCH_PASSWORD}
+      ssl:
+        enabled: ${ELASTICSEARCH_ENABLE_SSL}
+        verification_mode: certificate  # 支持 full(默认)/strict/certificate/none
+        certificate_authorities: ${ELASTICSEARCH_CA_CERT}
+    #    ca_trusted_fingerprint: ${ELASTICSEARCH_CA_SHA256}
+      # 将事件存储在内存队列中
+      # https://www.elastic.co/guide/en/beats/filebeat/8.5/configuring-internal-queue.html
+      queue.mem:
+        events: 4096
+        flush.min_events: 512 # >= N时可以开始导出数据到远端，默认2048
+        flush.timeout: 1s # 若min_events不满足，但等待了N时长，则也可以导出数据到远端，默认1s
+    
+    
+    # 预配置kibana面板，可选。
+    setup.kibana:
+      host: "${KIBANA_HOST:kibana}:${KIBANA_PORT:5601}"
+      #若不设置，则使用es的账户密码
+      #username: ${KIBANA_USERNAME}
+      #password: ${KIBANA_PASSWORD}

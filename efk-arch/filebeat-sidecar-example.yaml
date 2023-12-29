@@ -1,0 +1,80 @@
+# filebeat-sidecar-example.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hellok8s-filebeat-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hellok8s
+  template:
+    metadata:
+      labels:
+        app: hellok8s
+    spec:
+      containers:
+        - image: leigg/hellok8s:log_test_json
+          name: hellok8s
+          # 将stdout/stderr重定向到文件，以便收集
+          command: [ "sh", "-c", "./main > /var/log/biz/container.log 2>&1" ]
+          volumeMounts:
+            - name: log
+              mountPath: /var/log/biz
+        # filebeat 作为sidecar容器存在，收集业务容器的日志
+        - name: filebeat
+          # 需要对应es版本：https://www.elastic.co/cn/support/matrix#matrix_compatibility
+          image: docker.elastic.co/beats/filebeat:8.5.1
+          command: [ "filebeat", "-e", "-c", "/etc/filebeat.yml" ]
+          resources:
+            limits:
+              memory: 100Mi
+            requests:
+              cpu: 100m
+              memory: 10Mi
+          volumeMounts:
+            - name: filebeat-config
+              mountPath: /etc/filebeat.yml
+              readOnly: true
+              subPath: filebeat.yml
+            - name: log
+              mountPath: /var/log/biz
+            - name: es-cert-ca
+              mountPath: /etc/elasticsearch/ca.crt
+              readOnly: true
+              subPath: ca.crt
+          env:
+            - name: TZ
+              value: Asia/Shanghai
+            - name: SVC_NAME
+              value: "log_test"
+            - name: ELASTICSEARCH_ADDR
+              value: https://elasticsearch-master.efk.svc.cluster.local:9200
+            - name: ELASTICSEARCH_USERNAME
+              value: elastic
+            - name: ELASTICSEARCH_PASSWORD
+              value: "123"
+            - name: ELASTICSEARCH_ENABLE_SSL
+              value: "true"
+            - name: ELASTICSEARCH_CA_CERT
+              value: /etc/elasticsearch/ca.crt
+            - name: KIBANA_HOST
+              value: kibana.efk.svc.cluster.local
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+      volumes:
+        # 需要将挂载一个临时目录给业务容器暂存日志，以便业务容器故障时仍然能够记录到日志
+        - name: log
+          emptyDir: { }
+        - name: filebeat-config
+          configMap:
+            name: filebeat-config
+        - name: es-cert-ca
+          secret:
+            secretName: elastic-ca.crt
+
+
+#kubectl get secret elasticsearch-master-certs -n efk -o jsonpath='{.data.ca\.crt}' | base64 --decode > ca.crt
+#kubectl create secret generic elastic-ca.crt --from-file=ca.crt
