@@ -1,4 +1,5 @@
 ---
+# 默认是部署master角色实例，当需要部署data角色时，需要修改 nodeGroup: "data"
 clusterName: "elasticsearch"
 nodeGroup: "master"
 
@@ -21,8 +22,9 @@ roles:
   - remote_cluster_client
   - transform
 
+# 至少需要3个节点（若总节点数较少如3个，可全部设置为master候选节点；若节点数较多如5个以上，则推荐设置3个master后端节点，其余为data节点）
 replicas: 3
-minimumMasterNodes: 2
+minimumMasterNodes: 2 # 至少需要多少个master eligible node，才可以成功地选举出master，否则不进行选举（避免脑裂），取值 quorum = master_eligible_nodes / 2 + 1
 
 esMajorVersion: ""
 
@@ -37,19 +39,19 @@ esConfig: {}
 
 createCert: true
 
-esJvmOptions: {}
+esJvmOptions: { }
 #  processors.options: |
 #    -XX:ActiveProcessorCount=3
 
 # Extra environment variables to append to this nodeGroup
 # This will be appended to the current 'env:' key. You can use any of the kubernetes env
 # syntax here
-extraEnvs: []
+extraEnvs: [ ]
 #  - name: MY_ENVIRONMENT_VAR
 #    value: the_value_goes_here
 
 # Allows you to load environment variables from kubernetes secret or config map
-envFrom: []
+envFrom: [ ]
 # - secretRef:
 #     name: env-secret
 # - configMapRef:
@@ -63,27 +65,27 @@ secret:
 # A list of secrets and their paths to mount inside the pod
 # This is useful for mounting certificates for security and for mounting
 # the X-Pack license
-secretMounts: []
+secretMounts: [ ]
 #  - name: elastic-certificates
 #    secretName: elastic-certificates
 #    path: /usr/share/elasticsearch/config/certs
 #    defaultMode: 0755
 
-hostAliases: []
+hostAliases: [ ]
 #- ip: "127.0.0.1"
 #  hostnames:
 #  - "foo.local"
 #  - "bar.local"
 
-image: "docker.elastic.co/elasticsearch/elasticsearch"
+image: "docker.co/elasticsearch/elasticsearch"
 imageTag: "8.5.1"
 imagePullPolicy: "IfNotPresent"
 
-podAnnotations: {}
+podAnnotations: { }
 # iam.amazonaws.com/role: es-cluster
 
 # additionals labels
-labels: {}
+labels: { }
 
 esJavaOpts: "" # example: "-Xmx1g -Xms1g"
 
@@ -95,7 +97,7 @@ resources:
     cpu: "1000m"
     memory: "2Gi"
 
-initResources: {}
+initResources: { }
 # limits:
 #   cpu: "25m"
 #   # memory: "128Mi"
@@ -107,14 +109,14 @@ networkHost: "0.0.0.0"
 
 volumeClaimTemplate:
   storageClassName: elasticsearch
-  accessModes: ["ReadWriteOnce"]
+  accessModes: [ "ReadWriteOnce" ]
   resources:
     requests:
       storage: 30Gi
 
 rbac:
   create: false
-  serviceAccountAnnotations: {}
+  serviceAccountAnnotations: { }
   serviceAccountName: ""
   automountToken: true
 
@@ -142,23 +144,23 @@ persistence:
   labels:
     # Add default labels for the volumeClaimTemplate of the StatefulSet
     enabled: false
-  annotations: {}
+  annotations: { }
 
-extraVolumes: []
+extraVolumes: [ ]
 # - name: extras
 #   emptyDir: {}
 
-extraVolumeMounts: []
+extraVolumeMounts: [ ]
 # - name: extras
 #   mountPath: /usr/share/extras
 #   readOnly: true
 
-extraContainers: []
+extraContainers: [ ]
 # - name: do-something
 #   image: busybox
 #   command: ['do', 'something']
 
-extraInitContainers: []
+extraInitContainers: [ ]
 # - name: do-something
 #   image: busybox
 #   command: ['do', 'something']
@@ -177,7 +179,7 @@ antiAffinity: "hard"
 
 # This is the node affinity settings as defined in
 # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#node-affinity-beta-feature
-nodeAffinity: {}
+nodeAffinity: { }
 
 # The default is to deploy all pods serially. By setting this to parallel all pods are started at
 # the same time when bootstrapping the cluster
@@ -194,18 +196,18 @@ transportPort: 9300
 
 service:
   enabled: true
-  labels: {}
-  labelsHeadless: {}
+  labels: { }
+  labelsHeadless: { }
   type: ClusterIP
   # Consider that all endpoints are considered "ready" even if the Pods themselves are not
   # https://kubernetes.io/docs/reference/kubernetes-api/service-resources/service-v1/#ServiceSpec
   publishNotReadyAddresses: false
   nodePort: ""
-  annotations: {}
+  annotations: { }
   httpPortName: http
   transportPortName: transport
   loadBalancerIP: ""
-  loadBalancerSourceRanges: []
+  loadBalancerSourceRanges: [ ]
   externalTrafficPolicy: ""
 
 updateStrategy: RollingUpdate
@@ -255,7 +257,7 @@ tolerations: []
 # Only enable this if you have security enabled on your cluster
 ingress:
   enabled: false
-  annotations: {}
+  annotations: { }
   # kubernetes.io/ingress.class: nginx
   # kubernetes.io/tls-acme: "true"
   className: "nginx"
@@ -264,7 +266,7 @@ ingress:
     - host: chart-example.local
       paths:
         - path: /
-  tls: []
+  tls: [ ]
   #  - secretName: chart-example-tls
   #    hosts:
   #      - chart-example.local
@@ -273,7 +275,7 @@ nameOverride: ""
 fullnameOverride: ""
 healthNameOverride: ""
 
-lifecycle: {}
+lifecycle: { }
 # preStop:
 #   exec:
 #     command: ["/bin/sh", "-c", "echo Hello from the postStart handler > /usr/share/message"]
@@ -296,7 +298,7 @@ lifecycle: {}
 sysctlInitContainer:
   enabled: true
 
-keystore: []
+keystore: [ ]
 
 networkPolicy:
   ## Enable creation of NetworkPolicy resources. Only Ingress traffic is filtered for now.

@@ -1,0 +1,25 @@
+# 笔者测试环境内存不足，所以降低一些资源消耗
+resources:
+  requests:
+    cpu: "100m"
+    memory: "200Mi"
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"
+
+# 若docker官方仓库以便加速下载
+image: "docker.io/library/kibana"
+
+# web端口，默认5601
+httpPort: 5601
+
+# 设置 kibana 为中文
+kibanaConfig:
+  kibana.yml: |
+    i18n.locale: "zh-CN"
+
+# 为了方便测试（跳过ingress），service使用NodePort类型
+service:
+  type: NodePort
+
+# 其中的 `elasticsearchCredentialSecret` 字段用以配置访问ES的密码，它会与前面安装ES时使用的Secret名称一致
