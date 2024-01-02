@@ -192,7 +192,7 @@ helm uninstall helm-nginx
 
 ### 4. 打包Chart
 
-当Chart编写和验证完成后，你如果由分发给给其他用户使用的需求（像分享镜像那样），则可以打包Chart到仓库中。
+当Chart编写和验证完成后，你如果有分发给给其他用户使用的需求（像分享镜像那样）或者需要版本化Chart包，则可以打包Chart到仓库中。
 
 ```shell
 $ helm package example-chart 
@@ -276,7 +276,8 @@ REVISION: 2
 > 本次发布的具体内容即可，并可以直接将镜像tag作为发布说明。这样也可以为回滚提供帮助。
 >
 > Helm不支持在Upgrade时设置`appVersion`，这是难以理解的。在 [ #3555](https://github.com/helm/helm/issues/3555) 这个讨论时间长达三年的
-> Issue中，官方最终也没有支持这种方式，而是推荐使用`helm package --app-version`的方式来设置`appVersion`，但打包就需要部署Helm仓库，增加了运维成本。
+> Issue中，官方最终也没有支持这种方式，而是推荐使用`helm package --app-version`的方式来设置`appVersion`
+> ，但打包就需要部署Helm仓库，增加了运维成本。
 > 社区中的另一种非常规做法则是在更新发布前使用`sed`命令修改了`Chart.yaml`中的`appVersion`。
 
 #### 5.2 回滚
