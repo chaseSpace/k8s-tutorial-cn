@@ -93,16 +93,17 @@ K8s废弃了docker-shim以后，Docker公司也声明了会和Mirantis公司继�
 | CRI-O                             | unix:///var/run/crio/crio.sock             |
 | Docker Engine (using cri-dockerd) | unix:///var/run/cri-dockerd.sock           |
 
-这里只列出了常见的容器运行时及对应的socket端点。
+这里只列出了常见的容器运行时及对应的socket端点，对于其他容器运行时，你会在它们的安装文档中看到对应的端点路径。
 
->containerd对CRI的支持最开始也是单独的一个项目，叫做[<u>cri</u>][cri]（但对外叫`cri-containerd`），后来被集成到containerd中。
+> containerd对CRI的支持最开始也是单独的一个项目，叫做[<u>cri</u>][cri]（但对外叫`cri-containerd`），后来被集成到containerd中。
 
 ### 2.3 安装Containerd
 
 kubernetes 1.24.x及以后版本默认CRI为containerd。安装containerd时自带的命令行工具是`ctr`，我们可以使用`ctr`
 来直接管理containerd中的镜像或容器资源（包括由K8s间接管理的）。
 
-> 由K8s间接管理的镜像和容器资源都存放在containerd中名为`k8s.io`的命名空间下，例如你可以通过`ctr -n k8s.io c ls`
+> 由K8s间接管理的镜像和容器资源都存放在containerd中名为`k8s.io`
+> 的命名空间下，例如你可以（在安装完集群后）通过`ctr -n k8s.io c ls`
 > 查看K8s在当前节点调度的容器列表。
 
 而K8s提供的基于CRI的命令行工具则是`crictl`，会在下一节中安装K8s基础组件时自动安装。例如你可以通过 `crictl ps`
@@ -136,9 +137,9 @@ systemctl status containerd
 
 ## 3. 安装三大件
 
-即 kubeadm、kubelet 和 kubectl
+即 kubeadm、kubelet 和 kubectl。
 
-在centos上安装：
+在centos上安装（所有节点）：
 
 ```shell
 # 设置阿里云为源
@@ -154,6 +155,7 @@ gpgkey=http://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg
 EOF
 
 # centos 安装各组件
+# -- 你也可以仅在一个节点安装kubectl，用于管理集群
 sudo yum install -y wget lsof net-tools jq \
     kubelet-1.27.0 kubeadm-1.27.0 kubectl-1.27.0 --disableexcludes=kubernetes
 
@@ -169,7 +171,7 @@ kubectl version
 crictl config runtime-endpoint unix:///var/run/containerd/containerd.sock
 ```
 
-在ubuntu上安装：
+如果是ubuntu系统（供参考）：
 
 ```shell
 apt-get update && apt-get install -y apt-transport-https
@@ -190,18 +192,25 @@ apt-get install -y kubelet=1.27.0-00 kubeadm=1.27.0-00 kubectl=1.27.0-00
 注意更新节点时间（部署的Pod资源会使用节点的时间）：
 
 ```shell
-ntpdate -u  pool.ntp.org
+ntpdate -u pool.ntp.org
 ```
 
 ## 4. 配置cgroup driver
 
-Container runtimes推荐使用`systemd`作为kubeadm的driver，而不是kubelet默认的`cgroupfs`driver。
+在 Kubernetes 集群中，为了确保系统资源的一致性和协同工作，kubelet 和容器运行时的配置需要匹配。其中一个关键的配置项是 cgroup
+驱动。kubelet 是 Kubernetes 集群中的节点代理，负责与容器运行时通信，而 cgroup 驱动则决定了 kubelet 如何在底层 Linux
+系统上组织和控制容器的资源。
 
-从k8s v1.22起，kubeadm默认使用`systemd`作为cgroupDriver。
+这里分为两个步骤：
 
-https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/
+1. 配置容器运行时 cgroup 驱动
+2. 配置 kubelet 的 cgroup 驱动
 
-所以使用高于v1.22的版本，这步就不用配置。
+对于第一步，本文编写时安装的containerd（K8s使用的容器运行时）默认使用`systemd`作为croup驱动，所以无需配置。
+而第二步，从K8s v1.22起，kubeadm也默认使用`systemd`作为 kubelet 的cgroupDriver。
+
+本节只做必要的步骤说明，由于演示安装的是v1.27.0版本，并不需要执行配置操作。如果想要了解更多细节，
+可以参考[官方文档](https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/)。
 
 ## 5. 创建集群
 
@@ -828,4 +837,5 @@ default        hellok8s-go-http-999f66c56-j5dhx     1/1     Running   0         
 - [掘金-冰_点-Kubernetes 之7大CNI 网络插件用法和对比](https://juejin.cn/post/7236182358817800251)
 
 [OCI]:https://opencontainers.org/about/overview/
+
 [cri]:https://github.com/containerd/cri
