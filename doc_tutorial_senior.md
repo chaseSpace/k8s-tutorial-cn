@@ -3546,16 +3546,16 @@ bitnami/apisix                              	2.2.7        	4.7.0        	Apache 
 # 查看已添加的仓库列表
 # 删除仓库 helm repo remove <repo-name>
 $ helm repo list
-NAME     	URL                                      
-bitnami  	https://charts.bitnami.com/bitnami       
-microsoft	http://mirror.azure.cn/kubernetes/charts/
+NAME URL
+bitnami https://charts.bitnami.com/bitnami
+microsoft http://mirror.azure.cn/kubernetes/charts/
 
 # 在已添加的仓库中的搜索包名，其中App Version是Mysql版本
 # - helm使用模糊字符串匹配算法
-$ helm search repo microsoft/mysql   
-NAME               	CHART VERSION	APP VERSION	DESCRIPTION                                       
-microsoft/mysql    	1.6.9        	5.7.30     	DEPRECATED - Fast, reliable, scalable, and easy...
-microsoft/mysqldump	2.6.2        	2.4.1      	DEPRECATED! - A Helm chart to help backup MySQL...
+$ helm search repo microsoft/mysql
+NAME CHART VERSION APP VERSION DESCRIPTION
+microsoft/mysql 1.6.9 5.7.30 DEPRECATED - Fast, reliable, scalable, and easy...
+microsoft/mysqldump 2.6.2 2.4.1 DEPRECATED! - A Helm chart to help backup MySQL...
 
 # 先查看Chart简介
 $ helm show chart microsoft/mysql
@@ -3563,7 +3563,7 @@ apiVersion: v1
 appVersion: 5.7.30
 deprecated: true
 description: DEPRECATED - Fast, reliable, scalable, and easy to use open-source relational
-  database system.
+database system.
 home: https://www.mysql.com/
 icon: https://www.mysql.com/common/logos/logo-mysql-170x115.png
 keywords:
@@ -3576,14 +3576,14 @@ sources:
 - https://github.com/docker-library/mysql
 version: 1.6.9
 
-
 # 下载安装包至本地
 $ helm pull microsoft/mysql
 # 解压
 $ tar xzf mysql-1.6.9.tgz
 # Chart.yaml是Helm模板，values.yaml是应用的可修改的动态配置部分（安装时填充到CHart.yaml），如镜像版本、数据库密码等
-$ ls mysql/                   
-Chart.yaml  README.md  templates  values.yaml
+$ ls mysql/
+Chart.yaml README.md templates values.yaml
+$ vi mysql/values.yaml
 # 修改其中的部分信息
 #mysqlRootPassword: "123"
 #service:
@@ -3592,13 +3592,13 @@ Chart.yaml  README.md  templates  values.yaml
 #  port: 3306
 #  nodePort: 32000
 
-$ vi mysql/values.yaml
-
-# 使用本地文件发布
-# 这个命令会使用当前目录下的所有文件 在helm空间下 部署一个名为helm-mysql的helm应用，helm空间若不存在会自动创建
+# 使用Chart包发布（即安装mysql）
+# helm install...
+# 这个命令会使用当前目录下的所有文件 在helm空间下部署一个名为helm-mysql的helm应用，helm空间若不存在会自动创建
 # - 注意：部署后命令行会输出有关应用的一些辅助信息
-# - install 命令会立即返回，部署将在后台进行，可使用 helm status helm-mysql 查看状态
-$ helm install helm-mysql mysql/ --namespace helm  --create-namespace
+# - 此命令会立即返回，部署将在后台进行，可使用 helm status helm-mysql 查看状态、
+# - --namespace参数是可选的，若没有则安装到default空间下。使用helm部署应用时建议使用。
+$ helm install helm-mysql mysql/ --namespace helm --create-namespace
 WARNING: This chart is deprecated
 NAME: helm-mysql
 LAST DEPLOYED: Mon Nov 27 08:43:05 2023
@@ -3612,13 +3612,14 @@ helm-mysql.helm.svc.cluster.local
 
 # 查看部署（不能看到Pod状态），-A表示显示所有K8s命名空间下的部署
 $ helm ls -A
-NAME      	NAMESPACE	REVISION	UPDATED                                	STATUS  	CHART      	APP VERSION
-helm-mysql	helm     	1       	2023-11-27 08:43:05.787331394 +0800 CST	deployed	mysql-1.6.9	5.7.30
+NAME NAMESPACE REVISION UPDATED STATUS CHART APP VERSION
+helm-mysql helm 1 2023-11-27 08:43:05.787331394 +0800 CST deployed mysql-1.6.9 5.7.30
 
 # 查看具体的Pod状态
-$ kk get po -nhelm                                                                         
-NAME                          READY   STATUS    RESTARTS   AGE
-helm-mysql-5d8bd6c54f-c44dd   0/1     Pending   0          4m10s
+$ kk get po -nhelm
+NAME READY STATUS RESTARTS AGE
+helm-mysql-5d8bd6c54f-c44dd 0/1 Pending 0 4m10s
+
 ```
 
 这里部署的Mysql需要一个PV（持久卷）才能部署成功，需要我们自行配置，与Helm就无关了。其他可能需要的命令：
