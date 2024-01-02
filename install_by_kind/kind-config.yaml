@@ -46,7 +46,7 @@ nodes:
     # 可选的节点标签配置
     labels:
       tier: frontend
-    # 因为使用kubeadm启动集群，所以支持kubeadm的配置文件
+    # 因为使用kubeadm启动集群，所以支持kubeadm的配置文件（可选）
     kubeadmConfigPatches:
       - |
         # 仅限第一个主节点使用InitConfiguration

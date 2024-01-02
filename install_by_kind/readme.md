@@ -1,14 +1,14 @@
-## 使用Kind安装配置集群
+## 使用kind安装配置集群
 
-Kind主要用于在本地机器上快速启动一个Kubernetes集群，由K8s官方开发设计，用于日常开发和测试（勿用于生产环境）。
+kind主要用于在本地机器上快速启动一个Kubernetes集群，由K8s官方开发设计，用于日常开发和测试（勿用于生产环境）。
 
-本文参照[Kind官方文档](https://kind.sigs.k8s.io/docs/user/quick-start/)，介绍如何使用Kind安装配置Kubernetes集群。
+本文参照[kind官方文档](https://kind.sigs.k8s.io/docs/user/quick-start/)，介绍如何使用kind安装配置Kubernetes集群。
 笔者使用的机器是MacBookPro M1，所以演示的一些命令为macOS平台下的指令。
 
-Kind内部使用kubeadm来启动一个多节点集群，它使用自实现的`kindnetd`
-作为容器网络接口（CNI）实现。更多设计细节参考[Kind设计文档](https://kind.sigs.k8s.io/docs/design/initial)。
+kind内部使用kubeadm来启动一个多节点集群，它使用自实现的`kindnetd`
+作为容器网络接口（CNI）实现。更多设计细节参考[kind设计文档](https://kind.sigs.k8s.io/docs/design/initial)。
 
-### 1. 安装Kind
+### 1. 安装kind
 
 支持多种方式安装，笔者是macOS，所以使用Homebrew安装：
 
@@ -16,7 +16,7 @@ Kind内部使用kubeadm来启动一个多节点集群，它使用自实现的`ki
 brew install kind
 ```
 
-其他系统参考[二进制安装Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installing-from-release-binaries)。
+其他系统参考[二进制安装kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installing-from-release-binaries)。
 
 ### 2. 创建一个集群
 
@@ -32,7 +32,7 @@ kind create cluster --image=kindest/node:v1.27.3@sha256:3966ac761ae0136263ffdb6c
 ```
 
 如果不使用`--image`flag，则使用当前kind版本默认的节点镜像。但为了确定安装行为，请使用`--image`flag。
-在[Kind版本发布页](https://github.com/kubernetes-sigs/kind/releases)查找当前kind版本的预构建的不同K8s版本的节点镜像tag。
+在[kind版本发布页](https://github.com/kubernetes-sigs/kind/releases)查找当前kind版本的预构建的不同K8s版本的节点镜像tag。
 如果没有你想要的K8s版本，参考[这个页面](https://kind.sigs.k8s.io/docs/user/quick-start/#building-images)自行构建节点镜像。
 
 创建后使用下面的命令简单管理集群：
@@ -42,7 +42,7 @@ kind get clusters
 kind delete cluster -n <name>
 ```
 
-当然，以上只是以最简化的集群配置方式启动。Kind支持通过yaml文件来详细配置集群的启动参数，[kind-config.yaml](kind-config.yaml)
+当然，以上只是以最简化的集群配置方式启动。kind支持通过yaml文件来详细配置集群的启动参数，[kind-config.yaml](kind-config.yaml)
 是一个包含注释的1主2Worker集群的完整kind配置示例。使用配置文件启动集群：
 
 ```shell
@@ -56,7 +56,7 @@ kind create cluster --config=kind-config.yaml --retain --wait=1m
 journalctl -xeu kubectl
 ```
 
-`--wait=1m`是等待控制节点Ready的最长等待时间。后续使用这个集群进行演示。
+`--wait=1m`是等待控制节点Ready的最长等待时间。下文将使用这个集群进行演示。
 
 #### 1.1 安装kubectl
 
@@ -193,15 +193,15 @@ $ curl http://localhost/
 
 ## 结尾
 
-笔者在查看Kind官方文档的时候，发现Kind缺少一个可能比较关键的功能，那就是在kind配置文件限制节点容器的CPU/Memory额度。遗憾的是，
-笔者看到了Kind仓库中的这个[ISSUE #1422](https://github.com/kubernetes-sigs/kind/issues/1422)
-，也就是说Kind截止目前（2024-1-2）也没有支持这个功能。
+笔者在查看kind官方文档的时候，发现kind缺少一个可能比较关键的功能，那就是在kind配置文件限制节点容器的CPU/Memory额度。遗憾的是，
+笔者看到了kind仓库中的这个[ISSUE #1422](https://github.com/kubernetes-sigs/kind/issues/1422)
+，也就是说kind截止目前（2024-1-2）也没有支持这个功能。
 
 ---
 
-以上就是使用Kind在MacOS上安装一个多节点集群的过程，其他操作系统的安装过程也是大差不差，具体可以看Kind官文。
-如果你有遇到问题请提出ISSUE，但也希望你能够先看一下官方Kind文档。
+以上就是使用kind在MacOS上安装一个多节点集群的过程，其他操作系统的安装过程也是大差不差，具体可以看kind官文。
+如果你有遇到问题请提出ISSUE，但也希望你能够先看一下官方kind文档。
 
 ## 参考
 
-- [Kind官方文档](https://kind.sigs.k8s.io/docs/user/quick-start/)
+- [kind官方文档](https://kind.sigs.k8s.io/docs/user/quick-start/)
