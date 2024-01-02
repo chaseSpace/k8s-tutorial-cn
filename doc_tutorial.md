@@ -2310,15 +2310,23 @@ label_test="some_value"
 busybox-use-downwardapi
 ```
 
+## 结语
+
+恭喜🎉🎉🎉！！！你已经看完了本篇 K8s 基础教程。如果你完成了教程中的大部分练习，相信你已经能够熟练使用 Kubernetes 进行日常开发工作了。
+如果你的工作需要深度使用 K8s（比如运维人员）亦或你想要深度掌握K8s的使用，
+那请允许我向你推荐[Kubernetes 进阶教程][Kubernetes 进阶教程]。
+
 ## 参考
 
 - [guangzhengli的k8s教程](https://github.com/guangzhengli/k8s-tutorials/)
-- [k8s官方教程](https://kubernetes.io/zh-cn/docs)
+- [K8s官方文档](https://kubernetes.io/zh-cn/docs)
+- [Kubernetes Wikipedia](https://en.wikipedia.org/wiki/Kubernetes)
 - [Kubernetes从入门到实践 @赵卓](https://www.epubit.com/bookDetails?id=UB72096269c1157)
 - [Docker教程](https://yeasy.gitbook.io/docker_practice/)
 - [kubectl全部命令-官方](https://kubernetes.io/docs/reference/kubectl/cheatsheet/)
 - [K8s对外服务之Ingress](http://www.uml.org.cn/yunjisuan/202303134.asp?artid=25653)
 - [从风口浪尖到十字路口，写在 Kubernetes 两周年之际](https://www.infoq.cn/article/qDYqsCTxCvKu8hXZuKme)
-- [Kubernetes Wikipedia](https://en.wikipedia.org/wiki/Kubernetes)
 
 [coredns]:https://github.com/coredns/coredns
+
+[Kubernetes 进阶教程]: https://github.com/chaseSpace/k8s-tutorial-cn/blob/main/doc_tutorial_senior.md
