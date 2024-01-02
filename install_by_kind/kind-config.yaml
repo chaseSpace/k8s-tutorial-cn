@@ -1,0 +1,64 @@
+# nonk8s
+# 此配置文件的完整说明位于：https://kind.sigs.k8s.io/docs/user/configuration/#getting-started
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: test-1.27 # 集群名
+featureGates: # 启动/禁用K8s的特性门
+  "AdmissionWebhookMatchConditions": true
+
+# 配置API Server的--runtime-config
+# https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
+runtimeConfig:
+  "api/alpha": "false"
+
+# 配置集群的网络
+#networking:
+#  ipFamily: ipv6
+#  apiServerAddress: 127.0.0.1 # 默认127.0.0.1
+#  apiServerPort: 6443 # 默认随机
+#  podSubnet: "10.244.0.0/16" # 默认值
+#  serviceSubnet: "10.96.0.0/12" # 默认值
+#  disableDefaultCNI: true # 默认false，禁用后需安装其他CNI，例如calico
+#  kubeProxyMode: "ipvs" # kube-proxy使用的组件，默认iptables，设置none则禁用  kube-proxy
+
+# 配置节点，下面是一个一主多worker的配置
+nodes:
+  - role: control-plane # 默认的主节点
+    # 可选的为每个节点配置使用的节点镜像，不指定则使用kind版本对应的默认值
+    image: kindest/node:v1.27.3@sha256:3966ac761ae0136263ffdb6cfd4db23ef8a83cba8a463690e98317add2c9ba72
+    # 可选的节点路径映射配置，用于持久化数据
+    # 若使用mac或win上的docker，需要检查hostPath必须存在于Docker配置中的Preferences -> Resources -> File Sharing
+    extraMounts:
+      - hostPath: ~/node_volume # 需提前创建
+        containerPath: /node_volume
+      - hostPath: ~/node_volume/example_file
+        containerPath: /example_file
+        readOnly: true # 默认false
+        selinuxRelabel: false # 默认false。selinuxRelabel是一个linux内核安全模块，请自行查询此参数的用途
+        propagation: None # https://kubernetes.io/docs/concepts/storage/volumes/#mount-propagation
+    # 可选的端口映射配置，用于像节点容器传入流量
+    # 若使用Docker for Desktop，则必须配置
+    extraPortMappings:
+      - containerPort: 30080 # 作为Pod的hostPort
+        hostPort: 80
+#        listenAddress: "127.0.0.1" # 默认0.0.0.0
+        protocol: TCP # 支持TCP（默认），有UDP, SCTP
+    # 可选的节点标签配置
+    labels:
+      tier: frontend
+    # 因为使用kubeadm启动集群，所以支持kubeadm的配置文件
+    kubeadmConfigPatches:
+      - |
+        # 仅限第一个主节点使用InitConfiguration
+        kind: InitConfiguration # 还支持ClusterConfiguration，KubeProxyConfiguration，KubeletConfiguration，JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "master=true"
+  - role: worker
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "worker=true"
+  - role: worker
