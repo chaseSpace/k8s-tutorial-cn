@@ -14,6 +14,12 @@
 10.0.2.3 k8s-node1
 ```
 
+可参考下面的教程来搭建Kubernetes多节点集群：
+
+- [使用kubeadm搭建K8s多节点集群（推荐）](install_by_kubeadm/install.md)
+- [使用Kind搭建K8s多节点集群（推荐）](install_by_kind/readme.md)
+- [使用K8s playground](https://labs.play-with-k8s.com/)
+
 一些提高效率的设置：
 
 1. [安装ohmyzsh](doc_install_ohmyzsh.md)
