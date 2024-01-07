@@ -194,8 +194,10 @@ Logstash是基于 Java 编写的，运行在 JVM 上，这导致它需要更多�
 下面的章节将介绍如何使用Helm来快速安装EFK各组件。
 
 > Helm是K8s生态中一个非常流行的包管理工具，它允许用户通过一个chart包来快速安装和配置K8s集群上的各种应用。
-> 你可以查看 [Helm手记](doc_helm.md)
-> 来快速上手Helm。
+> 如果你是第一次接触Helm，你可以查看 [Helm手记](doc_helm.md) 来快速上手Helm。
+
+> 如果你是第一次接触ElasticSearch，笔者建议你先看 [ElasticSearch快速上手](doc_es_quickstart.md)
+> 来了解ElasticSearch的基本概念和基本操作。
 
 #### 3.1 使用Helm部署ES
 

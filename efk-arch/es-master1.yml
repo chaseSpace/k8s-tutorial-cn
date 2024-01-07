@@ -1,0 +1,54 @@
+#####
+# 这是集群的首个master节点的配置文件
+# - 注意，此配置文件包含秘钥信息，应注意安全
+#####
+cluster.name: "docker-cluster" # 整个集群的名称一致，可以改为有意义的名称，比如log-center
+network.host: 0.0.0.0
+
+# 可选的配置数据和日志目录（必须存在）
+#path:
+#  data: /var/lib/elasticsearch # 存放索引数据
+#  logs: /var/log/elasticsearch
+
+# 配置已存在的主节点，用于发现集群（集群第一个节点不用配置）
+discovery:
+  type: multi-node # 默认值。可以改为single-node形成单节点集群
+  #  seed_hosts: # 首个节点没有种子主机
+  seed_resolver:
+    max_concurrent_resolvers: 10
+    timeout: 5s
+
+# 可选的节点名配置，下面的方式读取env变量
+node.name: ${HOSTNAME}
+# 可选的v8新配置，配置节点角色
+node.roles:
+  - master
+cluster:
+  initial_master_nodes: ${HOSTNAME}
+
+#----------------------- BEGIN SECURITY AUTO CONFIGURATION -----------------------
+#
+# The following settings, TLS certificates, and keys have been automatically
+# generated to configure Elasticsearch security features on 05-01-2024 09:08:21
+#
+# --------------------------------------------------------------------------------
+
+# Enable security features
+# 一旦开启，就必须配置启用http.ssl和transport.ssl，并配置证书路径
+xpack.security.enabled: true # 这一行可以设置false，但一定不能注释，因为会导致docker容器无法启动
+xpack.security.enrollment.enabled: true
+
+# Enable encryption for HTTP API client connections, such as Kibana, Logstash, and Agents
+xpack.security.http.ssl:
+  enabled: true
+  keystore.path: certs/elasticsearch/http.p12
+  verification_mode: certificate
+
+# Enable encryption and mutual authentication between cluster nodes
+xpack.security.transport.ssl:
+  enabled: true
+  verification_mode: certificate
+  client_authentication: required
+  keystore.path: certs/elastic-certificates.p12
+  truststore.path: certs/elastic-certificates.p12
+#----------------------- END SECURITY AUTO CONFIGURATION -------------------------
