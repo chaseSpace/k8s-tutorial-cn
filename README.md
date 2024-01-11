@@ -4,8 +4,13 @@
 
 - [Kubernetes 基础教程](doc_tutorial.md)
 - [Kubernetes 进阶教程](doc_tutorial_senior.md)
-- [Kubernetes 维护指南（持续更新中···）](doc_maintaintion.md)
+- [Kubernetes 维护参考（持续更新中···）](doc_maintaintion.md)
 - [Kubernetes 安全分析 🆕](doc_security.md)
+
+#### 快速入门指南
+
+- [Helm手记](doc_helm.md)
+- [Elasticsearch快速入门](doc_es_quickstart.md)
 
 ### 其他链接
 
