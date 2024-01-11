@@ -274,7 +274,7 @@ docker-compose up -d --no-recreate
 
 ```shell
 # 将123456换成你的es密码
-docker exec -it test-es01-1 curl \
+docker exec -it test-es-es01-1 curl \
   -s --cacert config/certs/ca/ca.crt \
   -u elastic:123456 \
   https://localhost:9200/_cluster/health?pretty=true
