@@ -310,7 +310,7 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
-          {{- if has "master" .Values.roles }}
+          {{- if and (has "master" .Values.roles) (.Values.multiNode) }}
           - name: cluster.initial_master_nodes
             value: "{{ template "elasticsearch.endpoints" . }}"
           {{- end }}
@@ -321,9 +321,13 @@ spec:
           {{- if lt (int (include "elasticsearch.esMajorVersion" .)) 7 }}
           - name: discovery.zen.ping.unicast.hosts
             value: "{{ template "elasticsearch.masterService" . }}-headless"
-          {{- else }}
+          {{- else if .Values.multiNode }}
           - name: discovery.seed_hosts
             value: "{{ template "elasticsearch.masterService" . }}-headless"
+          {{- end }}
+          {{- if not .Values.multiNode }}
+          - name: discovery.type
+            value: single-node
           {{- end }}
           - name: cluster.name
             value: "{{ .Values.clusterName }}"
