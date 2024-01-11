@@ -106,6 +106,14 @@ spec:
   restartPolicy: Never
 ```
 
+注意，执行测试的Pod资源在测试完成后应该以(exit 0)成功退出，所以注意`command`部分的编写。
+
+在Helm v3中，支持使用以下测试钩子（`helm.sh/hook`）之一：
+
+- test-failure：这是一个针对【失败】情况的测试用例
+- test-success：这是一个针对【成功】情况的测试用例（等同于旧版的`test`）
+- test（向后兼容，等同于`test-success`）
+
 #### 1.4 解释 values.yaml
 
 这是最主要的配置文件，用于定义应用部署的各项参数。比如Pod副本数量，镜像名称等。
