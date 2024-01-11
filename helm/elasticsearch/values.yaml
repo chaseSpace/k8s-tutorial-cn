@@ -140,7 +140,7 @@ podSecurityPolicy:
       - emptyDir
 
 persistence:
-  enabled: true
+  enabled: false
   labels:
     # Add default labels for the volumeClaimTemplate of the StatefulSet
     enabled: false

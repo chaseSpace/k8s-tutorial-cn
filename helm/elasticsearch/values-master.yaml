@@ -1,0 +1,46 @@
+# 部署单节点集群足以本地开发测试
+replicas: 1
+#minimumMasterNodes: 1
+
+# 多个节点具有相同的角色（通用中小规模架构）
+roles:
+  - master
+  - data
+  - remote_cluster_client
+
+#image: "docker.io/library/elasticsearch"
+image: "elasticsearch"
+imageTag: "8.5.1"
+
+# 生产环境一般需要设置nodeSelector来部署到特定节点，测试时不持久化数据，所以无要求
+#nodeSelector:
+#  kubernetes.io/hostname: k8s-node1
+
+esConfig:
+  elasticsearch.yml: |
+    xpack.security.enabled: false
+
+# 测试时降低requests资源
+resources:
+  requests:
+    cpu: "100m"
+    memory: "512Mi"
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"
+
+# 设置ES密码（留空自动生成）
+secret:
+  enabled: true
+  password: "123456"
+
+# 为es的transport和http通信启用ssl
+createCert: false
+
+# 使用http访问es（生产使用https，这里是从简）
+protocol: http
+
+# 若要将pod调度到master，需要设置容忍度
+#tolerations:
+#  - key: node-role.kubernetes.io/control-plane
+#    effect: NoSchedule
