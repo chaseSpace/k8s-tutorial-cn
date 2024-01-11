@@ -1069,7 +1069,7 @@ Pod副本。在节点加入或退出集群时，DaemonSet也会在相应节点�
 DaemonSet通常会运行在每个节点上，但不包括master节点。因为master节点默认存在不允许调度Pod的 **污点**
 ，所以一般会在模板中为Pod配置污点容忍度来实现在master节点上运行DaemonSet Pod（如果不需要在master节点运行则无需配置）。
 
-> 关于污点，会在 [Kubernetes 进阶教程—污点和容忍度](doc_tutorial_senior.md#36-污点和容忍度) 一节中讲到，此处可以先不用深究。
+> 关于污点，会在 [Kubernetes 进阶教程—污点和容忍度](doc_tutorial_senior.md#46-污点和容忍度) 一节中讲到，此处可以先不用深究。
 
 [daemonset.yaml](daemonset.yaml) 是一个DaemonSet的模板示例。常用命令与Deployment没有较大差别，只是DaemonSet不基于ReplicaSet。
 具体演示如下：
