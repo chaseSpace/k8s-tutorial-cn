@@ -3505,9 +3505,9 @@ Helm支持多种方式安装，参阅 [Helm Install](https://github.com/helm/hel
 
 ```shell
 # 如果你的环境无法高速访问外网，最好是手动下载二进制包
-$ curl -SLO https://get.helm.sh/helm-v3.13.2-linux-amd64.tar.gz
+$ curl -SLO https://get.helm.sh/helm-v3.13.3-linux-amd64.tar.gz
 
-$ tar -zxvf helm-v3.13.2-linux-amd64.tar.gz
+$ tar -zxvf helm-v3.13.3-linux-amd64.tar.gz
 linux-amd64/
 linux-amd64/helm
 linux-amd64/LICENSE
@@ -3524,6 +3524,14 @@ Common actions for Helm:
 - helm install:   upload the chart to Kubernetes
 - helm list:      list releases of charts
 ...省略
+
+### MacOS(m系列) 安装
+curl -SLO https://get.helm.sh/helm-v3.13.3-darwin-arm64.tar.gz
+tar -zxvf helm-v3.13.3-darwin-arm64.tar.gz
+mkdir -p ~/bin
+cp darwin-arm64/helm ~/bin/
+chmod +x ~/bin/helm
+export PATH="$HOME/bin:$PATH" # 这是临时性的env配置。若要永久有效，需要写入 ~/.bash_profile 或 ~/.zshrc
 ```
 
 安装后我们可以像Docker那样为Helm添加一个仓库源，以便后续安装打包好的Chart（又叫做Helm包），这里安装的是Helm提供的官方仓库：
