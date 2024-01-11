@@ -4,7 +4,7 @@ replicas: 1
 
 multiNode: false
 
-# 多个节点具有相同的角色（通用中小规模架构）
+# 多个节点具有相同的角色（通用中小规模架构），单节点时不能设置角色！
 #roles:
 #  - master
 #  - data
