@@ -85,6 +85,8 @@ spec:
 
 默认这个目录下有个`test-connection.yaml`文件，用于定义【部署完成后需要执行的测试内容】，以便验证应用是否成功部署。
 
+执行`helm test <RELEASE_NAME>`来运行测试，以便验证部署的Helm资源是否正常运行。下面是一个例子：
+
 ```yaml
 # 默认是一个Pod，测试对Service的访问连通性
 apiVersion: v1
@@ -94,7 +96,7 @@ metadata:
   labels:
     { { - include "example-chart.labels" . | nindent 4 } }
   annotations:
-    "helm.sh/hook": test
+    "helm.sh/hook": test # 测试资源都有这个注解，它是helm的一个钩子
 spec:
   containers:
     - name: wget
@@ -316,6 +318,62 @@ Rollback was a success! Happy Helming!
 
 `delete`可以使用关键字`uninstall/del/un`进行等价替换。
 
+### 6. 钩子
+
+Helm提供了钩子（Hook）功能，允许在Helm资源的安装前/后、删除前/后等特定时机执行特定的操作。
+一般使用钩子来执行以下任务：
+
+- 升级之前检查环境是否具备升级的条件
+- 安装前先创建一些基础资源，如ConfigMap、Secret等
+- 删除后执行一些清理工作
+
+所有Helm钩子：
+
+| Hook          | 作用                               |
+|---------------|----------------------------------|
+| pre-install   | 在渲染模板之后，在 Kubernetes 中创建任何资源之前执行 |
+| post-install  | 将所有资源加载到 Kubernetes 之后执行         |
+| pre-delete    | 在从 Kubernetes 删除任何资源之前对删除请求执行    |
+| post-delete   | 删除所有发行版资源后，对删除请求执行               |
+| pre-upgrade   | 在呈现模板之后但在更新任何资源之前，对升级请求执行        |
+| post-upgrade  | 升级所有资源后执行升级                      |
+| pre-rollback  | 在呈现模板之后但在回滚任何资源之前，对回滚请求执行        |
+| post-rollback | 修改所有资源后，对回滚请求执行                  |
+| test          | 调用Helm test子命令时执行                |
+
+在1.3节【解释tests目录】中我们已经看见过钩子是通过在Pod资源（其他k8s资源也可）中使用注解来使用的。下面是一个例子：
+
+```yaml
+# 通常在Pod和Job中使用
+annotations:
+  "helm.sh/hook": post-install,post-upgrade
+```
+
+所有钩子关联的资源都是串行阻塞加载的，当使用钩子的资源达到`Ready`状态时，
+Helm会继续加载下一个钩子。如果一个资源加载失败，则不会继续加载后续的资源。
+
+> 针对Pod和Job以外的资源，一旦K8s将资源标记为已加载(已添加或已更新)，资源会被认为是`Ready`。
+
+此外，还可以定义：
+
+- 钩子关联资源的权重，这决定了钩子资源加载顺序
+- 钩子关联资源的删除策略，这决定了删除钩子资源的时机
+
+示例如下：
+
+```yaml
+# 权重是字符串形式的数字，支持负数和正数，按照升序执行
+"helm.sh/hook-weight": "-5"
+# 删除策略
+# before-hook-creation   新钩子启动前删除之前的资源 (默认)
+# hook-succeeded	钩子成功执行之后删除资源
+# hook-failed	如果钩子执行失败，删除资源
+"helm.sh/hook-delete-policy": hook-succeeded
+```
+
+你可以通过 [Kibana-templates](helm/kibana/templates) 来进一步学习钩子的使用。
+
 ### 推荐的文章
 
+- [Helm官方文档](https://helm.sh/zh/docs/)
 - [Helm template快速入门_掘金](https://juejin.cn/post/6844904199818313735)
