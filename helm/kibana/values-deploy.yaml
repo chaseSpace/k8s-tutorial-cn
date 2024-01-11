@@ -1,3 +1,8 @@
+elasticsearchHosts: "https://elasticsearch-master:9200"
+elasticsearchCertificateSecret: elasticsearch-master-certs
+elasticsearchCertificateAuthoritiesFile: ca.crt
+elasticsearchCredentialSecret: elasticsearch-master-credentials
+
 # 笔者测试环境内存不足，所以降低一些资源消耗
 resources:
   requests:
@@ -8,7 +13,9 @@ resources:
     memory: "2Gi"
 
 # 若docker官方仓库以便加速下载
-image: "docker.io/library/kibana"
+image: "kibana"
+imageTag: "8.11.3"
+
 
 # web端口，默认5601
 httpPort: 5601
@@ -21,5 +28,6 @@ kibanaConfig:
 # 为了方便测试（跳过ingress），service使用NodePort类型
 service:
   type: NodePort
-
-# 其中的 `elasticsearchCredentialSecret` 字段用以配置访问ES的密码，它会与前面安装ES时使用的Secret名称一致
+  loadBalancerIP: ""
+  port: 5601
+  nodePort: 30080
