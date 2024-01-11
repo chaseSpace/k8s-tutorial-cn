@@ -1,9 +1,16 @@
-#####
+##### ES v8
 # 这是集群的首个master节点的配置文件
 # - 注意，此配置文件包含秘钥信息，应注意安全
 #####
 cluster.name: "docker-cluster" # 整个集群的名称一致，可以改为有意义的名称，比如log-center
+# 用于外部或节点间访问的地址，用于绑定和发布
+# - _local_是es支持的一个host值，表示节点的环回地址，如127.0.0.1。一般用于本地开发时使用
+# - 如果要在集群外部访问es，建议配置 _site_，如192.168.0.1
+# - 还支持 _global_（任何全局范围地址）， _eth0_（指定网卡），0.0.0.0（接受来自所有接口的请求）
 network.host: 0.0.0.0
+http.port: 9200 # 默认是个范围：9200-9300
+transport.port: 9300 # 默认是个范围：9300-9400
+remote_cluster.port: 9443 # es客户端访问端口
 
 # 可选的配置数据和日志目录（必须存在）
 #path:
@@ -12,19 +19,35 @@ network.host: 0.0.0.0
 
 # 配置已存在的主节点，用于发现集群（集群第一个节点不用配置）
 discovery:
-  type: multi-node # 默认值。可以改为single-node形成单节点集群
-  #  seed_hosts: # 首个节点没有种子主机
-  seed_resolver:
-    max_concurrent_resolvers: 10
-    timeout: 5s
+  type: multi-node # 默认值。可以改为single-node形成单节点集群（无法再形成多节点集群）
+#  seed_hosts: # 首个节点没有种子主机
+#  seed_resolver:
+#    max_concurrent_resolvers: 10
+#    timeout: 5s
+
+# v8.0开始，不再支持discovery.zen.*
+# 参考：https://www.elastic.co/guide/en/elasticsearch/reference/8.11/migrating-8.0.html
+#discovery.zen.*
 
 # 可选的节点名配置，下面的方式读取env变量
 node.name: ${HOSTNAME}
-# 可选的v8新配置，配置节点角色
+
+# 可选的v8新配置，配置节点角色。支持多个角色，不支持则分配全部角色
+# 一个集群必备的角色是master和data（或【data_content+data_hot】）
+# - master
+# - data
+# - data_content
+# - data_hot
+# - voting_only
+# - remote_cluster_client等
+# 参考：https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html#node-roles
 node.roles:
   - master
-cluster:
-  initial_master_nodes: ${HOSTNAME}
+
+# 仅在创建集群时需要填此字段，表示有资格成为主节点的节点名称列表（填node.name）
+# 集群创建后最好删除此字段，新加入的节点也不需要设置此字段。
+cluster.initial_master_nodes:
+  - ${HOSTNAME}
 
 #----------------------- BEGIN SECURITY AUTO CONFIGURATION -----------------------
 #
