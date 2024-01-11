@@ -61,10 +61,13 @@ spec:
 
 #### 1.2 解释 _helpers.tpl
 
-`_helpers.tpl`与其他模板文件不同，它可以被除了自己和`Chart.yaml`以外的所有模板文件引用。一般用来定义通用信息，比如某项命名/标签等。
+`_helpers.tpl`与其他模板文件不同，它可以被除了`Chart.yaml`以外的所有模板文件（包括自己）引用。
+一般用来定义生成逻辑稍微复杂的变量，比如某项命名/标签等。
+
+> 一般我们可以直接将变量的生成逻辑写入K8s YAML文件中，但这样会使得它们变得臃肿而降低模板可读性，所以会用到`_helpers.tpl`。
 
 这个文件的语法也很简单，主要使用Helm
-模板引擎的[各种函数](https://helm.sh/zh/docs/chart_template_guide/functions_and_pipelines/)。
+模板引擎的[各种函数](https://helm.sh/zh/docs/chart_template_guide/functions_and_pipelines/)来组合成具体的逻辑。
 
 ```yaml
 # 定义一个变量 example-chart.name
