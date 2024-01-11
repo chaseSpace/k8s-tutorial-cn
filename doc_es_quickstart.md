@@ -255,8 +255,9 @@ docker-compose ps
 
 测试完成后，清理创建的资源：
 
-```shell
-docker-compose down # 停止容器
+```shel
+docker-compose stop # 停止文件内定义的容器
+docker-compose down # 停止并删除文件内包含的容器和网络，保留volume
 docker-compose down -v # 停止并删除文件内包含的容器、volume和网络
 ```
 
