@@ -196,10 +196,12 @@ Logstash是基于 Java 编写的，运行在 JVM 上，这导致它需要更多�
 > Helm是K8s生态中一个非常流行的包管理工具，它允许用户通过一个chart包来快速安装和配置K8s集群上的各种应用。
 > 如果你是第一次接触Helm，你可以查看 [Helm手记](doc_helm.md) 来快速上手Helm。
 
-> 如果你是第一次接触ElasticSearch，笔者建议你先看 [ElasticSearch快速上手](doc_es_quickstart.md)
-> 来了解ElasticSearch的基本概念和基本操作。
+> 如果你是第一次接触ElasticSearch，建议你先学习 [ElasticSearch快速上手](doc_es_quickstart.md)
+> 来了解ElasticSearch的基本概念和操作。
 
 #### 3.1 使用Helm部署ES
+
+在开始前需要说明一下，由于下一小节要安装的Kibana使用的chart并不支持HTTP连接ES，所以我们部署ES时为TRANSPORT和HTTP都开启SSL。
 
 下面是安装步骤：
 
@@ -209,6 +211,7 @@ helm repo add elastic https://helm.elastic.co
 helm repo update
 
 # 搜索chart
+# - chart中的es版本落后于官方ES版本（截止编写本文档时最新ES版本是8.11.3），但我们可修改chart内的文件
 $ helm search repo elastic/elasticsearch               
 NAME                 	CHART VERSION	APP VERSION	DESCRIPTION                                  
 elastic/elasticsearch	8.5.1        	8.5.1      	Official Elastic helm chart for Elasticsearch
@@ -216,63 +219,32 @@ elastic/elasticsearch	8.5.1        	8.5.1      	Official Elastic helm chart for 
 # 下载&解压chart
 helm pull elastic/elasticsearch --version=8.5.1 --untar
 
-$ ls elasticsearch                                
+$ ls elasticsearch
 Chart.yaml  examples  Makefile  README.md  templates  values.yaml
 ```
 
-接下来，需要编辑`values.yaml`以适应我们的需求。[values-deploy.yaml](helm/elasticsearch/values-deploy.yaml)是本次测试部署时需要修改的参数。
+接下来，需要编辑`values.yaml`以适应我们的需求。[values-deploy.yaml](helm/elasticsearch/values-master.yaml)是本次测试部署时需要修改的参数。
 
-其中的`.Values.sslEnabled`变量是我们在`values-deploy.yaml`中新增的一个变量。这样就可以实现禁用es的ssl连接，且不影响kibana安装。
+> 你可以在[这个页面](helm/elasticsearch/README.md)找到每个字段的解释以及一些配置指导。
 
-> 你可以在[这个页面](helm/elasticsearch/README.md)找到配置指导以及每个字段的解释。
+由于是部署单节点集群，所以需要禁用StatefulSet模板中的`discovery.seed_hosts`字段，但直接注释代码不够灵活，
+所以笔者在`values.yaml`中增加了`multiNode`变量，变量使用逻辑并不复杂，请读者自行阅读。
 
-由于是部署单节点集群，所以需要禁用StatefulSet模板中的`discovery.seed_hosts`字段：
-
-```shell
-# elasticsearch/templates/statefulset.yaml
-# 通过下面方式注释这三行代码，你可以直接删除
-{{/*          {{- else }}*/}}
-{{/*          - name: discovery.seed_hosts*/}}
-{{/*            value: "{{ template "elasticsearch.masterService" . }}-headless"*/}}
-```
-
-部署前检查chart生成的各项K8s对象模板：
+部署前检查chart组合`values.yaml`生成的各项K8s对象模板：
 
 ```shell
-helm install --dry-run --debug es ./elasticsearch -f elasticsearch/values-deploy.yaml
-```
-
-提取去普通节点拉取镜像（如果是本地仓库则不需要）：
-
-```shell
-ctr -n k8s.io i pull docker.io/library/elasticsearch:8.5.1
-```
-
-准备存储后端（使用[storageclass_hostpath_es.yaml](efk-arch/storageclass_hostpath_es.yaml)）：
-
-- 注意：elasticsearch是数据库类应用，需要用到磁盘，在实际部署时需要为其提前准备。
-- 如果只是体验，可以将上面的`persistence.enables`设置为`false`，这样数据会保存在内存中。
-
-```shell
-# 在部署es的目标节点执行
-$ mkdir /home/k8s-pv-elasticsearch
-
-$ kk apply -f storageclass_hostpath_es.yaml
-
-$ kk get sc,pv         
-NAME                                        PROVISIONER                    RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
-storageclass.storage.k8s.io/elasticsearch   kubernetes.io/no-provisioner   Delete          WaitForFirstConsumer   true                   6m12s
-
-NAME                             CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS    REASON   AGE
-persistentvolume/elasticsearch   100Gi      RWO            Retain           Available           elasticsearch            6m12s
+# 语法检查
+helm lint ./elasticsearch -f elasticsearch/values-master.yaml
+# 内容检查
+helm install --dry-run --debug es ./elasticsearch -f elasticsearch/values-master.yaml
 ```
 
 安装chart：
 
 ```shell
 # 将es安装在单独的namespace: efk 中，同时设置storageClassName以便在对应的sc中申请存储卷
-helm install elasticsearch elasticsearch -f elasticsearch/values-deploy.yaml \
-  --set volumeClaimTemplate.storageClassName=elasticsearch \
+helm install elasticsearch elasticsearch \
+  -f elasticsearch/values-master.yaml \
   -n efk --create-namespace
 ```
 
@@ -288,9 +260,6 @@ helm status elasticsearch --show-resources -nefk
 > `kubectl top`命令需要安装Metrics-Server组件才能正常运行，
 > 可参阅[K8s 进阶教程][K8s 进阶教程]。
 
-
-[K8s 进阶教程]:https://github.com/chaseSpace/k8s-tutorial-cn/blob/main/doc_tutorial_senior.md#341-安装metrics-server插件
-
 通过命令查看ES的初始账号`elastic`的访问密码（自动生成或忘记时可能用到）：
 
 ```shell
@@ -301,13 +270,30 @@ kubectl get secrets --namespace=efk elasticsearch-master-credentials -ojsonpath=
 
 ```shell
 # 进入elasticsearch-master-0 shell
-curl -u elastic:123 --cacert /usr/share/elasticsearch/config/certs/ca.cert http://elasticsearch-master.efk.svc.cluster.local:9200/_cluster/health?pretty
-curl -u elastic:123 --cacert /usr/share/elasticsearch/config/certs/ca.cert http://elasticsearch-master.efk.svc.cluster.local:9200/_cluster/allocation/explain?pretty
+kubectl -nefk exec -it elasticsearch-master-0 -- bash
+
+curl -u elastic:123456 -k https://elasticsearch-master.efk.svc.cluster.local:9200/_cluster/health?pretty
+
+# 当集群颜色不是green时使用这个API查看原因
+curl -u elastic:123456 -k https://elasticsearch-master.efk.svc.cluster.local:9200/_cluster/allocation/explain?pretty
 ```
 
-> 如果你要重装ES，记得清空k8s-node1中的数据目录，使用`rm -rf /home/k8s-pv-elasticsearch/*`。
+删除部署：
+
+```shell
+# un 等价于 del/delete
+helm -n efk un elasticsearch
+```
 
 #### 3.2 使用Helm部署Kibana
+
+在开始之前需要说明的是，kibana的官方chart模板并不算灵活，它其中的一些配置或代码以硬编码的方式通过ssl连接es，并且其中定义的多个k8s资源（比如configmap、Job等）都是这样的。
+这导致我们无法以一种简便的方式关闭ssl（需要修改模板的许多位置）。
+
+> 无法关闭ssl的示例：
+> 1. 你可以在模板内搜索关键字`manage-es-token.js`，这段js定义了一些函数用来在es和k8s中创建和删除token/secret（由Job挂载后调用），
+     > 其中的代码通过ssl连接es（硬编码）。
+> 2. 无法设置`ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES`为空（helm部署会报错）。
 
 下载并解压chart包：
 
@@ -317,18 +303,13 @@ helm pull elastic/kibana --version=8.5.1 --untar
 
 编辑`values.yaml`，[values-deploy.yaml](helm/kibana/values-deploy.yaml)是本次测试部署时需要修改的参数。
 
-> 你可以在[这个页面](helm/kibana/README.md)https://artifacthub.io/packages/helm/elastic/kibana)找到每个字段的解释。
+> 你可以在[这个页面](helm/kibana/README.md)找到每个字段的解释。
 
 检查模板：
 
 ```yaml
+helm lint ./kibana -f kibana/values-deploy.yaml
 helm install --dry-run --debug kibana ./kibana -f kibana/values-deploy.yaml
-```
-
-提取去普通节点拉取镜像（如果是本地仓库则不需要）：
-
-```shell
-ctr -n k8s.io i pull docker.elastic.co/kibana/kibana:8.5.1
 ```
 
 安装chart：
@@ -341,15 +322,31 @@ helm install kibana ./kibana -n efk -f kibana/values-deploy.yaml
 查看部署状态（主要观察Pod是否`Running`状态）：
 
 ```shell
-# 注意记下service对象中5601映射到节点的端口，假设为32498
+# 注意记下service对象中5601映射到节点的端口，假设为30080
 helm status kibana --show-resources -nefk
 ```
 
-通过浏览器访问Kibana（部署Kibana的节点地址）：http://kibana_node_host:32498，输入初始账号`elastic`，密码通过上一小节获取。
+通过浏览器访问Kibana（部署Kibana的节点地址）：http://kibana_host:30080，输入初始账号`elastic`，密码从上一小节中获取。
 
-> 你可能需要为Kibana安装插件，参考[这个页面][kibana-plugin]。
+删除部署：
 
-[kibana-plugin]:https://github.com/elastic/helm-charts/blob/main/kibana/README.md#how-to-install-plugins
+```shell
+helm -n efk un kibana
+```
+
+> 某些时候你可能需要为Kibana安装插件，参考[这个页面][kibana-plugin]。
+
+helm删除kibana部署时如果遇到异常导致部分资源没有清理（再次部署时会有报错提示），可使用下面的指令清理：
+
+```shell
+kk -n efk delete cm kibana-kibana-helm-scripts
+kk -n efk delete role pre-install-kibana-kibana
+kk -n efk delete rolebinding pre-install-kibana-kibana
+kk -n efk delete job pre-install-kibana-kibana
+kk -n efk delete job post-delete-kibana-kibana
+kk -n efk delete sa post-delete-kibana-kibana
+kk -n efk delete sa pre-install-kibana-kibana
+```
 
 #### 3.3 Sidecar模式部署Filebeat
 
@@ -395,7 +392,8 @@ Filebeat架构图如下：
 /var/log/filebeat -- 日志目录
 ```
 
-Filebeat只是Elastic公司开源的Beats系列软件之一，还有用来采集其他类型数据（如metric、uptime等）的软件，请参考[Beats系列](https://www.elastic.co/guide/en/beats/filebeat/8.5/filebeat-installation-configuration.html#_whats_next)。
+Filebeat只是Elastic公司开源的Beats系列软件之一，还有用来采集其他类型数据（如metric、uptime等）的软件，
+请参考[Beats系列](https://www.elastic.co/guide/en/beats/filebeat/8.5/filebeat-installation-configuration.html#_whats_next)。
 
 ##### 3.4 模块（Modules）
 
@@ -405,7 +403,7 @@ Filebeat，借此简化日志格式的收集、解析和可视化。
 参考[这里](https://www.elastic.co/guide/en/beats/filebeat/8.5/filebeat-installation-configuration.html#collect-log-data)
 了解如何使用模块。
 
-你也可以手动配置输入源，不使用模块。
+你也可以手动配置输入源，不使用模块。本文档的场景是收集Pod日志，所以不使用模块。
 
 ##### 3.5 ECS记录器
 
@@ -453,6 +451,10 @@ kk logs -n efk elasticsearch-master-0 -f
 若输入包含`creating index`的日志，则说明filebeat成功发送日志到ES。
 
 TODO
+
+[K8s 进阶教程]:https://github.com/chaseSpace/k8s-tutorial-cn/blob/main/doc_tutorial_senior.md#341-安装metrics-server插件
+
+[kibana-plugin]:https://github.com/elastic/helm-charts/blob/main/kibana/README.md#how-to-install-plugins
 
 - [Filebeat Docs](https://docs.Filebeat.org/)
 - [基于 EFK 的 Kubernetes 日志采集方案](https://xie.infoq.cn/article/fea1fe9dffe70b1d729dc04cb)
