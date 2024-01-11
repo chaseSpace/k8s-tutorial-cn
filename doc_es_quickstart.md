@@ -189,7 +189,7 @@ elasticsearch-plugins.example.yml  elasticsearch.yml       jvm.options.d  log4j2
 
 其中常修改的配置文件有：
 
-- `elasticsearch.yml`是ES的核心配置文件，[查看示例](efk-arch/es-master1.yml)
+- `elasticsearch.yml`是ES的核心配置文件，[查看示例](efk-arch/es-master.yml)
 - `jvm.options`和`jvm.options.d`是ES JVM的配置文件（性能调优）
 - `log4j2.properties`和`log4j2.file.properties`是ES日志的配置文件
 
@@ -202,95 +202,95 @@ elasticsearch-plugins.example.yml  elasticsearch.yml       jvm.options.d  log4j2
 
 ### 2.4 安装多节点集群
 
-在2.1小节中介绍的是如何安装单节点集群，这种方式你可能接触不到配置文件的修改。
+在2.1小节中介绍的是如何安装单节点集群，这种方式你可能接触不到配置文件的修改以及各字段的含义。
 本节将介绍如何安装多节点集群，这个过程中你将会进一步熟悉ES的安装步骤。
 
-基本步骤如下：
+集群角色介绍：
 
-- 启动一个临时的单节点集群，进入容器内创建证书
-- 使用配置好的`elasticsearch.yml`启动第一个master节点
-- 拷贝出master节点的完整配置目录，修改其中的`elasticsearch.yml`，然后作为第二个数据节点的配置目录
-- 启动第二个节点
+- 主节点（master）：ES集群中同一时刻只有一个主节点（从多个具有master角色的节点中选举出），相当于集群大脑。负责管理集群状态，例如选举、索引创建/删除、分片迁移等。
+    - 大规模集群中，一般会规划仅`master`节点，这样可以让主节点避免运行高负载任务导致无法响应更重要的master请求。
+- 数据节点（data）：存放数据的节点，负责数据的增删改查。
+    - 此节点通常执行I/O、内存和CPU密集型的操作，需要重点监控。并在必要时添加数据节点
+    - 大规模集群中，一般会规划仅`data`节点
+- 仅投票节点（master+voting_only）：有投票权，没有被选举权，通常用于降低集群资源消耗（因为减少了一个master节点）
+    - 一个多节点es集群至少需要3个主节点，其中需要至少2个非仅投票节点（所以可以是2master+1voting_only的组合）
+    - 由于永远不会被选举为master，所以仅投票节点的CPU/内存配置可以低于标准master节点
+    - 仅投票节点可以与`data`角色组合作为仅投票的数据节点（master+voting_only+data）
+- 远程客户端（remote_cluster_client）：跨群集搜索时需要，较少使用。
 
-第一步：
+其他还有Ingest和ML等非必要角色，在使用到其他功能时需要。
 
-```shell
-# 1. 启动一个单节点ES集群，略。
+一个高可用ES集群至少需要3个有资格成为master的节点，其中至少两个不是仅投票（`voting_only`）节点。
 
-# 2. 进入容器，使用elasticsearch-certutil工具快速创建证书
-cd ~
-mkdir certs && cd certs
+下面介绍安装的是一个比较标准的多节点ES集群配置，如下：
 
-# -- 先创建PKCS#12格式的根证书套件，其中包含ca证书和私钥，受密码保护
-# -- 注意修改密码
-# -- 回车得到文件 elastic-stack-ca.p12，此文件无需多处复制，应妥善保存
-elasticsearch-certutil ca --days 36500 --pass 123
+- 1个仅master节点
+- 2个master+data节点
 
-# 再使用ca套件创建节点证书，按下面顺序操作
-# -- 输入ca密码、回车、输入节点证书私钥密码（笔者仍然使用123）
-# -- 最后得到文件 elastic-certificates.p12，此文件应复制到ES集群的所有节点
-elasticsearch-certutil cert --ca elastic-stack-ca.p12
+配置文件如下：
 
-# 生成http证书相关信息，必须一个个回答问题
-# - 生成csr：回车（NO）
-# - 使用已存在的ca：回车（NO）
-# - 修改新ca：回车（NO）
-# - 设置ca密码：回车（不设置）
-# - 设置ca有效期：回车（默认5年）
-# - 为每个节点生成证书：回车（NO）
-# - 输入节点主机名作为SAN：*.es.com（一个泛域名）
-# - 正确？：回车（YES）
-# - 输入节点ip：回车（NO）
-# - 修改其他证书选项：回车（NO）
-# - 设置证书私钥密码：输入密码
-# - 保存zip文件的路径：回车（当前路径）
-elasticsearch-certutil http
-# 生成transport证书相关
+- [docker-compose.yml](efk-arch/docker-compose.yml)
+    - 其中的`setup`容器负责完成证书生成、es节点的健康监控工作
+    - 此文件对比官方配置增加了几项内容：
+        - 给不同节点设置角色（而不是默认）
+        - 为kibana配置中文语言
+        - 为kibana开启ssl
+        - 为kibana配置所有master资格节点作为es连接主机
+- [.env](efk-arch/.env)：部分docker-compose文件引用的环境变量需要根据实际情况修改（其中包含es密码设置）
 
-unzip elasticsearch-ssl-http.zip
-
-# 先备份已存在的keystore文件，再创建新的
-mv elasticsearch.keystore ks-bak
-elasticsearch-keystore create
-elasticsearch-keystore add xpack.security.transport.ssl.keystore.secure_password   # 输入上面transport证书的密码，如123
-elasticsearch-keystore add xpack.security.transport.ssl.truststore.secure_password # 输入上面transport证书的密码，如123
-elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password        # 输入上面http证书的密码，如123
-
-# 查看已写入的密码
-$ elasticsearch-keystore list
-keystore.seed # 这个是默认的
-xpack.security.http.ssl.keystore.secure_password
-xpack.security.transport.ssl.keystore.secure_password
-xpack.security.transport.ssl.truststore.secure_password
-
-# 3. 退出容器，拷贝所有证书文件到容器外
-docker cp elasticsearch:/usr/share/elasticsearch/certs .
-
-$ ls certs
-ca elastic-certificates.p12 elastic-stack-ca.p12 elasticsearch kibana
-
-# 4. 删除容器，略。
-```
-
-然后启动第一个节点（使用[es-master1.yml](efk-arch/es-master1.yml)）:
+启动集群：
 
 ```shell
-# 注意-v映射路径前面部分是宿主机文件，且只能使用绝对路径
-docker run --name master1.es.com --net elastic \
-  --hostname master1.es.com \
-  -p 9200:9200 \
-  -e HOSTNAME=master1.es.com \
-  -v /Users/lei/Desktop/Go/k8s-tutorial-cn/efk-arch/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore \
-  -v /Users/lei/Desktop/Go/k8s-tutorial-cn/efk-arch/certs/:/usr/share/elasticsearch/config/certs \
-  -v /Users/lei/Desktop/Go/k8s-tutorial-cn/efk-arch/es-master1.yml:/usr/share/elasticsearch/config/elasticsearch.yml \
-  -t library/elasticsearch:8.11.3
+docker-compose up -d
 ```
 
-查询集群状态：
+查看集群容器状态：
 
 ```shell
-curl -k https://localhost:9200/_cat/health
+# 其中setup容器在完成任务后会变成exited状态
+docker-compose ps
 ```
+
+若容器异常，可查看容器日志进行排查。
+
+测试完成后，清理创建的资源：
+
+```shell
+docker-compose down # 停止容器
+docker-compose down -v # 停止并删除文件内包含的容器、volume和网络
+```
+
+如果要重建单个有问题的es或kibana容器，参考下面的命令：
+
+```shell
+# 由于其他容器都依赖setup容器，所以setup容器也得一起删除再重建
+docker stop <container-name/id>
+docker volume rm <data-volume-used-by-container> # 注意不要删除setup使用的certs卷
+docker-compose up -d --no-recreate
+```
+
+当所有容器处于Running状态大约十多秒后，我们就可以查询集群状态：
+
+```shell
+# 将123456换成你的es密码
+docker exec -it test-es01-1 curl \
+  -s --cacert config/certs/ca/ca.crt \
+  -u elastic:123456 \
+  https://localhost:9200/_cluster/health?pretty=true
+```
+
+浏览器访问kibana：https://localhost:5601，用户名是`elastic`，密码是`.env`文件中的`ELASTIC_PASSWORD`。
+注意，首次访问kibana页面时，浏览器会提示不安全的站点/链接，这是正常的。因为kibana使用的证书的内部CA签名的。具体请查看docker-compose.yml中的注释。
+
+> 注意，YML文件的`kibana_system`用户是专门用于 Kibana 内部运作的 Elasticsearch 用户，不是给我们使用的。
+> ES为它分配了内置的`kibana_system`角色，该角色不能进行UI登录。
+
+最后请注意，你不能使用除了`localhost`或`127.0.0.1`以外的HOST来访问es或kibana，这是由他们的证书SAN决定的。
+如果需要，你就得修改`setup`容器的command中生成`instances.yml`的部分，然后重建所有容器。
+
+登录成功后，你可以在[这个页面](https://localhost:5601/app/management/security/users)进行用户/角色管理。
+
+此小节参考官网[docker安装es集群指导](https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html#docker-compose-file)。
 
 ## 3. 核心概念
 
