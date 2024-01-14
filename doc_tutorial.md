@@ -2138,6 +2138,7 @@ Secret用于存储敏感信息，例如密码、Token、（证书）密钥等，
 正常情况下，如果引用Secret的某个字段不存在，则启动Pod时会报错，比如：
 
 ```yaml
+# 在env处引用
 ...
 - name: LOG_LEVEL
   valueFrom:
