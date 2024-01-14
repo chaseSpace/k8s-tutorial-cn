@@ -6,8 +6,8 @@
 
 ### 笔者提醒
 
-本文档讲述如何自行收集K8s集群日志，部署和维护这些组件都需要一定的人力和技术成本。除非你已经相当熟悉这些组件或你的团队具备这样运维能力的成员或你是在一个私有环境下运行K8s集群，否则不建议自行部署和维护。
-笔者推荐直接采用云厂商提供的开箱即用的日志收集&查询产品，可以使你有限的团队资源最大化效能。
+部署和维护完整的日志采集和分析组件需要一定的人力和技术成本。除非你已经相当熟悉这些组件或你的团队具备这样运维能力的成员或你是在一个私有环境下运行K8s集群，
+否则不建议自行部署维护。笔者推荐直接采用云厂商提供的开箱即用的日志收集&查询产品，可使你有限的团队资源最大化效能。
 
 ### 1. 日志分类
 
@@ -407,7 +407,8 @@ Filebeat只是Elastic公司开源的Beats系列软件之一，还有用来采集
 Filebeat 模块是 Filebeat 配置文件的集合，它们提供了一种方便的方式来收集特定类型（如Nginx）的日志。Filebeat 模块可以自动配置
 Filebeat，借此简化日志格式的收集、解析和可视化。
 
-参考[这里](https://www.elastic.co/guide/en/beats/filebeat/8.5/filebeat-installation-configuration.html#collect-log-data)
+参考
+[这里](https://www.elastic.co/guide/en/beats/filebeat/8.5/filebeat-installation-configuration.html#collect-log-data)
 了解如何使用模块。
 
 你也可以手动配置输入源，不使用模块。本文档的场景是收集Pod日志，所以不使用模块。
@@ -443,12 +444,12 @@ kubectl exec -it hellok8s-filebeat-test-<POD_ID> -c filebeat -- sh -c 'filebeat 
 查看filebeat日志：
 ![filebeat_log.jpg](img/filebeat_log.jpg)
 
-关键字 Non-zero metrics in the last 30s 表示刚刚采集到了有效指标数据。此外，你还要观察是否出现level=warn的日志，如有则说明出现了异常。
+关键字`Non-zero metrics in the last 30s`表示刚刚采集到了有效指标数据。此外，你还要观察是否出现`level`=`warn`的日志，如有则说明出现了异常。
 
 查看ES日志：
 ![es_recv_filebeat_data.jpg](img/es_recv_filebeat_data.jpg)
 
-若输入包含`creating index`的日志，则说明filebeat成功发送日志到ES。
+若打印包含`creating index`的日志，则说明filebeat成功发送日志到ES。
 
 > 提醒：根据日志观察，Filebeat在运行中会使用100MB~200MB内存空间。
 
@@ -512,5 +513,6 @@ kubectl exec -it hellok8s-filebeat-test-<POD_ID> -c filebeat -- sh -c 'filebeat 
 
 [data-stream]: https://datadope.io/en/data-streams-in-elasticsearch-and-logstash/
 
+### 参考
 - [Filebeat Docs](https://docs.Filebeat.org/)
 - [基于 EFK 的 Kubernetes 日志采集方案](https://xie.infoq.cn/article/fea1fe9dffe70b1d729dc04cb)
