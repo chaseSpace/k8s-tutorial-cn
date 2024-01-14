@@ -24,14 +24,14 @@ spec:
         # filebeat 作为sidecar容器存在，收集业务容器的日志
         - name: filebeat
           # 需要对应es版本：https://www.elastic.co/cn/support/matrix#matrix_compatibility
-          image: docker.elastic.co/beats/filebeat:8.5.1
-          command: [ "filebeat", "-e", "-c", "/etc/filebeat.yml" ]
-          resources:
-            limits:
-              memory: 100Mi
-            requests:
-              cpu: 100m
-              memory: 10Mi
+          image: elastic/filebeat:8.5.1
+          command: [ "filebeat", "-e", "-c", "/etc/filebeat.yml"]
+#          resources:
+#            limits:
+#              memory: 200Mi
+#            requests:
+#              cpu: 100m
+#              memory: 30Mi
           volumeMounts:
             - name: filebeat-config
               mountPath: /etc/filebeat.yml
@@ -39,7 +39,7 @@ spec:
               subPath: filebeat.yml
             - name: log
               mountPath: /var/log/biz
-            - name: es-cert-ca
+            - name: es-ca-cert
               mountPath: /etc/elasticsearch/ca.crt
               readOnly: true
               subPath: ca.crt
@@ -53,13 +53,15 @@ spec:
             - name: ELASTICSEARCH_USERNAME
               value: elastic
             - name: ELASTICSEARCH_PASSWORD
-              value: "123"
+              value: "123456"
             - name: ELASTICSEARCH_ENABLE_SSL
               value: "true"
             - name: ELASTICSEARCH_CA_CERT
               value: /etc/elasticsearch/ca.crt
             - name: KIBANA_HOST
               value: kibana.efk.svc.cluster.local
+            - name: KIBANA_PORT
+              value: '5601'
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
@@ -71,9 +73,9 @@ spec:
         - name: filebeat-config
           configMap:
             name: filebeat-config
-        - name: es-cert-ca
+        - name: es-ca-cert
           secret:
-            secretName: elastic-ca.crt
+            secretName: es-cacerts-copy
 
 
 #kubectl get secret elasticsearch-master-certs -n efk -o jsonpath='{.data.ca\.crt}' | base64 --decode > ca.crt

@@ -29,7 +29,7 @@ data:
         #include_lines: [ '^ERR', '^WARN' ] # 仅包含一些行
         tags: # 给每条导出数据带上tag，方便kibana筛选
           - ${SVC_NAME}
-        prospector.scanner.include_files: ['/var/log/biz/container.log']
+        prospector.scanner.include_files: [ '/var/log/biz/container.log' ]
         paths:
           # 可以使用 /var/log/*.log  /var/log/*/*.log（不含/var/log/*.log）
           - /var/log/biz/container.log
@@ -44,8 +44,8 @@ data:
         
         # 默认会给每条数据都添加一个key: "host.name" 
         # true则禁用
-        publisher_pipeline.disable_host: false
-      
+        publisher_pipeline.disable_host: true
+        
         # 经过parsers验证通过的事件才会被导出，支持（multiline/ndjson/container/syslog），可同时多项
         # 上面的include_lines过滤之后，才会通过parsers.include_message
         # -- parsers 处理过的数据会发送到下面的processors再次处理 --
@@ -57,12 +57,11 @@ data:
               max_lines: 500
               timeout: 5s
               skip_newline: false
-          #- include_message.patterns:
+              #- include_message.patterns:
               #- "^ERR"
               #- "^WARN"
           - ndjson:
-              target: "raw_msg" # 解析后的源JSON数据
-              message_key: raw_msg # 将源JSON数据用于过滤和多行聚合
+              target: "@msg" # 解析后的JSON对象放到一个单独命名的key中
               keys_under_root: false
               add_error_key: true # 当源数据行解析json错误时会在导出的数据中包含err key作为提示
           #- container: # 采集容器日志（需要将paths设置为/var/log/containers/*.log）
@@ -76,9 +75,9 @@ data:
           - add_fields: # 给每条数据添加额外的字段。old: {"x":1}  new: {"x":1, "@metadata": {"some_field":"xxx"}}
               target: '@metadata'
               fields:
-                some_field: xxx
-          - add_id: # 为每条数据生成一个唯一id（可用于ES建立唯一索引，避免重复数据）
-              target_field: event_id  # 默认 @metadata._id 
+                x1: "y1"
+          #- add_id: # 为每条数据生成一个唯一id（可用于ES建立唯一索引，避免重复数据）
+          #    target_field: event_id  # 默认 @metadata._id 
             # 若数据已经包含唯一id，可提取
             #      - decode_json_fields:
             #          document_id: "myid"
@@ -95,14 +94,15 @@ data:
     # 全局设置 #
     ############
     timestamp.precision: microsecond # 所有时间戳精度，选项：millisecond（默认）, microsecond, nanosecond  
-    tags: ["my-service", "hardware", "test"] # 给所有input每条数据打tag
+    tags: [ "my-service", "hardware", "test" ] # 给所有input每条数据打tag
     # 给每条数据添加额外的key
     fields_under_root: false # true则将key置于JSON最外层
     fields:
-      unified_field: xxx
+      x2: "y2"
     #processors: # processor 可以放在全局
-  
+    
     output.elasticsearch: # 参考：https://www.elastic.co/guide/en/beats/filebeat/8.5/elasticsearch-output.html
+      # index: filebeat-%{[agent.version]}-%{+yyyy.MM.dd}
       compression_level: 5
       # loadbalance: true  # 如果指定了多个host，则建议开启
       hosts: [ '${ELASTICSEARCH_ADDR}' ]
@@ -113,7 +113,7 @@ data:
         enabled: ${ELASTICSEARCH_ENABLE_SSL}
         verification_mode: certificate  # 支持 full(默认)/strict/certificate/none
         certificate_authorities: ${ELASTICSEARCH_CA_CERT}
-    #    ca_trusted_fingerprint: ${ELASTICSEARCH_CA_SHA256}
+      #    ca_trusted_fingerprint: ${ELASTICSEARCH_CA_SHA256}
       # 将事件存储在内存队列中
       # https://www.elastic.co/guide/en/beats/filebeat/8.5/configuring-internal-queue.html
       queue.mem:
@@ -121,10 +121,13 @@ data:
         flush.min_events: 512 # >= N时可以开始导出数据到远端，默认2048
         flush.timeout: 1s # 若min_events不满足，但等待了N时长，则也可以导出数据到远端，默认1s
     
-    
+    #    output.console:
+    #      enable: true
+    #      pretty: true
+      
     # 预配置kibana面板，可选。
     setup.kibana:
-      host: "${KIBANA_HOST:kibana}:${KIBANA_PORT:5601}"
+      host: "${KIBANA_HOST}:${KIBANA_PORT}"
       #若不设置，则使用es的账户密码
       #username: ${KIBANA_USERNAME}
       #password: ${KIBANA_PASSWORD}
