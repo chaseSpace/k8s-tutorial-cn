@@ -17,7 +17,11 @@ rules:
     # verbs 请求动词，支持create、【watch/get/list】、patch、update、【delete/deletecollection】等
     # 通过访问公开API获取指定资源的请求动词，如下
     # kubectl proxy --port 8080
-    # curl http://localhost:8080/api/v1 |jq '.resources[] | select(.name == "pods") | .verbs'
+    # 查看所有API资源列表：kubectl api-resources （结果不含子资源）
+    # 查看某个API的子资源以及支持的verbs(JSON)：kubectl get --raw="/api/v1" （注意/api/v1指的是v1）
+    # 查看某个API的子资源以及支持的verbs(JSON)：kubectl get --raw="/apis/storage.k8s.io/v1"（除了v1组，查看其他API都需要加上`/apis`的前缀）
+    # 快速查看某个API支持的verbs，以pods为例：
+    #   kubectl get --raw="/api/v1" |jq '.resources[] | select(.name == "pods") | .verbs'
     # 还有一些针对某些资源的特殊动词，https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/authorization/#determine-the-request-verb
     verbs: [ "get", "watch", "list" ]
     resourceNames: [ "nginx", "busybox" ] # 可选，若忽略则不限制资源名称，等同 ["*"]
