@@ -380,7 +380,7 @@ Filebeat自身维护一个注册表文件来存储它所收集到的所有新文
 
 **Output（输出）**
 
-**至少一次转发**
+**至少一次转发**  
 如果Filebeat在转发事件的过程中关闭，它在关闭之前不会等待输出确认所有事件。任何发送到输出但在Filebeat关闭前未确认的事件，
 都会在Filebeat重新启动时再次发送。这样可以确保每个事件至少发送一次，但最终可能会将重复的事件发送到输出。
 你可以通过设置`shutdown_timeout`选项将Filebeat配置为在关闭前等待特定的时间。
@@ -439,9 +439,9 @@ kk apply -f filebeat-sidecar-example.yaml
 kubectl exec -it hellok8s-filebeat-test-<POD_ID> -c filebeat -- sh -c 'filebeat test output -e -c /etc/filebeat.yml'
 ```
 
-此刻，filebeat应当已经开始发送日志数据到ES，现在我们可以查看filebeat和ES的日志来进行验证。
+此刻，Filebeat应当已经开始发送日志数据到ES，现在我们可以查看Filebeat和ES的日志来进行验证。
 
-查看filebeat日志：
+查看Filebeat日志：
 ![filebeat_log.jpg](img/filebeat_log.jpg)
 
 关键字`Non-zero metrics in the last 30s`表示刚刚采集到了有效指标数据。此外，你还要观察是否出现`level`=`warn`的日志，如有则说明出现了异常。
@@ -449,7 +449,7 @@ kubectl exec -it hellok8s-filebeat-test-<POD_ID> -c filebeat -- sh -c 'filebeat 
 查看ES日志：
 ![es_recv_filebeat_data.jpg](img/es_recv_filebeat_data.jpg)
 
-若打印包含`creating index`的日志，则说明filebeat成功发送日志到ES。
+若打印包含`creating index`的日志，则说明Filebeat成功发送日志到ES。
 
 > 提醒：根据日志观察，Filebeat在运行中会使用100MB~200MB内存空间。
 
@@ -463,7 +463,7 @@ kubectl exec -it hellok8s-filebeat-test-<POD_ID> -c filebeat -- sh -c 'filebeat 
 > ES中与数据流相关联的特性（名词）有索引模板（Index Templates）、索引生命周期管理（ILM）和隐藏索引（Backing Indices）。
 > 如果你想进一步了解数据流的由来，可参考这篇[英文文章][data-stream]。
 
-显然Filebeat（包括Logstash）也使用数据流的方式来组织和管理发生到ES的索引数据。
+显然Filebeat也使用数据流的方式来组织和管理发送到ES的索引数据。
 
 按照以下步骤查看和使用Filebeat发送给ES的日志数据。
 
@@ -498,7 +498,7 @@ kubectl exec -it hellok8s-filebeat-test-<POD_ID> -c filebeat -- sh -c 'filebeat 
 
 - 直接删除数据流来丢弃已有的日志数据，Filebeat发送的日志数据会自动创建新的数据流。
     - 不需要手动管理索引（虽然也支持），而是通过ILM来管理。
-- 现有的数据流名称`Filebeat-8.5.1`不具有业务标识，实际项目中需要修改filebeat配置文件来为不同业务创建不同数据流。
+- 现有的数据流名称`Filebeat-8.5.1`不具有业务标识，实际项目中需要修改Filebeat配置文件来为不同业务创建不同数据流。
 
 #### 3.7 小结
 
