@@ -14,13 +14,28 @@ NAME                              SHORTNAMES   APIVERSION                       
 bindings                                       v1                                     true         Binding
 componentstatuses                 cs           v1                                     false        ComponentStatus
 configmaps                        cm           v1                                     true         ConfigMap
-endpoints                         ep           v1                                     true         Endpoints...
+endpoints                         ep           v1                                     true         Endpoints
+...
+rolebindings                                   rbac.authorization.k8s.io/v1           true         RoleBinding
+roles                                          rbac.authorization.k8s.io/v1           true         Role
+priorityclasses                   pc           scheduling.k8s.io/v1                   false        PriorityClass
+csidrivers                                     storage.k8s.io/v1                      false        CSIDriver
+csinodes                                       storage.k8s.io/v1                      false        CSINode
+csistoragecapacities                           storage.k8s.io/v1                      true         CSIStorageCapacity
+storageclasses                    sc           storage.k8s.io/v1                      false        StorageClass
+volumeattachments                              storage.k8s.io/v1                      false        VolumeAttachment
 ```
 
 返回结果中包含某些API资源的缩写。还有一些命令：
 
 ```shell
 kubectl api-versions
+```
+
+查看某个API的子资源以及详情：
+```shell
+kubectl get --raw="/api/v1" # 注意/api/v1指的是v1
+kubectl get --raw="/apis/storage.k8s.io/v1" # 除了v1组，查看其他API都需要加上`/apis`的前缀
 ```
 
 ## 查看/解释某个资源支持的所有配置字段
