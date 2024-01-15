@@ -357,7 +357,13 @@ kk -n efk delete sa pre-install-kibana-kibana
 
 #### 3.3 Filebeat介绍
 
-Filebeat主要由以下部件组成：
+##### 3.3.1 架构图
+
+![filebeat.png](img/filebeat.png)
+
+##### 3.3.2 组件构成
+
+Filebeat内部主要由以下部件组成：
 
 - Input（输入）
 - Harvesters（收集器）
@@ -378,18 +384,17 @@ Filebeat主要由以下部件组成：
 Filebeat自身维护一个注册表文件来存储它所收集到的所有新文件的状态（包括文件被转发的状态），并且会经常刷新数据到注册表中。所以如果你的用例涉及每天创建大量新文件，你可能会发现注册表文件变得太大。
 参考[这里](https://www.elastic.co/guide/en/beats/filebeat/8.5/reduce-registry-size.html)进行优化。
 
-**Output（输出）**  
+**output（输出）**  
 Filebeat允许将收集到的数据发送到一个指定的输出位置，比如File/Stdout、ES、Logstash、Kafka和Redis等。注意配置中只能指定一个输出位置。
 
-**至少一次转发**  
-如果Filebeat在转发事件的过程中关闭，它在关闭之前不会等待输出确认所有事件。任何发送到输出但在Filebeat关闭前未确认的事件，
-都会在Filebeat重新启动时再次发送。这样可以确保每个事件至少发送一次，但最终可能会将重复的事件发送到输出。
-你可以通过设置`shutdown_timeout`选项将Filebeat配置为在关闭前等待特定的时间。
+Filebeat可以保证至少一次将数据转发到指定的输出位置。
 
-Filebeat架构图如下：
-![filebeat.png](img/filebeat.png)
+> 如果Filebeat在转发事件的过程中关闭，它在关闭之前不会等待输出确认所有事件。任何发送到输出但在Filebeat关闭前未确认的事件，
+> 都会在Filebeat重新启动时再次发送。这样可以确保每个事件至少发送一次，但最终可能会将重复的事件发送到输出。
+> 你可以通过设置`shutdown_timeout`选项将Filebeat配置为在关闭前等待特定的时间。
 
-**目录布局**  
+##### 3.3.3 目录结构
+
 以下布局供参考，具体可能因安装平台而异。
 
 ```shell
