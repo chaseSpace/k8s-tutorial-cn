@@ -1954,12 +1954,14 @@ API Server 处理用户的身份认证，并**默认**根据 RBAC（Role-Based A
 
 API组通常会出现在Restful API路径中，还有资源模板的`apiVersion`字段中。下面是一些常见的API组:
 
-- app/v1（模板中简写为v1，为大部分内置资源对象使用，如Pod/ConfigMap/Secret/Service/Stateful/LimitRange/PV/PVC...）
-- apps/v1 （ReplicaSet/Deployment/DaemonSet）
-- networking.k8s.io/v1 (Ingress)
+- `app/v1`（模板中简写为`v1`，为大部分内置资源对象使用，如Pod/ConfigMap/Secret/Service/Stateful/LimitRange/PV/PVC...）
+- `apps/v1` （ReplicaSet/Deployment/DaemonSet）
+- `networking.k8s.io/v1` (对应Kind为Ingress)
 
 k8s使用的API组列表在 [API Groups K8s v1.27](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#api-groups)
 可见（链接带有版本信息）。
+
+> [这个页面](https://kubernetes.io/zh-cn/docs/reference/kubernetes-api/)使用中文描述的K8s API，且版面可读性更高。
 
 API组的版本控制通过携带`Alpha/Beta`这样的版本名称来实现，比如你可能会看见`api/v1alpha1`或`api/v1beta1`这样的API路径。不同名称的用法如下：
 
