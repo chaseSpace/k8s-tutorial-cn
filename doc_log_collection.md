@@ -458,7 +458,7 @@ kubectl exec -it hellok8s-filebeat-test-<POD_ID> -c filebeat -- sh -c 'filebeat 
 
 若打印包含`creating index`的日志，则说明Filebeat成功发送日志到ES。
 
-> 提醒：根据日志观察，Filebeat在运行中会使用100MB~200MB内存空间。
+> 提醒：根据日志观察，Filebeat在运行中会使用100MB+内存空间，但会慢慢降到几十MB。
 
 #### 3.6 使用Kibana查看数据
 
