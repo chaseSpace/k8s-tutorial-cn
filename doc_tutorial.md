@@ -1071,7 +1071,7 @@ DaemonSet通常会运行在每个节点上，但不包括master节点。因为ma
 
 > 关于污点，会在 [Kubernetes 进阶教程—污点和容忍度](doc_tutorial_senior.md#46-污点和容忍度) 一节中讲到，此处可以先不用深究。
 
-[daemonset.yaml](daemonset.yaml) 是一个DaemonSet的模板示例。常用命令与Deployment没有较大差别，只是DaemonSet不基于ReplicaSet。
+[daemonset.yaml](daemonset.yaml) 是一个DaemonSet的模板示例。它的管理命令与Deployment没有较大差别，只是DaemonSet不基于ReplicaSet。
 具体演示如下：
 
 ```shell
