@@ -378,7 +378,8 @@ Filebeat主要由以下部件组成：
 Filebeat自身维护一个注册表文件来存储它所收集到的所有新文件的状态（包括文件被转发的状态），并且会经常刷新数据到注册表中。所以如果你的用例涉及每天创建大量新文件，你可能会发现注册表文件变得太大。
 参考[这里](https://www.elastic.co/guide/en/beats/filebeat/8.5/reduce-registry-size.html)进行优化。
 
-**Output（输出）**
+**Output（输出）**  
+Filebeat允许将收集到的数据发送到一个指定的输出位置，比如File/Stdout、ES、Logstash、Kafka和Redis等。注意配置中只能指定一个输出位置。
 
 **至少一次转发**  
 如果Filebeat在转发事件的过程中关闭，它在关闭之前不会等待输出确认所有事件。任何发送到输出但在Filebeat关闭前未确认的事件，
@@ -444,7 +445,8 @@ kubectl exec -it hellok8s-filebeat-test-<POD_ID> -c filebeat -- sh -c 'filebeat 
 查看Filebeat日志：
 ![filebeat_log.jpg](img/filebeat_log.jpg)
 
-关键字`Non-zero metrics in the last 30s`表示刚刚采集到了有效指标数据。此外，你还要观察是否出现`level`=`warn`的日志，如有则说明出现了异常。
+关键字`Non-zero metrics in the last 30s`表示刚刚采集到了有效指标数据。此外，你还要观察是否出现`level`=`warn`
+的日志，如有则说明出现了异常。
 
 查看ES日志：
 ![es_recv_filebeat_data.jpg](img/es_recv_filebeat_data.jpg)
@@ -514,5 +516,6 @@ kubectl exec -it hellok8s-filebeat-test-<POD_ID> -c filebeat -- sh -c 'filebeat 
 [data-stream]: https://datadope.io/en/data-streams-in-elasticsearch-and-logstash/
 
 ### 参考
+
 - [Filebeat Docs](https://docs.Filebeat.org/)
 - [基于 EFK 的 Kubernetes 日志采集方案](https://xie.infoq.cn/article/fea1fe9dffe70b1d729dc04cb)
