@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-multiroute
+data:
+  config.yml: |
+    routes:
+      route1: "route1's content"
+      route2: "route2's content"

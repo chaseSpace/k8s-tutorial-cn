@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-multiroute
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: go-multiroute
+  template:
+    metadata:
+      labels:
+        app: go-multiroute
+    spec:
+      containers:
+        - image: docker.io/leigg/go_multiroute:v1
+          name: go-multiroute
+          command: [ "/main","-config", "/config/config.yml" ]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 10Mi
+            limits:
+              cpu: 100m
+              memory: 15Mi
+          volumeMounts:
+            - name: config
+              mountPath: "/config"
+      volumes:
+        - name: config
+          configMap:
+            name: go-multiroute
