@@ -1,14 +1,16 @@
 FROM golang:1.20-alpine AS builder
 
-WORKDIR /project
-ADD . .
+# 缓存依赖
+WORKDIR /go/cache
+COPY go.mod .
+COPY go.sum .
+RUN GOPROXY=https://goproxy.cn,direct go mod tidy
 
-# 实战中，如果有gomod文件，单独一行
-#RUN go mod tidy
-
+WORKDIR /build
+COPY . .
 
 # 关闭cgo的原因：使用了多阶段构建，go程序的编译环境和运行环境不同，不关就无法运行go程序
-RUN GOPROXY=https://goproxy.cn,direct GOOS=linux CGO_ENABLED=0 GOARCH=amd64 GO111MODULE=auto go build -o main -ldflags "-w -extldflags -static"
+RUN GOOS=linux CGO_ENABLED=0 GOARCH=amd64 GO111MODULE=auto go build -o main -ldflags "-w -extldflags -static"
 
 #FROM scratch as prod
 FROM alpine as prod
@@ -18,7 +20,7 @@ FROM alpine as prod
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories &&  \
     apk add -U tzdata && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && apk del tzdata && date
 
-COPY --from=builder /project/main .
+COPY --from=builder /build/main .
 
 EXPOSE 3000
 ENTRYPOINT ["/main"]
