@@ -128,6 +128,77 @@ go-multiroute-f4f8b64f4-564qq   1/1     Running   0          8s
 go-multiroute-f4f8b64f4-v64l6   1/1     Running   0          8s
 ```
 
-### 1.7 为HTTP流量配置外部访问
+### 1.7 为服务配置外部访问
 
-TODO
+现在已经在集群内部部署好了应用，但是还无法从集群外部访问。我们需要再部署以下资源来提供外部访问能力。
+
+- Service：为服务访问提供流量的负载均衡能力（支持TCP/UDP/SCTP协议）
+- Ingress：管理集群外部访问应用的路由端点，支持HTTP/HTTPS协议
+    - Ingress需要安装某一种Ingress控制器才能正常工作，常用的有Nginx、Traefik。
+
+> 如果应用是非HTTP服务器（如仅TCP、Websocket服务），则无需Ingress，仅用Service来暴露服务就可。
+
+- [service.yaml](k8s_actions_guide/version1/k8s-manifest/service.yaml)
+- [ingress.yaml](k8s_actions_guide/version1/k8s-manifest/ingress.yaml)
+
+部署Ingress控制器的步骤这里不再赘述，请参考[基础教程](doc_tutorial.md#82-安装Nginx-Ingress控制器)。
+
+下面是部署Service和Ingress的步骤：
+
+```shell
+$ kk apply -f ./k8s-manifest
+configmap/go-multiroute unchanged
+deployment.apps/go-multiroute unchanged
+ingress.networking.k8s.io/go-multiroute created
+service/go-multiroute created
+
+# 注意：service/kubernetes是默认创建的，不用理会
+$ kk get svc,ingress                           
+NAME                    TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+service/go-multiroute   ClusterIP   10.96.219.33   <none>        3000/TCP   19s
+service/kubernetes      ClusterIP   10.96.0.1      <none>        443/TCP    6d
+
+NAME                                      CLASS   HOSTS   ADDRESS   PORTS   AGE
+ingress.networking.k8s.io/go-multiroute   nginx   *                 80      19s
+```
+
+现在，可以通过Ingress控制器开放的端口来访问应用了。笔者环境安装的Nginx Ingress控制器，查看其开放的端口：
+
+```shell
+# PORT(S) 部分是Nginx Ingress控制器内对外的端口映射
+# 内部80端口映射到外部 30073，内部443端口映射到外部30220
+kk get svc -ningress-nginx
+NAME                                 TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
+ingress-nginx-controller             LoadBalancer   10.96.171.227   <pending>     80:30073/TCP,443:30220/TCP   3m46s
+ingress-nginx-controller-admission   ClusterIP      10.96.7.58      <none>        443/TCP                      3m46s
+```
+
+使用控制器的端口访问服务：
+
+```
+# 在任意节点上进行访问
+$ curl 127.0.0.1:30073/route1
+Hello, You are at /route1, Got: route1's content
+ 
+# /route2 尚未在ingress的规则中定义，所以不能通过ingress访问
+$ curl 127.0.0.1:30073/route2
+<html>
+<head><title>404 Not Found</title></head>
+<body>
+<center><h1>404 Not Found</h1></center>
+<hr><center>nginx</center>
+</body>
+</html>
+```
+
+OK，现在访问没有问题了。
+
+#### 1.7.1 为什么通过30073端口访问
+
+Nginx Ingress控制器默认通过NodePort方式部署，所以会在宿主机上开放两个端口（本例中是30073和30220），
+这两个端口会分别代理到Ingress控制器内部的80和443端口。
+
+本例中的Go应用是一个后端应用，对于向外暴露的端口没有要求。
+但如果是一个前端应用，比如是一个Web网站，那么可能就有对外暴露80/443端口的要求。
+此时就需要调整Ingress控制器部署方式，使用LoadBalancer或`HostNetwork`方式部署，
+
