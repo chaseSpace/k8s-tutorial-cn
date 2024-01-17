@@ -5,5 +5,5 @@ metadata:
 data:
   config.yml: |
     routes:
-      route1: "route1's content"
-      route2: "route2's content"
+      /route1: "route1's content"
+      /route2: "route2's content"

@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: go-multiroute
+spec:
+  ingressClassName: nginx
+  # 注意，这里没有使用HTTPS
+  rules:
+    - http:
+        paths:
+          - path: /route1
+            # 路径匹配类型
+            # - Prefix：前缀匹配，路由直接透传不会截断
+            # - Exact：精确匹配 URL 路径，且区分大小写
+            # - ImplementationSpecific：默认匹配方式，具体由 ingressClass 决定
+            pathType: Prefix
+            backend:
+              service:
+                name: go-multiroute
+                port:
+                  number: 3000

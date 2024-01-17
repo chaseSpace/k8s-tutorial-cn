@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-multiroute
+spec:
+  type: ClusterIP
+  selector:
+    app: go-multiroute
+  ports:
+    - port: 3000 # service端口
+      targetPort: 3000 # 后端pod端口

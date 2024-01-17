@@ -10,7 +10,7 @@ import (
 )
 
 type Config struct {
-	Routes map[string]string `json:"routes"`
+	Routes map[string]string `yaml:"routes"`
 }
 
 func main() {
@@ -19,8 +19,11 @@ func main() {
 		return
 	}
 	for route, resp := range cfg.Routes {
+		log.Printf("Load path:%s\n", route)
+		_route := route
+		_resp := resp // 避免闭包问题
 		http.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "Hello, You are at %s, Got: %s", route, resp)
+			fmt.Fprintf(w, "Hello, You are at %s, Got: %s", _route, _resp)
 		})
 	}
 	log.Printf("Listening on http://localhost:3000\n")
@@ -45,5 +48,6 @@ func loadConfig() (cfg Config, ok bool) {
 		fmt.Println("Error unmarshalling YAML:", err)
 		return
 	}
+	fmt.Printf("222 %+v\n", cfg)
 	return cfg, true
 }
