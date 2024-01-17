@@ -1751,7 +1751,7 @@ Ingress控制器不会随集群一起安装，需要单独安装。可以选择�
 先通过官方仓库页面的版本支持表确认控制器与k8s匹配的版本信息，笔者使用的k8s版本是`1.27.0`，准备安装的Nginx
 ingress控制器版本是`1.8.2`。
 
-安装方式有Helm安装和手动安装，Helm是一个很好用的k8s包管理器（后续介绍），但这里先使用手动安装。
+安装方式有Helm安装和手动安装，Helm是一个很好用的k8s包管理器（在进阶教程中有介绍），但这里先使用手动安装。
 
 ```shell
 # 下载Nginx Ingress控制器安装文件
@@ -1768,7 +1768,7 @@ $ 在node1上手动拉取镜像（部署的Pod会调度到非Master节点）
 $ grep -oP 'image:\s*\K[^[:space:]]+' nginx-ingress.yaml | xargs -n 1 ctr image pull
 
 # 安装
-kk apply -f nginx-ingress.yaml
+$ kk apply -f nginx-ingress.yaml
 
 # 等待控制器的pod运行正常（这里自动创建了一个新的namespace）
 $ kk get pods --namespace=ingress-nginx --watch
@@ -1834,7 +1834,7 @@ Warning  Failed     15s (x2 over 2m19s)   kubelet            Failed to pull imag
 ctr image pull docker.io/anjia0532/google-containers.ingress-nginx.kube-webhook-certgen:v20230407
 ctr image pull docker.io/anjia0532/google-containers.ingress-nginx.controller:v1.8.2
 
-# 替换模板中的镜像
+# 替换模板中的镜像（mac环境需要在-i后面加 ""，即sed -i "" 's#...'）
 sed -i 's#registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b#docker.io/anjia0532/google-containers.ingress-nginx.kube-webhook-certgen:v20230407#' nginx-ingress.yaml
 sed -i 's#registry.k8s.io/ingress-nginx/controller:v1.8.2@sha256:74834d3d25b336b62cabeb8bf7f1d788706e2cf1cfd64022de4137ade8881ff2#docker.io/anjia0532/google-containers.ingress-nginx.controller:v1.8.2#' nginx-ingress.yaml
 
@@ -1886,7 +1886,7 @@ ingress.networking.k8s.io/hellok8s-ingress   nginx   *                 80      9
 $ curl 20.1.140.111:8080
 <html><body><h1>It works!</h1></body></html>
 
-# 前一节讲到的nginx 以 LoadBalancer部署的svc，所以要通过节点访问，需要先获知svc映射到节点的端口号，如下为 80:31504, 443:32548
+# 前一节讲到的nginx 以LoadBalancer类型部署的svc，所以要通过节点访问，需要先获知svc映射到节点的端口号，如下为 80:31504, 443:32548
 $ kk get svc -ningress-nginx
 NAME                                 TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                      AGE
 ingress-nginx-controller             LoadBalancer   20.1.251.172   <pending>     80:31504/TCP,443:32548/TCP   19h
@@ -1957,14 +1957,16 @@ $ kk apply -f deploy.yaml # 更新部署
 ### 8.5 Ingress部署方案推荐
 
 1. **Deployment + `LoadBalancer` 模式的 Service**  
-   说明：如果要把Ingress部署到公有云，那用这种方式比较合适。用Deployment部署ingress-controller，创建一个type为 LoadBalancer
-   的 service 关联这组 Pod。大部分公有云，都会为 LoadBalancer 的 service 自动创建一个负载均衡器，通常还绑定了公网地址。
-   只要把域名解析指向该地址，就实现了集群服务的对外暴露。
+   说明：如果要把Ingress部署到公有云，那用这种方式比较合适。用Deployment部署ingress-controller，创建一个type为 `LoadBalancer`
+   的 service 关联这组 Pod（这是Nginx Ingress的默认部署方式）。大部分公有云，都会为 `LoadBalancer` 的 service
+   自动创建（并关联）一个负载均衡器，通常还分配了公网IP。
+   只需要在负载均衡器上配置域名和证书，就实现了集群服务的对外暴露。
 
 2. **DaemonSet + HostNetwork + nodeSelector**  
-   说明：用DaemonSet结合nodeSelector来部署ingress-controller到特定的node上，然后使用HostNetwork直接把该pod与宿主机node的网络打通，直接使用节点的80/433端口就能访问服务。这时，ingress-controller所在的node机器就很类似传统架构的边缘节点，比如机房入口的nginx服务器。该方式整个请求链路最简单，性能相对NodePort模式更好。
+   说明：用DaemonSet结合nodeSelector来部署ingress-controller到特定的node上，然后使用HostNetwork直接把该pod与宿主机node的网络打通，直接使用节点的80/433端口就能访问服务。
+   这时，ingress-controller所在的node机器就很类似传统架构的边缘节点，比如机房入口的nginx服务器。该方式整个请求链路最简单，性能相对NodePort模式更好。
    有一个问题是由于直接利用宿主机节点的网络和端口，一个node只能部署一个ingress-controller
-   pod，但这在生产环境下也不算是问题，只要完成多节点部署实现高可用即可。
+   Pod，但这在生产环境下也不算是问题，只要完成多节点部署实现高可用即可。
    然后将Ingress节点公网IP填到域名CNAME记录中即可。  
    笔者提供测试通过的Ingress-nginx模板供读者练习：[ingress-nginx-daemonset-hostnetwork.yaml](ingress-nginx-daemonset-hostnetwork.yaml)
    ，主要修改了3处：
@@ -1972,14 +1974,15 @@ $ kk apply -f deploy.yaml # 更新部署
     - 注释`DaemonSet`模块的`strategy`部分（strategy是Deployment模块下的字段）
     - 在DaemonSet模块的`spec.template.spec`下添加`hostNetwork: true`
       使用这个模板后，可以观察到在k8s-node1上会监听80、443和8443端口（Ingress-nginx需要的端口）。
-3. **Deployment + `NodePort`模式的Service**  
-   说明：同样用Deployment模式部署ingress-controller，并创建对应的service，但是type为NodePort。这样，Ingress就会暴露在集群节点ip的特定端口上。
-   然后可以直接将Ingress节点公网IP填到域名CNAME记录中。    
-   笔者提供测试通过Ingress-nginx模板供读者练习：[ingress-nginx-deployment-nodeport.yaml](ingress-nginx-deployment-nodeport.yaml)
-   ，主要修改了2处：
-    - Service模块下`spec.ports`部分新增`nodePort: 30080`和`nodePort: 30443`（注意nodePort设置的端口受到范围限制：30000-32767）
 
-   这种方式不适用于对外暴露80/443端口的应用。
+3. **Deployment + `NodePort`模式的Service**  
+   说明：同样用Deployment模式部署ingress-controller，并创建对应的service，但是type为`NodePort`。这样，Ingress就会暴露在集群节点ip的特定端口上。
+   然后可以直接将Ingress节点公网IP填到域名CNAME记录中。    
+   笔者提供测试通过Ingress-nginx模板供读者练习：[ingress-nginx-deployment-nodeport.yaml](ingress-nginx-deployment-nodeport.yaml)，
+   主要修改了2处：
+    - Service模块下`spec.ports`部分新增`nodePort: 30080`和`nodePort: 30443`（注意`nodePort`对应的端口范围受到限制：30000-32767）
+
+   这种方式可以使用的节点端口受到了固定范围限制，具有一定局限性，应用规划端口时需要考虑到这一点。
 
 练习时，如对Ingress-nginx模板有修改，建议完全删除该模板对应资源（使用`kk delete -f deploy.yaml`，操作可能会耗时几十秒），否则直接应用可能不会生效。
 
