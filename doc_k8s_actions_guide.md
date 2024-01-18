@@ -30,9 +30,27 @@ go mod tidy
 > 虽然可以在Dockerfile中直接将配置文件打包到容器，但这种方式通常伴随的是将配置文件存储在代码库中，这并不符合K8s的最佳实践。
 > 同时也不适合用来存储重要配置。
 
-如果有重要的配置，比如证书私钥或Token之类的敏感信息，请使用Secret来存储（未演示）。
+如果有重要的配置，比如证书私钥或Token之类的敏感信息，请使用Secret来存储。
 
-### 1.3 使用Dockerfile打包应用
+### 1.3 使用Secret存储敏感信息
+
+通常一个后端应用会链接到数据库来对外提供API服务，所以我们需要为应用提供数据库密码。
+
+虽然ConfigMap也可以存储数据，但Secret更适合存储敏感信息。在K8s中，Secret用来存储敏感信息，比如密码、Token等。
+
+- [k8s-manifest/secret.yaml](k8s_actions_guide/version1/k8s-manifest/secret.yaml)
+
+#### 1.3.1 加密存储Secret中的数据
+
+虽然Secret声称用来存储敏感信息，但默认情况下它是非加密地存储在集群存储（etcd）上的。
+任何拥有 API 访问权限的人都可以检索或修改 Secret。
+
+请参考以下链接来加密存储Secret中的数据：
+
+- [K8s Secrets](https://kubernetes.io/zh-cn/docs/concepts/configuration/secret/)
+- [加密 K8s Secrets 的几种方案](https://www.cnblogs.com/east4ming/p/17712715.html)
+
+### 1.4 使用Dockerfile打包应用
 
 这一步中，我们编写一个Dockerfile文件将Go应用打包到一个镜像中，以便后续部署为容器。
 
@@ -40,7 +58,7 @@ go mod tidy
 
 注意在Dockerfile中定制你的Go版本。
 
-### 1.4 准备镜像仓库
+### 1.5 准备镜像仓库
 
 为了方便后续部署，我们需要将打包好的镜像上传到镜像仓库中。
 
@@ -48,7 +66,7 @@ go mod tidy
 
 常用的开源镜像仓库有Docker Registry和Harbor。如果你使用云厂商部署应用，可以使用云厂商的镜像仓库服务。
 
-### 1.5 编写Deployment模板
+### 1.6 编写Deployment模板
 
 Deployment是K8s中最常用的用来部署和管理应用的资源对象。它支持应用的多副本部署以及故障自愈能力。
 
@@ -71,7 +89,7 @@ docker pull busybox:1.36.1@sha256:7108255e7587de598006abe3718f950f2dca232f549e95
 
 所以我们可以在Deployment模板中指定镜像的tag的同时使用`@sha256:...`来指定镜像的hash以提高部署安全性。
 
-### 1.6 使用CI/CD流水线
+### 1.7 使用CI/CD流水线
 
 按前述步骤完成后，应该得到以下文件布局：
 
@@ -128,7 +146,7 @@ go-multiroute-f4f8b64f4-564qq   1/1     Running   0          8s
 go-multiroute-f4f8b64f4-v64l6   1/1     Running   0          8s
 ```
 
-### 1.7 为服务配置外部访问
+### 1.8 为服务配置外部访问
 
 现在已经在集群内部部署好了应用，但是还无法从集群外部访问。我们需要再部署以下资源来提供外部访问能力。
 
@@ -138,8 +156,8 @@ go-multiroute-f4f8b64f4-v64l6   1/1     Running   0          8s
 
 > 如果应用是非HTTP服务器（如仅TCP、Websocket服务），则无需Ingress，仅用Service来暴露服务就可。
 
-- [service.yaml](k8s_actions_guide/version1/k8s-manifest/service.yaml)
-- [ingress.yaml](k8s_actions_guide/version1/k8s-manifest/ingress.yaml)
+- [k8s-manifest/service.yaml](k8s_actions_guide/version1/k8s-manifest/service.yaml)
+- [k8s-manifest/ingress.yaml](k8s_actions_guide/version1/k8s-manifest/ingress.yaml)
 
 部署Ingress控制器的步骤这里不再赘述，请参考[基础教程](doc_tutorial.md#82-安装Nginx-Ingress控制器)。
 
@@ -193,12 +211,30 @@ $ curl 127.0.0.1:30073/route2
 
 OK，现在访问没有问题了。
 
-#### 1.7.1 为什么通过30073端口访问
+#### 1.8.1 为什么通过30073端口访问
 
 Nginx Ingress控制器默认通过NodePort方式部署，所以会在宿主机上开放两个端口（本例中是30073和30220），
 这两个端口会分别代理到Ingress控制器内部的80和443端口。
 
-本例中的Go应用是一个后端应用，对于向外暴露的端口没有要求。
+本例中部署的Go应用是一个后端服务，对于向外暴露的端口号没有要求。
 但如果是一个前端应用，比如是一个Web网站，那么可能就有对外暴露80/443端口的要求。
-此时就需要调整Ingress控制器部署方式，使用LoadBalancer或`HostNetwork`方式部署，
+此时就需要调整Ingress控制器部署方式，使用LoadBalancer或`HostNetwork`方式部署。
+
+### 1.9 更新配置的最佳实践
+
+应用上线后，我们可能会有更改应用配置的需求。一般的做法是直接更新已有的ConfigMap，然后重启所有Pod。
+但这不是K8s的最佳实践。原因有以下几个：
+
+- 更新ConfigMap不会触发Deployment中所有Pod重启
+- 若更新后的配置有问题不能迅速回滚（需要再次编辑已有ConfigMap），导致服务短暂宕机
+
+而最佳实践是为ConfigMap命名带上版本号如`app-config-v1`，然后部署新版本的ConfigMap，
+再修改Deployment模板中引用的ConfigMap名称，最后更新Deployment（触发所有Pod滚动更新）。
+
+当需要回滚时，再次更新Deployment即可。
+
+## 2. 开发者工作流
+
+TODO
+
 
