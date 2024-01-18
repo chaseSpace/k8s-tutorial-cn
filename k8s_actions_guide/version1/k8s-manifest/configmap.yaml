@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: go-multiroute
+  name: go-multiroute-v1
 data:
   config.yml: |
     routes:

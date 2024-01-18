@@ -26,7 +26,13 @@ spec:
           volumeMounts:
             - name: config
               mountPath: "/config"
+          env:
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  key: db_pass
+                  name: go-multiroute-v1
       volumes:
         - name: config
           configMap:
-            name: go-multiroute
+            name: go-multiroute-v1

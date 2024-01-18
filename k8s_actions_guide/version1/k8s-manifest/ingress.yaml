@@ -19,3 +19,10 @@ spec:
                 name: go-multiroute
                 port:
                   number: 3000
+          - path: /connect_db
+            pathType: Exact
+            backend:
+              service:
+                name: go-multiroute
+                port:
+                  number: 3000
