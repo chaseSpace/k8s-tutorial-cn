@@ -1,13 +1,16 @@
 ## Kubernetes 使用教程
 
-### 主要内容
+### 文章指引
+
+#### 核心内容
 
 - [Kubernetes 基础教程](doc_tutorial.md)
 - [Kubernetes 进阶教程](doc_tutorial_senior.md)
 
+#### 进阶内容
 
 - [Kubernetes 日志收集 🆕](doc_log_collection.md)
-- [Kubernetes 维护参考](doc_maintaintion.md)
+- [Kubernetes 维护指导](doc_maintaintion.md)
 - [Kubernetes 安全分析 🆕](doc_security.md)
 
 #### 快速入门指南
