@@ -3,7 +3,6 @@ set -e
 
 <<comment
 @集群管理员执行
-用法：sh setup_kubeconfig.sh <用户名> <API Server地址>
 comment
 
 usage="用法：sh setup_kubeconfig.sh  <用户名> <API Server地址>"
