@@ -1648,7 +1648,7 @@ $ kk exec -it curl --  curl service-hellok8s-clusterip:3000
 
 #### 7.8.2 环境变量
 
-在每个新启动的Pod中，kubelet也会向其注入当前namespace中已存在的Service信息（以环境变量形式），Pod可以通过这些环境变量来发现其他Service的IP地址。
+在每个新启动的Pod中，kubelet也会向其以环境变量形式注入**当前Namespace**中已存在的Service连接信息，Pod可以通过这些环境变量来发现其他Service的IP地址。
 这里假设已经启动了`service/service-hellok8s-clusterip`，然后重新启动`pod/curl`
 ，然后在后者shell中查看`service/service-hellok8s-clusterip`的环境变量：
 
@@ -1674,6 +1674,18 @@ $ kk exec -it curl --  sh
 但是，环境变量方式对资源的创建顺序有要求。比如`pod/curl`先启动，某个service后创建，那么启动后的`pod/curl`
 中就不会有这个Service相关的环境变量。
 所以这里不推荐使用环境变量的方式访问Service，而是推荐使用内置DNS的方式。
+
+**关闭Service Env注入**  
+通过上面内容我们可以估算到，在一个Namespace中若存在1000个Service，就会给新创建的Pod注入7000个Env变量。
+巨多的Env变量会导致某些编程语言开发的应用所运行的容器崩溃（也可能表现为容器的CPU/内存占用高），比如Java，Nodejs等。
+所以我们可以在创建Pod时，通过设置`spec.enableServiceLinks: false`参数来关闭Service Env注入。
+
+> 关闭Service Env注入不会影响模板中的其他Env变量注入。
+
+参考:
+
+- [K8s 一条默认参数引起的性能问题](https://mp.weixin.qq.com/s/w6ufHeQqf4I2IygJ_yg9zg)
+- [Set enableServiceLinks to false as default](https://github.com/kubernetes/kubernetes/issues/121787)
 
 ## 8. 使用Ingress
 
