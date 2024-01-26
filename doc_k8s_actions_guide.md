@@ -304,7 +304,7 @@ Nginx Ingress控制器默认通过NodePort方式部署，所以会在宿主机�
 在使用版本化语义的镜像tag后，我们可以更从容的使用`kubectl set image...`命令来更新应用。
 注意，在开发以及后续的上线过程中，我们都不需要修改代码库中的Deployment YAML文件。
 
-### 2.5 使用第三方工具为开发提速
+### 2.5 使用第三方工具为开发提效
 
 #### 2.5.1 IDE插件
 
@@ -317,3 +317,27 @@ K9s是一个终端形式的K8s资源面板，它支持在终端中以可视化�
 它支持以方向键、回车键和空格键与面板交互，免去手敲命令的麻烦。
 
 我们可以在测试环境和预发布环境（也包括生产环境）安装K9s，这样可以更便捷的查看应用状态、日志、事件、以及进入Pod内的容器Shell，极大地改善了K8s的使用体验。
+
+#### 2.5.3 开源K8s日志工具
+
+常规查看容器日志的命令是`kubectl logs`，但这个命令有一些局限性，比如：
+
+- 一次只能查看一个Pod的日志（若不使用`-l`的话）
+- 不能指定Deployment、Service、Job、Stateful和Ingress名称进行日志查看
+- 不能查看指定节点上的所有Pod日志
+- 不支持颜色打印
+
+等等。你可以使用开源的K8s Pod日志查看工具来提高效率，具体可以参考 *Kubernetes 维护指导*
+中的[日志查看](doc_maintaintion.md#15-日志查看)小节。
+
+#### 2.5.4 K8s资源清单风险分析工具
+
+或许在较小的集群中或者是不那么重要的业务中，我们并不会去特别注意K8s资源清单的编写规范，例如对容器的CPU/内存限制、设置容器安全上下文等。
+但我们需要知道，Pod中的容器是本质上来说还是运行在集群节点上的，不安全的资源清单可能会导致容器在节点上被恶意利用，从而导致集群被攻击。
+
+这里推荐以下几个工具：
+
+- [KubeLinter](https://github.com/stackrox/kube-linter)
+- [KubeSec](https://kubesec.io/)
+- [kube-score](https://github.com/zegl/kube-score)
+- [polaris](https://github.com/FairwindsOps/polaris)
