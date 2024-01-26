@@ -325,7 +325,7 @@ crictl logs $CONTAINER_ID
 
 #### 1.5.1 使用kubetail查看Pod日志
 
-kubetail是一个开源脚本工具，可以用于方便聚合查看多个Pod的聚合日志。下面是简单的安装步骤：
+kubetail是一个开源的由Shell脚本写成的工具，可以用于方便地查看多个Pod的聚合日志。下面是简单的安装步骤：
 
 ```shell
 wget https://raw.gitmirror.com/johanhaleby/kubetail/master/kubetail
@@ -404,7 +404,7 @@ hellok8s-logtest-7f658bb745-vvxhk
 
 #### 1.5.2 使用Kail查看Pod日志
 
-Kail具有kubetail相似的功能，还有一些新功能，下面是安装步骤：
+Kail具有kubetail相似的功能，但还有一些它没有的功能，下面是安装步骤：
 
 ```shell
 wget https://hub.gitmirror.com/?q=https://github.com/boz/kail/releases/download/v0.17.1/kail_v0.17.1_linux_amd64.tar.gz -O kail.gz
