@@ -1314,13 +1314,32 @@ $ kk describe hpa
 
 > 直接删除HPA会导致Pod副本数一次性降级（减至默认值1），若此时流量过大，这可能会导致服务过载。
 
-#### 3.4.6 使用多项指标和自定义指标
+#### 3.4.6 使用多项指标、自定义指标和外部指标
 
 你可以在HPA的模板定义中配置多项指标用于作为扩缩参考。此外，
-除了默认支持的CPU或内存作为Pod副本扩缩的参考指标，还可以使用自定义指标。比如平均每个Pod收包数。但自定义指标属于定制化方案，
+除了默认支持的CPU或内存作为Pod副本扩缩的参考指标，还可以使用自定义指标和外部指标。比如平均每个Pod收包数。自定义指标属于定制化方案，
 需要部署相应指标方案的适配器才能支持（就像部署Metrics Server支持默认的CPU/内存指标一样）。
 
-这部分内容属于扩展，具体请参考[官方文档](https://kubernetes.io/zh-cn/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/#autoscaling-on-multiple-metrics-and-custom-metrics)。
+目前比较流行的自定义指标和外部指标的适配器是**prometheus-adapter**，当我们部署好Prometheus和prometheus-adapter后，
+后者从Prometheus Server中获取已定义的指标数据，并将其暴露为Kubernetes的Custom Metrics API和External Metrics
+API，从而支持HPA针对自定义指标和外部指标的扩缩策略。
+
+prometheus-adapter支持将抓取到的指标数据转换为K8s需要的三种指标API类型：
+
+- Resource Metrics API
+- Custom Metrics API
+- External Metrics API
+
+所以它是可以替代Metrics Server的。这里由于涉及到另一个流行开源软件Prometheus的部署使用，
+不再演示具体操作步骤，本小节仅作为扩展内容进行介绍，读者若有兴趣可自行参阅下面的文章🔗进行实践。
+
+了解更多：
+
+- [官方：使用多项指标和自定义指标](https://kubernetes.io/zh-cn/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/#autoscaling-on-multiple-metrics-and-custom-metrics)
+- [官方：使用外部指标](https://kubernetes.io/zh-cn/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/#autoscaling-on-metrics-not-related-to-kubernetes-objects)
+- [GitHub: prometheus-adapter](https://github.com/kubernetes-sigs/prometheus-adapter)
+- [Mr.Ye：Kubernetes自定义指标HPA](https://system51.github.io/2021/12/22/custom-metrics-hpa/)
+- [小吉猫：k8s Prometheus自定义监控指标](https://www.cnblogs.com/wangguishe/p/17680543.html#_label5)
 
 ## 4. 资源调度
 
