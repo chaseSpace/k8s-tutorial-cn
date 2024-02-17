@@ -229,11 +229,11 @@ Nginx Ingress控制器默认通过NodePort方式部署，所以会在宿主机�
 
 ### 1.9 更新配置的最佳实践
 
-应用上线后，我们可能会有更改应用配置的需求。一般的做法是直接更新已有的ConfigMap，然后重启所有Pod。
+应用上线后，我们可能会有更改应用配置的需求。一般的做法是直接更新现有的ConfigMap，然后重启所有Pod。
 但这不是K8s的最佳实践。原因有以下几个：
 
 - 更新ConfigMap不会触发Deployment中所有Pod重启
-- 若更新后的配置有问题不能迅速回滚（需要再次编辑已有ConfigMap），导致服务短暂宕机
+- 若更新后的配置有问题不能迅速回滚（需要再次编辑现有ConfigMap），导致服务短暂宕机
 
 而最佳实践是为ConfigMap命名带上版本号如`app-config-v1`，然后部署新版本的ConfigMap，
 再修改Deployment模板中引用的ConfigMap名称，最后更新Deployment（触发所有Pod滚动更新）。
@@ -289,6 +289,8 @@ Nginx Ingress控制器默认通过NodePort方式部署，所以会在宿主机�
 *业务容器日志*](doc_log_collection.md#11-业务容器日志)。
 其次，你还可以参考[Kubernetes 维护指导中的*日志查看*](doc_maintaintion.md#15-日志查看)来使用第三方工具来高效查询容器日志。
 
+> 除了Pod日志，我们还需要关注集群组件日志、节点日志、集群审计日志。
+
 ### 2.4 启动开发
 
 开发过程中，开发者需要频繁地构建并推送镜像、更新应用、查看应用日志。
@@ -335,9 +337,188 @@ K9s是一个终端形式的K8s资源面板，它支持在终端中以可视化�
 或许在较小的集群中或者是不那么重要的业务中，我们并不会去特别注意K8s资源清单的编写规范，例如对容器的CPU/内存限制、设置容器安全上下文等。
 但我们需要知道，Pod中的容器是本质上来说还是运行在集群节点上的，不安全的资源清单可能会导致容器在节点上被恶意利用，从而导致集群被攻击。
 
-这里推荐以下几个工具：
+好在已经有不少开源工具可以协助我们轻松完成资源清单的修复工作，这里推荐以下几个工具：
 
 - [KubeLinter](https://github.com/stackrox/kube-linter)
 - [KubeSec](https://kubesec.io/)
 - [kube-score](https://github.com/zegl/kube-score)
 - [polaris](https://github.com/FairwindsOps/polaris)
+
+你可以将这些工具中的一个或几个添加CI/CD流水线中，以在每次提交代码时自动检查资源清单的安全性。
+
+## 3. 采集集群指标
+
+### 3.1 简介
+
+指标是指针对某一种资源在一段时间内的使用情况的统计，例如CPU使用率、内存使用量、网络带宽、磁盘使用量等。
+
+指标采集通常有两种说法，即黑盒监控和白盒监控。黑盒监控是从集群的外部视角采集数据。多用于传统的CPU、内存、磁盘等硬件资源的监控，
+非常适用于对基础设施的监控。而白盒监控更关注应用程序的状态细节，比如HTTP请求总数、500错误请求数和请求延迟等。
+白盒监控让我们知道系统为什么处于当前状态，让故障定位进一步有迹可循。
+
+### 3.2 两种监控模式
+
+它们分别是USE和RED模式。
+
+#### 3.2.1 USE模式
+
+USE的释义如下：
+
+- U——Utilization（利用率）
+- S——Saturation（饱和度）
+- E——Errors（错误率）
+
+这种模式专注于基础设施监控，对应黑盒监控。
+
+#### 3.2.2 RED模式
+
+RED的释义如下：
+
+- R——Rate（每秒接受的请求数）
+- E——Error（每秒失败的请求数）
+- D——Duration（每个请求的耗时）
+
+这种模式专注于应用程序监控，对应白盒监控。
+
+### 3.3 采集目标
+
+了解了上面的监控模式后，现在我们需要知道应该在集群中进行指标采集的目标有哪些。
+这里笔者将它们分类列出：
+
+- 控制平面：API Server、etcd、Scheduler、Controller Manager
+- 工作节点：kubelet、容器运行时、kube-proxy、kube-dns和Pod
+
+上面除了工作节点的Pod以外，其他可以归类为基础设施组件。我们需要监控这些组件暴露的各项指标并及时做出响应，
+才能确保集群的稳定运行。
+
+### 3.4 采集架构
+
+#### 3.4.1 使用Prometheus作为存储后端
+
+Prometheus是CNCF（云原生计算基金会）中排名仅次于 Kubernetes 的一个重量级开源项目，是一个用于监控和告警的开源系统。
+它提供了一个灵活的查询语言叫做**PromQL**，让我们可以方便地查询和分析监控数据。目前，Prometheus已经是业界公认的监控事实标准。
+
+Prometheus架构图如下
+![](./img/prometheus_architecture.png)
+
+简单来说，Prometheus由以下几个部分组成：
+
+- Prometheus Server：负责数据采集和存储，并提供PromQL查询语言的支持。
+- Push Gateway：支持临时性任务的数据采集。
+- Exporter：用于暴露被监控组件的数据接口。
+    - 对于不同的采集目标（例如主机节点）需要部署对应的Exporter，然后配置Prometheus主动采集即可。
+    - 常见的有：node_exporter、blackbox_exporter、mysqld_exporter、redis_exporter等。
+- Client Library：客户端库，为需要监控的组件提供方便的接入方式。
+    - 对于那些没有Exporter的采集目标（比如业务应用），我们可以通过客户端库自行上报数据到Prometheus Server中。
+- Alert-manager：负责接收Prometheus的告警信息，并决定如何对告警进行处理，如发送邮件、短信、调用Webhook等。
+
+通过上面的架构图和文字说明，我们可以了解到Prometheus支持以推/拉的方式采集各种目标提供的指标数据。
+
+#### 3.4.2 Prometheus四种指标类型
+
+Prometheus中的指标可以分为以下四种类型：
+
+- Counter（计数器）
+    - 简介：Counter 是一个累加器，只能增加，不能减少。通常用于表示累积的事件计数，比如请求总数、错误总数等。
+    - 典型用法：记录事件的总数量，例如 HTTP 请求总数、错误数量、任务完成次数等。
+    - 示例：http_requests_total, errors_total, tasks_completed_total。
+- Gauge（仪表盘）
+    - 简介：Gauge 是一个可变化的数值，可以增加也可以减少。用于表示可变的度量，如温度、内存使用率等。
+    - 典型用法：跟踪随时间变化的指标，例如 CPU 使用率、内存占用量、连接数等。
+    - 示例：cpu_usage, memory_usage, active_connections.
+- Histogram（直方图）
+    - 简介：Histogram 统计和存储数据的分布情况，如请求响应时间的分布。
+    - 典型用法：衡量持续时间或值的分布情况，例如请求响应时间、API 调用耗时等。
+    - 示例：http_request_duration_seconds.
+- Summary（摘要）
+    - 简介：Summary 也用于记录持续时间数据，但它提供的是可变精度的摘要，而不是固定数量的桶。
+    - 典型用法：与 Histogram 类似，用于记录持续时间，但通常用于更复杂的分布情况，比如 p50、p90、p99 等分位数。
+    - 示例：api_request_duration_seconds_summary.
+
+这四种指标类型几乎覆盖所有场景，并且每种类型都提供了丰富的标签（label）用于描述指标的维度信息。
+我们只需要在推/拉数据时指定需要采集的指标类型和标签，Prometheus就能自动进行数据采集和存储。
+
+#### 3.4.3 使用Grafana作为可视化组件
+
+Prometheus本质上只是一个时序数据库，它本身并不具备强大的可视化能力。要想将采集到的指标数据进行丰富的可视化展示，
+我们需要使用一个可视化组件，它就是Grafana。Prometheus+Grafana是一个常见的兄弟组合，几乎不会分开使用。
+
+Grafana是一个开源的度量分析和可视化平台，它可以通过将时序数据导入其中而建立一个数据仪表盘。想象一下，
+你只需要通过一个网页上的数据大盘就能对整个集群（包括几十上百甚至更多的节点）的运行状态了如指掌，这该是多么酷的一件事情。
+
+当然这个兄弟组合并不仅仅用于Kubernetes集群监控，它还可以用于各种需要监控和可视化的场景。比如在你的业务场景中，
+需要监控今/昨日的营收、昨日的PV、今日的UV、今日的订单量等。
+
+#### 3.4.4 采集容器指标（cAdvisor）
+
+cAdvisor是Google开源的一款用于展示和分析容器运行状态的可视化工具。通过在主机上运行CAdvisor用户可以轻松的获取到当前主机上容器的运行统计信息，
+例如CPU使用率、内存使用量、网络带宽和磁盘使用量等。你可以参考 [cadvisor的安装与使用][cadvisor] 来进一步了解它的基本原理和使用方法。
+
+cAdvisor暴露了Prometheus支持的指标格式，通过二者结合，我们可以轻松获取到Kubernetes集群中的Pod内部容器级别的监控数据。
+
+> kubelet也是通过内置cAdvisor来监控容器指标。
+
+#### 3.4.5 Metrics Server
+
+Metrics Server是K8s的一个附加组件，它实现了API Server定义的[Metrics API][MetricsAPI]。
+Metrics API主要为用户提供集群中处于运行状态的Pod和Node的CPU和内存使用情况，
+设计用于K8s的HPA（Horizontal Pod Autoscaling，Pod水平自动伸缩）以及VPA（Vertical Pod Autoscaling，Pod垂直自动伸缩）功能。
+
+Metrics Server内部通过调用kubelet API来监控容器数据，然后通过Metrics API暴露给API Server使用。
+当安装Metrics Server后，我们可以使用`kubelet top`命令来查看集群中Pod和Node的CPU和内存使用情况。关于它的安装和使用细节，
+你可以参考笔者的另一篇文章*K8s进阶教程*中的 [安装Metrics Server插件](doc_tutorial_senior.md#341-安装Metrics-Server插件)
+一节。
+
+了解更多：
+
+- [Resource Metrics Pipeline](https://kubernetes.io/zh-cn/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/)
+- [Metrics Server](https://github.com/kubernetes-incubator/metrics-server)
+
+#### 3.4.6 自定义指标
+
+前面我们说到使用Prometheus+Grafana的组合来监控Kubernetes集群，这种方式已经可以监控任何的指标数据。
+如果我们想要把Prometheus中存储的指标数据通过暴露给Kubernetes API Server，然后通过kubectl命令行来查询，
+那我们可以通过自定义指标的方式来完成，这需要在集群中安装**prometheus-adapter**，
+并在其配置文件中编写需要查询的指标信息，大致步骤请参考*K8s进阶教程*
+中的[3.4.6 使用多项指标、自定义指标和外部指标](doc_tutorial_senior.md#346-使用多项指标自定义指标和外部指标)。
+
+但请注意，如果仅仅是为了方便使用kubectl来查询指标，那其实大可不必，因为性价比太低（有一定维护成本），使用Grafana查询足以。
+使用自定义指标更多是为了完成HPA（Horizontal Pod Autoscaling，Pod水平自动伸缩）和VPA（Vertical Pod
+Autoscaling，Pod垂直自动伸缩）工作。
+
+### 3.5 告警
+
+有了指标数据后，我们需要根据SLO（服务水平目标）来设置相应的告警规则（在Grafana中设置）。SLO是对服务的某些可测量特性设置的目标期望，
+例如可用性、吞吐量、频率和响应时间。如果没有SLO，我们对服务就会抱有不切实际的期望，也无法设置合适的告警规则。
+对于Kubernetes这样服务具有高度自愈能力的系统，我们应该针对终端用户的服务体验来设置告警规则。
+例如，为前端服务设置的SLO是响应时间不得高于20ms，当观测到一段时间内的平均响应时间高于20ms，就需要及时发出告警。
+
+下面是一些常见的注意点以供参考：
+
+- 仅对关键指标进行告警，并忽略一些可以被K8s自动处理的指标，例如CPU/内存利用率等
+- 设置合理的阈值周期，避免过短的周期导致频繁告警。最后有一套阈值设置规范，来避免个性化的阈值设置。例如，可以遵循5min、10min、30min、1h这样的特定频率来统一配置阈值周期
+- 在配置告警规则时，应该确保通知中包含必要的上下文信息，例如服务名称、告警持续时间、建议处理措施等
+- 告警通知不要发给一群人，而是仅发给需要关注或处理问题的人，否则容易被当成不重要的信息而被忽略
+
+## 4. 日志监控
+
+日志监控是监控系统中的重要一环，它可以帮助我们快速定位问题和恢复服务。Kubernetes中的日志监控目标包含：
+
+- 节点日志（节点关键服务的日志。例如容器运行时组件的日志、内核日志等）
+- Kubernetes组件日志（如API Server、ControllerManager和Scheduler）
+- 容器日志（主要是应用日志）
+- Kubernetes审计日志（与权限相关，非常重要）
+
+如果你使用云托管的Kubernetes集群，那建议你也使用托管的日志监控服务，这样有助于大幅降低运维成本。维护自建的日志服务起初看起来不错，
+但随着环境复杂度的增长，维护工作会变得越来越费时费力。
+
+如果选择自建日志服务，向你推荐笔者的另一篇文章[Kubernetes 日志收集](doc_log_collection.md)。
+这篇文章会手把手指导你如何完成集群的日志收集工作。
+
+## 参考
+
+- [Kubernetes实战@美 Brendan Burns Eddie Villalba](https://book.douban.com/subject/35346815/)
+
+[MetricsAPI]: https://kubernetes.io/zh-cn/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/#metrics-api
+
+[cadvisor]: https://learn.lianglianglee.com/专栏/由浅入深吃透%20Docker-完/08%20%20容器监控：容器监控原理及%20cAdvisor%20的安装与使用.md
