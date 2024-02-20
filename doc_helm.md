@@ -1,12 +1,12 @@
 ## Helm手记
 
-是一个用于Kubernetes应用程序的包管理工具。它允许你定义、安装和升级Kubernetes应用程序。 Helm
+Helm是一个用于Kubernetes应用的包管理工具。它允许你定义、安装和升级Kubernetes应用。 Helm
 使用称为“Charts”的打包格式，每个Chart都包含用于部署一个具体应用程序的相关文件。
 
 ### 1. 创建Chart
 
 ```shell
-helm create example-chart
+$ helm create example-chart
 
 $ tree example-chart                                 
 example-chart
