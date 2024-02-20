@@ -2,6 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: go-multiroute
+  labels:
+    app: web-backend # 可能有多个Deployment拥有相同的app名称，例如，后端服务通常由多个应用组成。
+    app/env: prod # 由cd脚本更新
 spec:
   replicas: 2
   selector:
