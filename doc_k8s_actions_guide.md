@@ -515,7 +515,7 @@ Autoscaling，Pod垂直自动伸缩）工作。
 如果你使用云托管的Kubernetes集群，那建议你也使用托管的日志监控服务，这样有助于大幅降低运维成本。维护自建的日志服务起初看起来不错，
 但随着环境复杂度的增长，维护工作会变得越来越费时费力。
 
-如果选择自建日志服务，向你推荐笔者的另一篇文章[Kubernetes 日志收集](doc_log_collection.md)。
+如果选择自建日志服务，向你推荐笔者的另一篇文章[_Kubernetes 日志收集_](doc_log_collection.md)。
 这篇文章会手把手指导你如何完成集群的日志收集工作。
 
 ## 5. CI/CD流水线
@@ -636,6 +636,23 @@ CI/CD的目标是构建一个完全自动化的过程，覆盖代码从提交到
 注意，实践金丝雀部署时需要处理与蓝绿部署相同的问题，包括多版本共存、数据库迁移等。
 
 - [使用 Nginx Ingress 实现金丝雀发布](https://cloud.tencent.com/document/product/457/48907)
+
+#### 5.8.4 使用Helm
+
+Helm是一个流行的Kubernetes应用的包管理工具，我们可以在前面提到的部署策略中用到它。
+
+Helm使用一种叫做Chart的包结构来组织编排Kubernetes应用，
+一个Kubernetes应用可包含多个Kubernetes资源（包括Deployment、ConfigMap/Secret、Job等在内的各类资源）。
+使用Helm，我们的Kubernetes应用就直接拥有了版本管理机制，并且可以通过Helm命令进行快速的升级和回滚。
+此外，Helm最关键的特性是支持通过Go Template支持模板化配置，这个特性让我们无需频繁修改Chart，
+而是通过CD命令来将参数注入Chart。
+
+比如，我们由一个Web后端应用，在使用Helm之前，这个应用由两个Deployment组成（比如User和DB两个服务）。
+然后假设这两个服务都需要在本次迭代中进行升级，若不使用Helm，则需要一个一个升级（执行两次升级操作）；
+若使用Helm，这两个Deployment就同时存在于一个Chart中，我们直接编辑好新版本的Chart，然后在CD命令中执行Helm升级命令即可。
+即使有问题，也可以一次性回滚Chart内的所有资源，而不是一个个回滚。可见，Helm大大提高了部署和回滚的效率。
+
+如果你想要进一步了解Helm，可以参考我的另一篇文章[_Helm手记_](doc_helm.md)。
 
 ### 5.9 一些建议
 
