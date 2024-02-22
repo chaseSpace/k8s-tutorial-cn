@@ -1401,7 +1401,7 @@ Pod 处于Pending状态。
 
 优选阶段使用了4大类策略,分别如下:
 
-**1. 资源性预选策略**
+**1. 资源性优选策略**
 
 - LeastRequestedPriority：计算Pod需要的CPU和内存在节点上空闲资源中的比例，比例最低的节点最优；
 - BalanceResourceAllocation：优先选择在部署Pod后各项资源更均衡的机器，避免出现CPU/内存消耗不均的情况；
@@ -1523,12 +1523,12 @@ go-http   1/1     Running   0          3s    20.2.235.209   k8s-master   <none> 
 $ kk delete po go-http
 ```
 
-使用这种方式需要注意的是，它**不会绕过污点机制**（所以上面有删除节点污点的步骤）。换句话说，如果Pod无法容忍目标节点存在的污点，也没有其他可调度的节点，则Pod调度失败。
+使用这种方式需要注意的是，它**不会绕过污点机制**（所以上面有删除节点污点的步骤）。换句话说，如果Pod无法容忍目标节点存在的污点，也没有其他可调度的节点，则Pod将处于Pending状态。
 
 ### 4.3 硬性调度-指定节点名称（nodeName）
 
 这是一种**最高优先级**的**硬性调度要求**，对应预选阶段中的 PodFitsHost 策略。它要求Pod必须调度到指定节点上运行。
-它的优先级高于使用 `nodeSelector` 或亲和性/反亲和性要求，同时也会**无视污点机制**。
+它的优先级高于使用 `nodeSelector` 或亲和性/反亲和性要求，同时也会**无视污点机制**（但仍会被包含`NoExecute`这个影响的污点所排斥）。
 
 具体通过Pod或Deployment模板配置实现：
 
@@ -1577,7 +1577,7 @@ $ kk delete po go-http
 
 > 注意：亲和性配置不会绕过污点机制。如果你需要调度到具有污点的节点（如master节点），请提前删除节点上的污点。
 
-[pod_affinity.yaml](pod_affinityNode.yaml) 是一个测试通过的完整亲和性模板示例，不再演示。
+[pod_affinityNode.yaml](pod_affinityNode.yaml) 是一个测试通过的完整亲和性模板示例，不再演示。
 
 节点亲和性配置是一种比较常见的调度干预方式。此外，你还可以通过使用定义调度器配置模板的方式来抽离出节点亲和性的配置，
 然后在Pod/Deployment模板中引用定义的配置，具体请参考 [官方文档—逐个调度方案中设置节点亲和性](https://kubernetes.io/zh-cn/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity-per-scheduling-profile) 。
@@ -1631,7 +1631,7 @@ $ kk delete -f pod_affinityPod.yaml && kk delete -f pods_diff_labels.yaml
 
 通过污点和容忍度，可以灵活地让 Pod 避开某些节点或者将 Pod 从某些节点驱逐。
 
-> 污点会被 [指定节点名称（nodeName）](#33-硬性调度-指定节点名称nodename) 的Pod调度方式无视。
+> 污点会被 [指定节点名称（nodeName）](#43-硬性调度-指定节点名称nodename) 的Pod调度方式绕过。
 
 #### 4.6.1 污点的影响方式
 
@@ -1652,12 +1652,12 @@ $ kk delete -f pod_affinityPod.yaml && kk delete -f pods_diff_labels.yaml
 
 #### 4.6.2 污点管理
 
-污点常规是键值对加一个effect的格式，但value可省略，下面的污点都是合法的：
+污点通常是键值对加一个effect的格式，但value可省略，下面的污点都是合法的：
 
 - role/log=true:NoSchedule
 - role/log:NoExecute
 - role/log:NoSchedule
-- role_log:NoSchedule
+- role:NoSchedule
 
 `role/log`是类似标签键的前缀/名称组成形式。需要注意的是，上面的前三个污点拥有同一个键`role/log`，并且可以同时绑定到一个节点，
 在删除时也会被同时删除。
@@ -1669,7 +1669,7 @@ $ kk delete -f pod_affinityPod.yaml && kk delete -f pods_diff_labels.yaml
 $ kk get node k8s-master -o=jsonpath='{.spec.taints}'                         
 [{"effect":"NoSchedule","key":"node-role.kubernetes.io/control-plane"}]
 
-# 添加污点，
+# 添加污点
 $ kubectl taint nodes k8s-master role/log:NoSchedule
 node/k8s-master tainted
 
