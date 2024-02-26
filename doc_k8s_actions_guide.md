@@ -684,7 +684,7 @@ CI/CD流水线配置很难一开始就做到完美，但可以参考下面原则
     - Pod资源请求和限制
     - Pod服务质量
     - PodDisruptionBudget
-    - 进行Namespace维度的资源管理
+    - Namespace维度的资源管理
         - ResourceQuota
         - LimitRange
 - 资源伸缩
@@ -828,6 +828,94 @@ spec:
 ```
 
 PDB根据selector匹配一组Pod，它们可以是某个控制器（如Deployment或StatefulSet等）下的Pod，也可以是独立的Pod。
+
+### 6.10 Pod资源管理—ResourceQuota
+
+当多个团队或多个不同类别的应用共享一个集群时，我们可能需要将它们安置在不同的命名空间下进行管理。进一步，
+我们还需要对每个命名空间的资源额度进行限制，否则就会互相影响，导致意外结果。
+
+ResourceQuota是用于管理单个命名空间的总资源限额的Kubernetes API对象。它可以为以下资源进行限额：
+
+- CPU/内存的请求和限制
+- 存储卷总量
+- PVC个数
+- Pod/Service/Deployment/ReplicaSet等资源的个数
+
+当命名空间中的资源使用量达到限额就会触发错误提示。
+
+- [_Kubernetes进阶教程-配置整体资源配额_](doc_tutorial_senior.md#321-配置整体资源配额)
+
+### 6.11 Pod资源管理—LimitRange
+
+ResourceQuota是管理单个命名空间的总资源限额，但我们还需要对命名空间下的单个对象所使用的资源进行限额，否则在命名空间内的对象也会互相影响。
+而LimitRange则可以帮助我们达成目标，例如，它可以设置命名空间下Pod的默认CPU/内存的请求和限制的数值，当Pod的设置超出限制时无法部署，
+同时当LimitRange配置后，新的（包括控制下的）Pod必须设置CPU/内存的请求和限制，否则也无法部署。
+
+除了Pod，LimitRange还可以针对容器、PVC等许多对象进行配置。
+
+- [_Kubernetes进阶教程-配置个体资源配额_](doc_tutorial_senior.md#323-配置个体资源配额)
+
+### 6.12 资源伸缩—Pod水平伸缩
+
+当Kubernetes中的应用突然面临业务高峰期，固定副本数量部署的Pod无法满足业务需求时，
+我们可以通过Horizontal Pod Autoscaler（HPA）对Pod进行水平伸缩。
+HPA是Kubernetes提供的对象，可以帮助我们根据Pod的CPU/内存使用率自动调整Pod的副本数量，从而实现Pod副本数量的自动伸缩。
+
+除了使用Pod的CPU/内存使用率作为伸缩指标，还支持使用自定义指标，但这需要额外部署资源来作为指标来源。
+
+- [_Kubernetes进阶教程-使用HPA水平扩缩Pod_](doc_tutorial_senior.md#34-使用hpa水平扩缩pod)
+
+### 6.12 资源伸缩—Pod垂直伸缩
+
+HPA是一种简单直接的增加服务端吞吐量的方式，但如果Pod由多个容器组成，而只有一个接收流量的应用容器，HPA可能会造成一些资源浪费。
+此时，使用Vertical Pod Autoscaler（VPA）可以实现Pod的垂直伸缩。
+VPA是Kubernetes提供的对象，可以帮助我们根据Pod中所有容器的CPU/内存使用率自动调整Pod中所有容器的CPU/内存的请求和限制的数值，
+从而实现Pod中所有容器的CPU/内存的自动伸缩。
+
+VPA并不是Kubernetes原生提供的功能，而是由社区提供的，需要以自定义资源的方式进行安装。VPA提供四种工作模式：
+
+- auto：VPA在Pod创建时为其分配资源请求，并在Pod运行时根据Pod的资源使用率自动调整资源请求。
+    - 当前的更新是通过删除重建（等效于`recreate`）的方式，一旦Kubernetes支持原地更新，VPA将切换到原地更新模式。
+- recreate：VPA在Pod创建时为其分配资源请求，并在Pod运行时根据Pod的CPU/内存使用率自动调整资源请求，更新是以删除重建的方式进行。
+- initial：VPA只在创建Pod时分配资源请求，以后不会更改。
+- off：VPA不会自动更改Pod的资源请求。
+
+下面是一个VPA配置实例（安装VPA后可用）：
+
+```yaml
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: my-app-vpa
+spec:
+  targetRef:
+    apiVersion: "apps/v1"
+    kind: Deployment
+    name: my-app
+  updatePolicy:
+    updateMode: "Auto"
+```
+
+VPA的使用比较复杂，有许多需要注意的点。例如，VPA不建议与HPA同时使用（除非HPA使用自定义指标作为参考）。若要使用VPA，请阅读VPA文档，
+并进行详尽的测试后再投入生产。
+
+- [VPA使用介绍](https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler)
+
+### 6.13 资源伸缩—节点水平伸缩
+
+当面对具有更大突发流量的业务时，考虑实施节点维度的自动水平伸缩是一个不错的选择。
+但目前的集群自动伸缩功能仅支持在公有云上运行，这点需要注意。
+
+节点的水平伸缩会在以下两种情况自动触发：
+
+- Pod由于资源不足而无法启动时（增加节点）。
+- 集群中存在已经在较长的时间段内未被充分利用的节点，并且它们的Pod可以被放置在其它现有节点上（缩减节点）。
+
+节点水平伸缩是一个高级的主题，考虑在合适的时机去增减节点（以及增减哪些节点）是一个十分复杂的决策过程，
+这其中需要考虑到Pod亲和性和反亲和性、污点、运行PDB的Pod的节点等等。若你直接使用云托管的K8s集群，
+则可以直接使用云厂商原生支持的集群节点自动伸缩功能，而无需自行运维此功能。
+
+- [Cluster Autoscaler](https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler)
 
 ## 参考
 
