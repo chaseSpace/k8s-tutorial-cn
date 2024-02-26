@@ -1122,8 +1122,8 @@ HPA允许定义的指标包括平均 CPU 利用率、平均内存利用率或指
 
 使用HPA需要注意以下几点：
 
-- HPA 仅适用于Deployment、StatefulSet 或其他类似资源，不适用于DaemonSet；
-- HPA 本身有一个运行间隔，并不是实时监控的，所以当指标变化时，需要一段时间才会生效；
+- HPA 仅适用于Deployment、StatefulSet或其他类似资源，不适用于DaemonSet；
+- HPA 本身有一个运行间隔，并不是实时监控的，所以当指标变化时，需要过一段时间才会生效；
     - 这个间隔由 `kube-controller-manager` 的 `--horizontal-pod-autoscaler-sync-period` 参数设置（默认间隔为 15 秒）
 - 可以指定监控Pod中的某个容器的指标（而不是整个Pod），这在使用Sidecar模式部署应用时非常有用
 - 可以同时指定多个指标作为扩缩Pod副本数量的参考，HPA会针对每个指标分别计算扩缩副本数，并取最大值进行扩缩，但最大值不应超过设定的最大副本数（笔者注：缩容时获取应该取最小值）
