@@ -829,6 +829,8 @@ spec:
 
 PDB根据selector匹配一组Pod，它们可以是某个控制器（如Deployment或StatefulSet等）下的Pod，也可以是独立的Pod。
 
+- [为应用程序设置干扰预算](https://kubernetes.io/zh-cn/docs/tasks/run-application/configure-pdb/)
+
 ### 6.10 Pod资源管理—ResourceQuota
 
 当多个团队或多个不同类别的应用共享一个集群时，我们可能需要将它们安置在不同的命名空间下进行管理。进一步，
