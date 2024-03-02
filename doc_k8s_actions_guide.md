@@ -919,6 +919,75 @@ VPA的使用比较复杂，有许多需要注意的点。例如，VPA不建议�
 
 - [Cluster Autoscaler](https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler)
 
+## 7. 网络策略与Pod安全
+
+### 7.1 网络策略
+
+默认情况下，集群中的工作负载（Deployment等控制器下的Pod）资源的网络通信是开放的，可以随意访问。
+这包括（可能跨命名空间的）Pod之间和Pod与外部世界之间的互通性。
+开放访问虽然减少了运维复杂度和困扰，但同时也带来了风险。例如，DB服务应该只允许被部分运行后端服务的Pod访问，
+那些前端应用Pod和外部世界绝不应该访问到DB服务。此时，应该有一条ACL（访问控制列表，传统网络层面的术语）来实现此目标。
+
+好在，Kubernetes提供了一个叫做**NetworkPolicy**的API资源来为集群的网络层（第四层）保驾护航。
+NetworkPolicy可以被看做是集群中的一个东西向流量防火墙，每个策略规则都通过`podSelector`属性来匹配一组Pod，同时控制它们的流量出入。
+每条网络策略都应用于Pod流量的一个或两个方向，即`Egress`（出站方向）和`Ingress`（入站方向），
+每个方向指定目的地或来源时都可以选择三种方式：匹配某些标签的一组Pod、一个IP块或匹配某些标签的命名空间，它们之间可以同时指定，是或的关系。
+同时还可以指定哪些端口和协议（支持TCP/UDP）可以被访问，或作为目的地。
+
+注意几点：
+
+- 每个方向指定目的地或来源时，可以将上面提到的三种方式任意组合，组合后的结果是且的关系，具体请参阅官文。
+- 对于除了TCP/UDP以外的协议的过滤支持，取决于集群所安装的CNI网络插件。
+- 对于使用`hostNetwork`的Pod，NetworkPolicy无法保证对其生效。
+    - 这类Pod对外访问时具有与节点相同的IP，可以使用`ipBlock`规则允许来自`hostNetwork`Pod的流量。
+- 新增策略对现有连接的影响是不确定的，具体行为由CNI网络插件决定。
+    - 例如，旧策略是允许来自某个源的访问，应用的新策略则是拒绝这个源的访问，此时是立即切断现有连接还是仅对新连接生效
+      取决于CNI网络插件的实现。
+
+#### 7.1.1 出站流量
+
+当没有`Egress`策略时，它将默认允许Pod的所有出站流量。当存在一条`Egress`策略时：
+
+- 它将控制（且仅）一组通过`podSelector`匹配的Pod的出站流量；
+- 它将允许匹配的一组Pod**访问**指定目标的流量，同时默认允许这个目标网络的应答流量（不需要Ingress规则允许）；
+- 若策略没有指定出站目标，则表示不允许任何出站流量；
+- 所匹配的这组Pod访问任何非本地、且非目标的流量都将被拒绝，除非有其他Egress策略放行。
+- 若策略没有指定`podSelector`（该字段留空），则表示策略所在命名空间下的所有Pod都将应用此策略，通常用于**默认拒绝出站**规则。
+
+此外，不管是出站还是入站流量策略，都是叠加生效的，最终效果不受顺序影响。
+
+#### 7.1.2 入站流量
+
+当没有`Ingress`规则时，它将默认允许Pod的所有入站流量。当存在一条`Ingress`策略时：
+
+- 它将控制（且仅）一组通过`podSelector`匹配的Pod的入站流量；
+- 它将允许一组匹配的Pod**接收**指定的来源网络的流量，同时默认允许流向这个来源网络的应答流量（不需要Egress规则允许）；
+- 若策略没有指定入站来源，则表示不允许任何入站流量；
+- 所匹配的这组Pod不会收到任何非本地、且非指定来源的流量（被网络插件拒绝），除非有其他Ingress策略放行。
+- 若策略没有指定`podSelector`，则表示策略所在命名空间下的所有Pod都将应用此策略，通常用于**默认拒绝入站**规则。
+
+注意，要允许从源 Pod 到目的 Pod 的某个连接，源 Pod 的出口策略和目的 Pod 的入口策略都需要允许此连接，
+除非流量源没有应用任何出站策略或流量目的地没有应用任何入站策略。
+
+#### 7.1.3 示例
+
+下面的规则实现：
+
+- 默认拒绝default命名空间下的所有Pod的入站流量；
+- 允许default命名空间下携带标签`access-db: mysql`的Pod访问MySQL服务（携带标签`db: mysql`），策略应用于DB侧的入站流量；
+- 拒绝default命名空间下携带标签`internal: true`的Pod的出站流量；
+- 允许default命名空间下携带标签`internal: true`的Pod访问`10.0.0.0/24`网段且目标端口是5978的TCP端口。
+
+- [network-policy.yaml](k8s_actions_guide/version1/k8s-manifest/network-policy.yaml)
+
+示例没有完全展示出`Ingress`和`Egress`的规则组合，
+更完整的示例请参考[NetworkPolicy](https://kubernetes.io/zh-cn/docs/concepts/services-networking/network-policies/#networkpolicy-resource)
+文档。
+
+### 7.2 Pod安全
+
+TODO
+
 ## 参考
 
 - [Kubernetes实战@美 Brendan Burns Eddie Villalba](https://book.douban.com/subject/35346815/)
