@@ -1,0 +1,61 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all-ingress
+  namespace: default
+spec:
+  podSelector: { }
+  policyTypes: # 默认是Ingress
+    - Ingress
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-access-db
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      db: mysql
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              access-db: mysql
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: block-internal-all-egress
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      internal: true
+  policyTypes:
+    - Egress
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internal-egress
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      internal: true
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/24
+      ports:
+        - protocol: TCP
+          port: 5978
+#          endPort: 6000 # 从 k8s v1.25开始，通过`endPort`支持端口范围，但也需要网络插件支持
