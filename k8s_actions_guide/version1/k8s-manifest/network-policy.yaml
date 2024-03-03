@@ -1,3 +1,35 @@
+# NetworkPolicy
+# 查看策略列表：kubectl get networkpolicy
+#
+apiVersion: v1
+kind: Pod
+metadata:
+  name: network-policy-test-client
+  labels:
+    app: busybox
+    access-db: mysql
+    internal: "true"
+spec:
+  containers:
+    - name: busybox-container
+      image: busybox
+      command: [ "sleep", "infinity" ]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: network-policy-test-mysql
+  labels:
+    app: busybox
+    db: mysql
+spec:
+  containers:
+    - name: busybox-container
+      image: busybox
+      command: [ "sleep", "infinity" ]
+---
+
+# 策略一：默认拒绝所有Pod的入站流量（仅影响default空间）
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -5,10 +37,11 @@ metadata:
   namespace: default
 spec:
   podSelector: { }
-  policyTypes: # 默认是Ingress
+  policyTypes: # 默认是Ingress，还可以改为或添加Egress
     - Ingress
 
 ---
+# 策略二：允许带标签【access-db: mysql】的Pod访问带标签【db: mysql】的Pod
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -25,8 +58,8 @@ spec:
         - podSelector:
             matchLabels:
               access-db: mysql
-
 ---
+# 策略三：默认拒绝带标签【internal: true】的Pod的所有出站流量
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -35,11 +68,16 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      internal: true
+      internal: "true"
   policyTypes:
     - Egress
 
 ---
+# 策略四：允许带标签【internal: true】的Pod访问网段【20.2.0.0/16】内任意IP的端口为5978的TCP流量
+# 通过以下方式快速测试端口连通性：
+#   在Pod-[network-policy-test-mysql]上执行：nc -lp 5978 启动一个临时服务器，占用端口5978
+#   在Pod-[network-policy-test-client]上执行：nc -v mysql_pod_ip 5978 连接上述临时服务器
+# 若连接成功会输出目标端口open的提示。
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -48,14 +86,14 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      internal: true
+      internal: "true"
   policyTypes:
     - Egress
   egress:
     - to:
         - ipBlock:
-            cidr: 10.0.0.0/24
+            cidr: 20.2.0.0/16
       ports:
         - protocol: TCP
           port: 5978
-#          endPort: 6000 # 从 k8s v1.25开始，通过`endPort`支持端口范围，但也需要网络插件支持
+#          endPort: 6000 # 从 K8s v1.25开始，通过`endPort`支持端口范围，但也需要确认网络插件是否支持
