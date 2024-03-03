@@ -456,7 +456,7 @@ mkdir -p ~/k8s/calico && cd ~/k8s/calico
 # 注意calico版本需要匹配k8s版本，否则无法应用
 wget --no-check-certificate  https://raw.gitmirror.com/projectcalico/calico/v3.26.1/manifests/calico.yaml
 
-# 修改calico.yaml，在 CALICO_IPV4POOL_CIDR 的位置，修改value为pod网段：20.2.0.0/16 (默认：192.168.0.0/16)
+# 修改calico.yaml，在 CALICO_IPV4POOL_CIDR 的位置，修改value为pod网段：20.2.0.0/16 (与前面的--pod-network-cidr参数一致)
 
 # 应用配置文件
 # - 这将自动在Kubernetes集群中创建所有必需的资源，包括DaemonSet、Deployment和Service等
@@ -774,7 +774,13 @@ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 
 ### 7.4 安装其他网络插件-flannel
 
-flannel也是一个可以用于 Kubernetes 的 overlay 网络提供者。可以用来替换calico，下面是安装步骤：
+flannel也是一个可以用于 Kubernetes 的 overlay 网络提供者。可以用来替换calico，
+但它的缺陷是**不支持Kubernetes的NetworkPolicy**，请慎重考虑。
+
+> 在一个运行稳定的Kubernetes集群中更换网络插件是一个非常风险的操作，最好是安装集群时确认好安装哪一种网络插件。
+
+
+下面是安装步骤：
 
 ```shell
 wget --no-check-certificate https://hub.gitmirror.com/https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
