@@ -1,4 +1,4 @@
-# K8s实战（更新中）
+# Kubernetes 实战指导（更新中）
 
 本文以一个简单Go应用为例，演示如何一步步在生产环境中使用Kubernetes。
 
@@ -931,18 +931,22 @@ VPA的使用比较复杂，有许多需要注意的点。例如，VPA不建议�
 好在，Kubernetes提供了一个叫做**NetworkPolicy**的API资源来为集群的网络层（第四层）保驾护航。
 NetworkPolicy可以被看做是集群中的一个东西向流量防火墙，每个策略规则都通过`podSelector`属性来匹配一组Pod，同时控制它们的流量出入。
 每条网络策略都应用于Pod流量的一个或两个方向，即`Egress`（出站方向）和`Ingress`（入站方向），
-每个方向指定目的地或来源时都可以选择三种方式：匹配某些标签的一组Pod、一个IP块或匹配某些标签的命名空间，它们之间可以同时指定，是或的关系。
+每个方向指定目的地或来源时都可以选择三种方式限定：匹配某些标签的一组Pod、一个IP块或匹配某些标签的命名空间，它们之间可以同时指定，是或的关系。
 同时还可以指定哪些端口和协议（支持TCP/UDP）可以被访问，或作为目的地。
 
 注意几点：
 
-- 每个方向指定目的地或来源时，可以将上面提到的三种方式任意组合，组合后的结果是且的关系，具体请参阅官文。
+- 每个方向都可以指定多个目的地或来源，这些目的地或来源之间是或的关系。但进一步，每个目的地或来源又可以由上面提到的三种方式进行任意组合，组合后的结果是且的关系，具体请参阅官文。
+    - 简单的总结就是外或内且。
 - 对于除了TCP/UDP以外的协议的过滤支持，取决于集群所安装的CNI网络插件。
 - 对于使用`hostNetwork`的Pod，NetworkPolicy无法保证对其生效。
     - 这类Pod对外访问时具有与节点相同的IP，可以使用`ipBlock`规则允许来自`hostNetwork`Pod的流量。
+- 不管是出站还是入站流量策略，都是叠加生效的，最终效果不受顺序影响。
+  - 由此推断，较多的网络策略会影响集群网络性能。
 - 新增策略对现有连接的影响是不确定的，具体行为由CNI网络插件决定。
     - 例如，旧策略是允许来自某个源的访问，应用的新策略则是拒绝这个源的访问，此时是立即切断现有连接还是仅对新连接生效
       取决于CNI网络插件的实现。
+- 支持NetworkPolicy的CNI网络插件有：Calico、Antrea、Cilium、Kube-router、Romana、Weave Net等。注意，Flannel不支持。
 
 #### 7.1.1 出站流量
 
@@ -954,7 +958,6 @@ NetworkPolicy可以被看做是集群中的一个东西向流量防火墙，每�
 - 所匹配的这组Pod访问任何非本地、且非目标的流量都将被拒绝，除非有其他Egress策略放行。
 - 若策略没有指定`podSelector`（该字段留空），则表示策略所在命名空间下的所有Pod都将应用此策略，通常用于**默认拒绝出站**规则。
 
-此外，不管是出站还是入站流量策略，都是叠加生效的，最终效果不受顺序影响。
 
 #### 7.1.2 入站流量
 
@@ -976,12 +979,12 @@ NetworkPolicy可以被看做是集群中的一个东西向流量防火墙，每�
 - 默认拒绝default命名空间下的所有Pod的入站流量；
 - 允许default命名空间下携带标签`access-db: mysql`的Pod访问MySQL服务（携带标签`db: mysql`），策略应用于DB侧的入站流量；
 - 拒绝default命名空间下携带标签`internal: true`的Pod的出站流量；
-- 允许default命名空间下携带标签`internal: true`的Pod访问`10.0.0.0/24`网段且目标端口是5978的TCP端口。
+- 允许default命名空间下携带标签`internal: true`的Pod访问`20.2.0.0/16`网段且目标端口是5978的TCP端口。
 
 - [network-policy.yaml](k8s_actions_guide/version1/k8s-manifest/network-policy.yaml)
 
 示例没有完全展示出`Ingress`和`Egress`的规则组合，
-更完整的示例请参考[NetworkPolicy](https://kubernetes.io/zh-cn/docs/concepts/services-networking/network-policies/#networkpolicy-resource)
+更完整的示例请参考官方的[NetworkPolicy](https://kubernetes.io/zh-cn/docs/concepts/services-networking/network-policies/#networkpolicy-resource)
 文档。
 
 ### 7.2 Pod安全
