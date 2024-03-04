@@ -1080,6 +1080,20 @@ spec:
 - [Pod安全性标准](https://kubernetes.io/zh-cn/docs/concepts/security/pod-security-standards)
 - [使用名字空间标签来实施 Pod 安全性标准](https://kubernetes.io/zh-cn/docs/tasks/configure-pod-container/enforce-standards-namespace-labels/)
 
+#### 7.2.3 白名单
+
+Pod安全准入控制器会对命名空间下的所有Pod或控制器的 PodSpec 进行安全规则校验，
+如果 PodSpec 中存在不安全的字段设置，则拒绝创建Pod或给出提示。但凡事总有例外，Kubernetes就允许在准入控制器中静态配置这些例外，
+这里我们称作白名单，官方称作豁免（Exemptions）。
+
+白名单可以通过三种方式配置：
+
+- Username：免去对指定用户创建的原生Pod的安全检查，控制器除外。
+- RuntimeClassName：免去对包含指定运行时类的Pod或控制器的安全检查。
+- Namespace：免去对指定命名空间下所有Pod或控制器的安全检查。
+
+具体配置方式并不复杂，请参阅[官网文档](https://kubernetes.io/zh-cn/docs/tasks/configure-pod-container/enforce-standards-admission-controller/#configure-the-admission-controller)。
+
 ## 参考
 
 - [Kubernetes实战@美 Brendan Burns Eddie Villalba](https://book.douban.com/subject/35346815/)
