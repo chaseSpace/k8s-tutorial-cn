@@ -982,13 +982,103 @@ NetworkPolicy可以被看做是集群中的一个东西向流量防火墙，每�
 - 拒绝default命名空间下携带标签`internal: true`的Pod的出站流量；
 - 允许default命名空间下携带标签`internal: true`的Pod访问`20.2.0.0/16`网段且目标端口是5978的TCP端口。
 
-> 注意：该示例没有完全展示出`Ingress`和`Egress`的规则组合，
-> 更完整的示例请参考官方的 [NetworkPolicy](https://kubernetes.io/zh-cn/docs/concepts/services-networking/network-policies/#networkpolicy-resource)
+> 注意：
+> 该示例没有完全展示出`Ingress`和`Egress`的规则组合，
+> 更完整的示例请参考官方的
+> [NetworkPolicy](https://kubernetes.io/zh-cn/docs/concepts/services-networking/network-policies/#networkpolicy-resource)
 > 文档。
 
 ### 7.2 Pod安全
 
-TODO
+#### 7.2.1 Pod安全策略
+
+虽然K8s拥有RBAC的权限控制机制，但RBAC仅能限制用户对K8s API对象（如Pod/Deployment/Service等）的访问，
+无法限制Pod内部的安全权限（例如拥有特权/访问宿主机文件系统/特权提升/使用hostNetwork/设置seLinux等）的使用。
+一个不安全的镜像，或者一个配置了特权权限的容器，都可能导致集群的安全问题。
+
+因此，早在v1.3版本中，K8s就提供了 **PodSecurityPolicy**（PSP） 这项API对象来为Pod设置安全策略。
+PSP可以防止Pod未经授权的获取节点root权限或访问节点的其他敏感资源（如网络/文件系统等），从而影响集群的安全。
+
+**PodSecurityPolicy的废弃**
+
+- 由于PSP在使用上的繁琐以及部分限制，在v1.21版本中，PSP被标记为`Deprecated`，并在v1.25版本中正式去除。
+- [弃用 PodSecurityPolicy：过去、现在、未来](https://kubernetes.io/zh-cn/blog/2021/04/06/podsecuritypolicy-deprecation-past-present-and-future/)
+
+所以，本文不会介绍PSP的使用，感兴趣的读者可以查阅官方文档。
+
+#### 7.2.2 Pod安全准入控制器
+
+弃用PSP后，K8s官方重新构思并实现了一套新的Pod安全控制机制叫做Pod安全准入控制器（Pod Security Admission Controller），
+这套机制致力于在保留PSP大部分功能的同时提升了使用上的简便性，最大的特点是支持柔性上线能力。
+
+Pod安全准入控制器是K8s v1.22版本引入的一项功能（此版本需要修改API-Server的启动参数进行手动开启），在v1.23版本中作为Beta特性默认开启。
+不过，这项功能并不像PSP那样通过API对象来提供能力，而是通过K8s原有的准入控制器（Admission Controller）来提供能力。
+具体来说，新的功能首先提出了一个Pod安全性标准为Pod定义了不同的隔离级别，这些标准能够让你以一种清晰、一致的方式定义 Pod
+的安全行为。其次，新功能增加了一个叫做PodSecurity的准入控制器，它将在命名空间维度来执行这个Pod安全标准。
+
+Pod安全标准定义了三个隔离级别：**privileged**、**baseline** 和 **restricted**，从左到右分别是特权/基准/严格，限制程度从低到高。
+我们需要先为命名空间设置一个安全标准，以及一个模式表示违反标准时该如何处理，可以设置多个标签，且安全标准和模式可以任意组合。
+一共有三个模式可用：enforce/audit/warn，其中enforce是强制模式（拒绝违反安全标准的Pod），audit是审计模式，warn是警告模式。
+
+下面的清单定义了一个`my-baseline-namespace`命名空间，声明了如下限制：
+
+- 阻止任何不满足 baseline 策略要求的 Pod；
+- 针对任何无法满足 restricted 策略要求的、已创建的 Pod 为用户生成警告信息， 并添加审计注解；
+- 将 baseline 和 restricted 策略的版本锁定到 v1.29。
+
+```yaml
+# 本模板来自官网示例
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-baseline-namespace
+  labels:
+    # 形式：pod-security.kubernetes.io/<MODE>: <LEVEL>
+    pod-security.kubernetes.io/enforce: baseline
+    # 形式：pod-security.kubernetes.io/<MODE>-version: <VERSION>
+    # 注：这个标签表示此模式按照指定版本的规则进行检查，如果未指定，则按当前K8s版本
+    #  - 例如，v1.24 及之前版本的 Kubelet 不强制检查 PodSpec中的 OS 字段，若你也不希望检查此字段，则需要锁定到v1.24 及之前的版本
+    #  - （但如果当前版本比锁定版本还低，则使用当前版本，即使用二者之间较低的版本对应的检查规则）
+    pod-security.kubernetes.io/enforce-version: v1.29
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: v1.29
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: v1.29
+```
+
+在应用这个清单后，准入控制器会检查当前命名空间中存在的Pod，任何违反 enforce 策略要求的 Pod
+都会通过警告的形式提示。对于已存在的命名空间，可以通过 `kubectl label`
+命令进行修改。
+
+为命名空间设置好安全标准标签后，接下来就是**按照所设置的安全标准来填写/纠正Pod模板**。不同的安全标准级别对PodSpec中字段的要求不同，
+`privileged`是特权级别没有限制；而`baseline`和 `restricted`则存在诸多限制。
+具体要求在 [Pod安全性标准—Profile](https://kubernetes.io/zh-cn/docs/concepts/security/pod-security-standards/#profile-details)
+页面中可以找到。
+
+例如，按照上面的清单创建的`my-baseline-namespace`命名空间，在创建Pod时，需要按照`baseline`安全标准来填写PodSpec。
+部署下面的Pod清单将会被拒绝，并得到提示：`Error from server (Forbidden): error when creating "pod_curl.yaml": pods "curl" is forbidden: violates PodSecurity "baseline:v1.29": host namespaces (hostNetwork=true)
+`。
+
+```shell
+# pod_curl.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curl
+  namespace: my-baseline-namespace
+spec:
+  hostNetwork: true
+  containers:
+    - name: curl-container
+      image: appropriate/curl
+      command: [ "sh","-c", "sleep 1h" ]
+```
+
+需要注意的是，`enforce`模式**仅对原生Pod生效**，不会对Pod控制器（如Deployment）生效。其他两种模式则是对控制器和原生Pod都生效。
+
+- [Pod安全准入](https://kubernetes.io/zh-cn/docs/concepts/security/pod-security-admission/)
+- [Pod安全性标准](https://kubernetes.io/zh-cn/docs/concepts/security/pod-security-standards)
+- [使用名字空间标签来实施 Pod 安全性标准](https://kubernetes.io/zh-cn/docs/tasks/configure-pod-container/enforce-standards-namespace-labels/)
 
 ## 参考
 
