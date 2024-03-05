@@ -1094,6 +1094,60 @@ Pod安全准入控制器会对命名空间下的所有Pod或控制器的 PodSpec
 
 具体配置方式并不复杂，请参阅[官网文档](https://kubernetes.io/zh-cn/docs/tasks/configure-pod-container/enforce-standards-admission-controller/#configure-the-admission-controller)。
 
+## 8. 服务网格
+
+### 8.1 出现时间与背景
+
+早在十多年前，国外就开始流行起了从单体服务转向微服务架构的潮流，并在2014年传入国内。
+微服务架构的优点也是有目共睹的，例如松耦合、快速迭代、高可扩展性、支持语言异构等。也正是微服务架构带火了云原生概念，
+因为微服务的诸多优点都能够在云原生环境下得到完美体现。
+
+然而，想要在企业中部署微服务架构也不是那么容易。由于微服务架构的多服务以及单服务多副本等特性，
+保证服务间的正常且高效的通信是一个需要密切关注的问题。传统微服务架构中，
+我们需要为每个服务配置服务发现、负载均衡、服务路由、服务监控、服务容错等基础设施。当然，
+我们可以为相同语言实现的微服务配置相同的一系列基础设施，但一旦出现其他语言构建的服务，
+则又要单独去添加这些基础设施，这就造成了重复工作，还带来了大量的排错及维护成本。
+
+上面提到的一系列基础设施，它们可能是由不同的第三方包提供，
+这种独立分散的方式也带来了服务组件的版本管理、依赖管理、服务部署、服务监控等问题的困扰。
+并且使用它们的逻辑一定程度上耦合在业务代码中，这也使得整个代码库变得臃肿且增加了复杂度。
+
+**服务网格的诞生**
+
+为了解决上述问题，服务网格应运而生。服务网格是一个基础设施层，它位于应用程序和基础架构之间，
+为应用程序提供服务间通信功能。服务网格由一系列轻量级网络代理组成，这些代理部署于每个应用实例旁（以Sidecar模式），
+并负责处理服务间的通信，包括服务发现、负载均衡、服务路由、服务监控、服务容错等。从此，
+业务代码库中不再需要包含涉及处理服务间网络通信的逻辑，团队成员的编程工作又回归到单体服务架构的开发模式中，
+即只需要专注于业务逻辑的开发。
+
+世界上首个Service Mesh产品是国外的Buoyant公司在2017年4月发布的Linkerd。
+同时，Service Mesh概念也是由这家公司的CEO William
+Morgan提出，他同年发表的文章 [What’s a service mesh？And why do I need one?][What’s a service mesh？And why do I need one?]
+是对Service Mesh概念公认最权威的定义。
+
+之所以称为服务网格，是因为有了代理之后，所有服务间的通信都变成代理间的通信，而这些代理间的通信又形成一个巨大的网格，
+并且整张网格都由一个统一的控制平面来进行管理。这可以通过下面的图加深理解
+
+<div align="center">
+<img src="img/service-mesh.jpg" width = "450" height = "400" alt=""/>
+</div>
+
+### 8.2 定义
+
+"Service Mesh 是一个处理服务通讯的专门的基础设施层。它的职责是在由云原生应用组成服务的复杂拓扑结构下进行可靠的请求传送。
+在实践中，它是一组和应用服务部署在一起的轻量级的网络代理，对应用服务透明。" —— William Morgan
+
+具体来说，Service Mesh使用的网络代理本质上是一个容器，它以Sidecar模式部署在每个微服务侧（对应用实例完全透明），
+并且它会接管同侧的应用实例发出和接收的流量，根据配置规则，
+它可以对流量进行重定向、路由、负载均衡、监控、熔断等原来需要由多个工具完成的操作。
+
+### 8.3 控制平面
+
+最初的Service Mesh产品形态中，并不存在统一的控制平面，每个代理的配置规则的变更都需要单独手动操作，这就显得十分麻烦。
+但很快（也是2017年），以Istio为代表的第二代Service Mesh产品形态出现了，它们都具备一个统一控制平面，代理则称为数据平面。
+通过控制平面，我们可以集中管理所有代理的配置规则（还包括代理的数据采集等功能），
+而数据平面的每个代理还负责采集和上报网格流量的观测数据。
+
 ## 参考
 
 - [Kubernetes实战@美 Brendan Burns Eddie Villalba](https://book.douban.com/subject/35346815/)
@@ -1101,3 +1155,5 @@ Pod安全准入控制器会对命名空间下的所有Pod或控制器的 PodSpec
 [MetricsAPI]: https://kubernetes.io/zh-cn/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/#metrics-api
 
 [cadvisor]: https://learn.lianglianglee.com/专栏/由浅入深吃透%20Docker-完/08%20%20容器监控：容器监控原理及%20cAdvisor%20的安装与使用.md
+
+[What’s a service mesh？And why do I need one?]: https://dzone.com/articles/whats-a-service-mesh-and-why-do-i-need-one
