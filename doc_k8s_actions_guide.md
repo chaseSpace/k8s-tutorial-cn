@@ -1103,7 +1103,7 @@ Pod安全准入控制器会对命名空间下的所有Pod或控制器的 PodSpec
 因为微服务的诸多优点都能够在云原生环境下得到完美体现。
 
 然而，想要在企业中部署微服务架构也不是那么容易。由于微服务架构的多服务以及单服务多副本等特性，
-保证服务间的正常且高效的通信是一个需要密切关注的问题。传统微服务架构中，
+保证服务间的正常、高效且安全的通信是一个需要密切关注的问题。传统微服务架构中，
 我们需要为每个服务配置服务发现、负载均衡、服务路由、服务监控、服务容错等基础设施。当然，
 我们可以为相同语言实现的微服务配置相同的一系列基础设施，但一旦出现其他语言构建的服务，
 则又要单独去添加这些基础设施，这就造成了重复工作，还带来了大量的排错及维护成本。
@@ -1140,6 +1140,7 @@ Morgan提出，他同年发表的文章 [What’s a service mesh？And why do I 
 具体来说，Service Mesh使用的网络代理本质上是一个容器，它以Sidecar模式部署在每个微服务侧（对应用实例完全透明），
 并且它会接管同侧的应用实例发出和接收的流量，根据配置规则，
 它可以对流量进行重定向、路由、负载均衡、监控、熔断等原来需要由多个工具完成的操作。
+Service Mesh将服务通信及相关管控功能从业务程序中分离并下层到基础设施层，使其和业务系统完全解耦。
 
 ### 8.3 控制平面
 
@@ -1148,6 +1149,59 @@ Morgan提出，他同年发表的文章 [What’s a service mesh？And why do I 
 通过控制平面，我们可以集中管理所有代理的配置规则（还包括代理的数据采集等功能），
 而数据平面的每个代理还负责采集和上报网格流量的观测数据。
 
+### 8.4 Istio
+
+虽然到目前为止，在CNCF旗下托管的Service Mesh生态圈已经呈现繁荣姿态，例如Linkerd、Istio、Consul Connect、Kuma、Gloo Mesh等。
+但由于庞大的贡献者数量和社区支持，最终**Istio成为服务网格领域的领先者**。能够与之比较的是商业产品Linkerd，它的优势是更轻量，
+适合部署在中小规模云环境中，但缺少部分Istio才有的高级功能。关于Istio与Linkerd的详细比较，请阅读 [Istio vs Linkerd: The Best Service Mesh for 2023](https://imesh.ai/blog/istio-vs-linkerd-the-best-service-mesh-for-2023/)。
+
+Istio最初由Google、IBM和Lyft等公司共同开发。在2018年发布了其1.0版本。随后，Istio在2022年4月宣布捐赠给CNCF（正式孵化时间是同年9月底），最终Istio在2023年7月正式毕业（不到一年），且如今已经有
+**数百家**公司为其贡献代码。
+截至今日（2024年3月5日），它已迭代至v1.20，可见其发展之迅速。
+
+**Istio的口号**
+
+“Simplify observability, traffic management, security, and policy with the leading service mesh.”
+
+“使用领先的服务网格技术来简化可观测性（WebUI、4/7层流量指标、健康检查、日志、网络拓扑）、
+流量管理（负载均衡、多集群流量路由、服务发现、熔断/重试/超时、动态配置、HTTP 1.1/2/3支持、gRPC支持、延迟注入等）、
+安全（认证、mTLS等）和策略。”
+
+#### 8.4.1 基本架构
+
+#### 8.4.2 Ambient Mesh
+
+**Sidecar模式的弊病**
+
+不管是第一代还是第二代Service Mesh技术，都存在着一个令人诟病但不易解决的难题，
+那就是Sidecar模式的高开销问题。根据统计，大部分企业在使用Istio的数据平面即Envoy时的平均内存开销都在60M~100M左右，
+如果是稍微大一点的规模比如100个服务，那么Sidecar这部分开销就可能接近10个G，并且由于每个代理都会接收所有的服务发现数据（即使不需要），
+这会导致代理的内存开销会随着服务规模的增长而呈指数级增长。当然，不只是CPU和内存开销，还有Sidecar带来的网络多跳和路由计算所增加的网络延迟问题，
+平均延迟大致为3ms~5ms左右。这种内存开销也使得Sidecar模式在资源受限的边缘计算场景中并不适用。
+
+此外，Sidecar模式还有一个弊病是对Kubernetes的Pod范式的入侵性，即每个Pod或工作负载的YAML模板中都需要定义代理容器。
+而且由于代理与应用容器的紧密耦合，导致不论是安装或升级Sidecar都需要重新启动应用程序pod，
+这可能会对应用的可用性造成一定的影响。
+
+**Istio的新数据平面模式：No Sidecar的Ambient Mesh**
+
+2022年9月，Istio官宣了一种新的数据平面模式——Ambient Mesh。它能够在简化操作、保持更广泛的应用程序兼容性和降低基础设施成本的同时，
+保持Istio的零信任安全、遥测和流量管理等核心功能。最重要的是，它摒弃了传统的Sidecar部署模式，
+转而在每个节点上部署一个零信任的**ztunnel**代理用来为节点上所有Pod提供mTLS、遥测、身份验证和L4授权，它并不会解析HTTP流量（L7）。
+
+这种新的平面模式将Istio的功能划分为两层：
+
+- 基础层：作为一个必需的安全覆盖层，处理所有应用实例的路由和零信任安全的流量。这一层产生的性能开销较低；
+    - 具体来说，Istio会在每个节点上部署一个代理（叫做ztunnel），用来处理该节点上的所有L4流量（如TCP、UDP等）；
+- 应用层：使用一个七层代理来负责处理七层流量，如HTTP、gRPC等。这一层产生的性能开销大于基础层；
+    - 具体来说，Istio会在集群中新增一个命名空间来部署基于Envoy的Waypoint代理（以Pod形式），由它来处理和转发**需要**
+      执行七层流量策略的实例流量；
+    - Istio的控制平面会负责Waypoint代理策略的下发；
+    - Waypoint代理的数量可以根据集群流量规模实现自动缩放。
+
+用户在部署此模式时可能并不需要安装“应用层”，即不需要在实例之间处理七层流量。这样一来就可以按需使用Istio提供的功能，
+相较Sidecar模式的无差别全功能提供而言，Ambient Mesh模式大大减少了Mesh架构产生的开销。
+
 ## 参考
 
 - [Kubernetes实战@美 Brendan Burns Eddie Villalba](https://book.douban.com/subject/35346815/)
@@ -1155,5 +1209,7 @@ Morgan提出，他同年发表的文章 [What’s a service mesh？And why do I 
 [MetricsAPI]: https://kubernetes.io/zh-cn/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/#metrics-api
 
 [cadvisor]: https://learn.lianglianglee.com/专栏/由浅入深吃透%20Docker-完/08%20%20容器监控：容器监控原理及%20cAdvisor%20的安装与使用.md
+
+[Introducing Ambient Mesh]: https://istio.io/v1.15/blog/2022/introducing-ambient-mesh/
 
 [What’s a service mesh？And why do I need one?]: https://dzone.com/articles/whats-a-service-mesh-and-why-do-i-need-one
