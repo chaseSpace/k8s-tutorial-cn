@@ -1115,7 +1115,7 @@ Pod安全准入控制器会对命名空间下的所有Pod或控制器的 PodSpec
 **服务网格的诞生**
 
 为了解决上述问题，服务网格应运而生。服务网格是一个基础设施层，它位于应用程序和基础架构之间，
-为应用程序提供服务间通信功能。服务网格由一系列轻量级网络代理组成，这些代理部署于每个应用实例旁（以Sidecar模式），
+为应用程序提供服务间通信功能。服务网格由一系列轻量级网络代理组成，这些代理部署于每个应用实例旁（以sidecar模式），
 并负责处理服务间的通信，包括服务发现、负载均衡、服务路由、服务监控、服务容错等。从此，
 业务代码库中不再需要包含涉及处理服务间网络通信的逻辑，团队成员的编程工作又回归到单体服务架构的开发模式中，
 即只需要专注于业务逻辑的开发。
@@ -1137,7 +1137,7 @@ Morgan提出，他同年发表的文章 [What’s a service mesh？And why do I 
 "Service Mesh 是一个处理服务通讯的专门的基础设施层。它的职责是在由云原生应用组成服务的复杂拓扑结构下进行可靠的请求传送。
 在实践中，它是一组和应用服务部署在一起的轻量级的网络代理，对应用服务透明。" —— William Morgan
 
-具体来说，Service Mesh使用的网络代理本质上是一个容器，它以Sidecar模式部署在每个微服务侧（对应用实例完全透明），
+具体来说，Service Mesh使用的网络代理本质上是一个容器，它以sidecar模式部署在每个微服务侧（对应用实例完全透明），
 并且它会接管同侧的应用实例发出和接收的流量，根据配置规则，
 它可以对流量进行重定向、路由、负载均衡、监控、熔断等原来需要由多个工具完成的操作。
 Service Mesh将服务通信及相关管控功能从业务程序中分离并下层到基础设施层，使其和业务系统完全解耦。
@@ -1153,7 +1153,7 @@ Service Mesh将服务通信及相关管控功能从业务程序中分离并下�
 
 虽然到目前为止，在CNCF旗下托管的Service Mesh生态圈已经呈现繁荣姿态，例如Linkerd、Istio、Consul Connect、Kuma、Gloo Mesh等。
 但由于庞大的贡献者数量和社区支持，最终**Istio成为服务网格领域的领先者**。能够与之比较的是商业产品Linkerd，它的优势是更轻量，
-适合部署在中小规模云环境中，但缺少部分Istio才有的高级功能。关于Istio与Linkerd的详细比较，请阅读 [Istio vs Linkerd: The Best Service Mesh for 2023](https://imesh.ai/blog/istio-vs-linkerd-the-best-service-mesh-for-2023/)。
+适合部署在中小规模云环境中，但缺少部分Istio才有的高级功能。关于Istio与Linkerd的详细对比，请阅读 [Istio vs Linkerd: The Best Service Mesh for 2023](https://imesh.ai/blog/istio-vs-linkerd-the-best-service-mesh-for-2023/)。
 
 Istio最初由Google、IBM和Lyft等公司共同开发。在2018年发布了其1.0版本。随后，Istio在2022年4月宣布捐赠给CNCF（正式孵化时间是同年9月底），最终Istio在2023年7月正式毕业（不到一年），且如今已经有
 **数百家**公司为其贡献代码。
@@ -1163,30 +1163,77 @@ Istio最初由Google、IBM和Lyft等公司共同开发。在2018年发布了其1
 
 “Simplify observability, traffic management, security, and policy with the leading service mesh.”
 
-“使用领先的服务网格技术来简化可观测性（WebUI、4/7层流量指标、健康检查、日志、网络拓扑）、
-流量管理（负载均衡、多集群流量路由、服务发现、熔断/重试/超时、动态配置、HTTP 1.1/2/3支持、gRPC支持、延迟注入等）、
+“使用领先的服务网格技术来简化可观测性（WebUI、4/7层流量指标、延迟、链路跟踪、健康检查、日志、网络拓扑）、
+流量管理（负载均衡、多集群流量路由、服务发现、熔断/重试/超时/限速、动态配置、HTTP 1.1/2/3支持、TCP/UDP/gRPC支持、延迟注入等）、
 安全（认证、mTLS等）和策略。”
+
+> Istio目前在中国互联网公司中并没有大量普及，这主要是由于其上手成本较高，在生产环境中应用Istio需要团队中至少有一位Istio
+> 专家或有丰富实践经验之人，而且最好对Istio的原理有深入的理解，这样
+> 才能在出现问题时不会手忙脚乱。此外，根据个人经验，
+> 如果你环境中的微服务数量低于10个，不建议使用Istio，因为它的上手和维护成本可能会超过其带来的收益。
 
 #### 8.4.1 基本架构
 
+部署后的Istio架构包含两个部分：
+
+- **数据平面**：又叫数据层，由N个代理服务（每个代理都是一个叫`istio-proxy`
+  的sidecar容器，它基于Envoy）组成，负责网格中的服务通信和流量管控，同时会收集和上报网格流量相关的观测数据。
+    - 早期通过人工的方式将Envoy容器硬编码到每个工作负载模板中，后期发展至可以通过Istio的sidecar注入器在部署工作负载时自动向模板注入Istio容器（通过K8s的webhook），
+      大大提高使用效率，减少了对业务负载模板的入侵性。
+    - 代理服务会劫持应用容器发出和接收的流量，然后按配置进行相应的处理，最后再决定是丢弃还是将流量转发出去。
+    - 向应用Pod注入sidecar容器时，同时还会注入一个`istio-init`初始化容器，负责设置Pod的iptables规则，以便入站/出站流量通过
+      sidecar 代理转发。
+    - Istio会跟踪K8s集群中的Services和Endpoints的变化，进而下发到每个Envoy代理中，让其可以知晓转发的实际目的地址。
+- **控制平面**：又叫控制层，由一个叫做`istiod`的服务组成，负责整个数据平面的配置规则（运行时）下发和观测数据的管理。同时支持身份标识和证书管理。
+    - istiod内部有三大组件：Pilot、Citadel、Galley
+        - Pilot负责收集和分发网格中的服务配置信息，包括服务发现、负载均衡、路由规则、访问控制等。
+        - Citadel负责为网格中的服务提供身份标识和证书管理，包括服务证书的签发、过期提醒、密钥轮换等。
+        - Galley负责对用户提供的配置进行格式以及内容验证、转换和下发，它直接与控制面内的其他组件通信，主要负责将控制面的其他组件与底层平台（如K8s）解耦。
+
+Istio架构图如下：
+
+<div align="center">
+<img src="img/istio-architecture.png" width = "800" height = 600" alt=""/>
+</div>
+
+
+点击以下链接了解更多：
+
+- [Envoy介绍](https://www.thebyte.com.cn/MicroService/Envoy.html)
+- [Istio介绍](https://www.thebyte.com.cn/MicroService/Istio.html)
+- [sidecar自动注入原理](https://istio.io/latest/zh/blog/2019/data-plane-setup/#automatic-injection)
+- [sidecar流量捕获原理](https://istio.io/latest/zh/blog/2019/data-plane-setup/#traffic-flow-from-application-container-to-sidecar-proxy)
+
+**独立的Envoy**  
+需要注意的是，Envoy组件是可以单独运行的，就像一个Nginx进程一样，只要你为它添加合理的配置。
+
+**部署模型**
+
+Istio支持的部署模型比较繁杂，它可以根据多个维度进行分类，包含集群模型/网络模型/控制平面模型/网格模型/租户模型。
+任何一个包含Istio的生产环境都涉及这几个维度。当然最简单的部署模型就就是单一集群+单一网络+单一控制平面+单一网格+单一租户。
+当部署Istio时，我们需要根据服务规模和团队数量来规划具体的部署模型。
+
+> 请参考 [部署模型](https://istio.io/latest/zh/docs/ops/deployment/deployment-models/) 来详细了解Istio的部署模型。
+
 #### 8.4.2 Ambient Mesh
 
-**Sidecar模式的弊病**
+**sidecar模式的弊病**
 
 不管是第一代还是第二代Service Mesh技术，都存在着一个令人诟病但不易解决的难题，
-那就是Sidecar模式的高开销问题。根据统计，大部分企业在使用Istio的数据平面即Envoy时的平均内存开销都在60M~100M左右，
-如果是稍微大一点的规模比如100个服务，那么Sidecar这部分开销就可能接近10个G，并且由于每个代理都会接收所有的服务发现数据（即使不需要），
-这会导致代理的内存开销会随着服务规模的增长而呈指数级增长。当然，不只是CPU和内存开销，还有Sidecar带来的网络多跳和路由计算所增加的网络延迟问题，
-平均延迟大致为3ms~5ms左右。这种内存开销也使得Sidecar模式在资源受限的边缘计算场景中并不适用。
+那就是sidecar模式带来的资源消耗和通信时延问题。根据统计，大部分企业在使用Istio的数据平面即Envoy时的平均内存开销都在60M~
+100M左右，
+如果是稍微大一点的规模比如100个服务，那么sidecar这部分开销就可能接近10个G，并且由于每个代理都会接收所有的服务发现数据（即使不需要），
+这会导致代理的内存开销会随着服务规模的增长而呈指数级增长。此外，还有sidecar带来的网络多跳和路由计算所增加的网络延迟问题，
+平均延迟大致为3ms~5ms左右，这对于延迟敏感的业务中可能不会适用。
 
-此外，Sidecar模式还有一个弊病是对Kubernetes的Pod范式的入侵性，即每个Pod或工作负载的YAML模板中都需要定义代理容器。
-而且由于代理与应用容器的紧密耦合，导致不论是安装或升级Sidecar都需要重新启动应用程序pod，
+此外，sidecar模式还有一个弊病是对Kubernetes的Pod范式的入侵性，即每个Pod或工作负载的YAML模板中都需要定义代理容器。
+而且由于代理与应用容器的紧密耦合，导致不论是安装或升级sidecar都需要重新启动Pod，
 这可能会对应用的可用性造成一定的影响。
 
-**Istio的新数据平面模式：No Sidecar的Ambient Mesh**
+**Istio的新数据平面模式：No sidecar的Ambient Mesh**
 
 2022年9月，Istio官宣了一种新的数据平面模式——Ambient Mesh。它能够在简化操作、保持更广泛的应用程序兼容性和降低基础设施成本的同时，
-保持Istio的零信任安全、遥测和流量管理等核心功能。最重要的是，它摒弃了传统的Sidecar部署模式，
+保持Istio的零信任安全、遥测和流量管理等核心功能。最重要的是，它摒弃了传统的sidecar部署模式，
 转而在每个节点上部署一个零信任的**ztunnel**代理用来为节点上所有Pod提供mTLS、遥测、身份验证和L4授权，它并不会解析HTTP流量（L7）。
 
 这种新的平面模式将Istio的功能划分为两层：
@@ -1200,11 +1247,258 @@ Istio最初由Google、IBM和Lyft等公司共同开发。在2018年发布了其1
     - Waypoint代理的数量可以根据集群流量规模实现自动缩放。
 
 用户在部署此模式时可能并不需要安装“应用层”，即不需要在实例之间处理七层流量。这样一来就可以按需使用Istio提供的功能，
-相较Sidecar模式的无差别全功能提供而言，Ambient Mesh模式大大减少了Mesh架构产生的开销。
+相较sidecar模式的无差别全功能提供而言，Ambient Mesh模式大大减少了Mesh架构产生的开销。
+
+**尚未准备好用于生产环境**
+
+截至目前（2024/3/6），Ambient Mesh是仍处于Alpha阶段的特性，比预期进度（原本预计2023年底Prod Ready）要慢，相关文档还在持续更新中，请持续观望。
+
+#### 8.4.3 安装过程
+
+##### 8.4.3.1 安装
+
+当你准备好开始学习Istio时，笔者建议你使用具备高度定制化功能的`istioctl`命令行工具进行安装，在熟悉安装流程后，再尝试使用Helm或其他方式进行安装。
+完整的安装指南请参考[Istio安装指南][Istio安装指南]。
+
+> 注意，Istio原生与Kubernetes集成（但不绑定），安装Istio时会将一些自定义资源安装到Kubernetes集群中，因此请提前准备好一个集群以供安装。
+
+安装步骤：
+
+```shell
+# 1. 在istio发版页面复制需要安装的`istioctl`链接（注意不是istio，以及选择符合节点架构的版本，下面以v1.20.3和linux amd64架构为例）
+# https://github.com/istio/istio/releases
+
+# 进入任何一个具有K8s集群管理员权限的主机
+$ wget https://hub.gitmirror.com/?q=https://github.com/istio/istio/releases/download/1.20.3/istioctl-1.20.3-linux-amd64.tar.gz -O istioctl.tar
+
+# 解压
+$ tar -zxf istioctl.tar && chmod +x istioctl
+
+# 生成即将安装到集群的istio资源的k8s清单文件，稍后用于验证安装是否成功
+$ ./istioctl manifest generate > manifest.yaml
+
+# 使用默认配置进行安装
+# - 此过程会安装Pod，所以需要拉取远程镜像，可能需要几分钟
+$ ./istioctl install
+This will install the Istio 1.20.3 "default" profile (with components: Istio core, Istiod, and Ingress gateways) into the cluster. Proceed? (y/N) y
+✔ Istio core installed                                                                                                                                                                    
+✔ Istiod installed                                                                                                                                                                        
+✔ Ingress gateways installed                                                                                                                                                              
+✔ Installation complete                                                                                                 
+Made this installation the default for injection and validation.
+```
+
+查看安装的istio部分资源列表：
+
+```shell
+$ kubectl get deploy,svc,hpa,cm,secret -n istio-system
+NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/istio-ingressgateway   1/1     1            1           63m
+deployment.apps/istiod                 1/1     1            1           68m
+
+NAME                           TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                                      AGE
+service/istio-ingressgateway   LoadBalancer   20.1.124.145   <pending>     15021:30730/TCP,80:32703/TCP,443:32294/TCP   63m
+service/istiod                 ClusterIP      20.1.237.53    <none>        15010/TCP,15012/TCP,443/TCP,15014/TCP        68m
+
+NAME                                                       REFERENCE                         TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/istio-ingressgateway   Deployment/istio-ingressgateway   <unknown>/80%   1         5         1          63m
+horizontalpodautoscaler.autoscaling/istiod                 Deployment/istiod                 <unknown>/80%   1         5         1          68m
+
+NAME                                            DATA   AGE
+configmap/istio                                 2      68m
+configmap/istio-ca-root-cert                    1      5m49s
+configmap/istio-gateway-status-leader           0      5m49s
+configmap/istio-leader                          0      5m49s
+configmap/istio-namespace-controller-election   0      5m49s
+configmap/istio-sidecar-injector                2      68m
+configmap/kube-root-ca.crt                      1      68m
+
+NAME                     TYPE               DATA   AGE
+secret/istio-ca-secret   istio.io/ca-root   5      5m51s
+
+# 查看istio安装的自定义资源
+$ kubectl -n istio-system get crd
+NAME                                                  CREATED AT
+authorizationpolicies.security.istio.io               2024-03-08T00:43:31Z
+bgpconfigurations.crd.projectcalico.org               2024-03-03T05:22:57Z
+bgpfilters.crd.projectcalico.org                      2024-03-03T05:22:57Z
+bgppeers.crd.projectcalico.org                        2024-03-03T05:22:57Z
+...
+
+# 查看istio安装的role和rolebinding
+$ kubectl -n istio-system get role,rolebinding
+NAME                                                      CREATED AT
+role.rbac.authorization.k8s.io/istio-ingressgateway-sds   2024-03-08T00:48:32Z
+role.rbac.authorization.k8s.io/istiod                     2024-03-08T00:43:32Z
+
+NAME                                                             ROLE                            AGE
+rolebinding.rbac.authorization.k8s.io/istio-ingressgateway-sds   Role/istio-ingressgateway-sds   68m
+rolebinding.rbac.authorization.k8s.io/istiod                     Role/istiod                     73m
+```
+
+检查安装结果：
+
+```shell
+$ ./istioctl verify-install manifest.yaml                           
+1 Istio control planes detected, checking --revision "default" only
+✔ HorizontalPodAutoscaler: istio-ingressgateway.istio-system checked successfully
+✔ Deployment: istio-ingressgateway.istio-system checked successfully
+✔ PodDisruptionBudget: istio-ingressgateway.istio-system checked successfully
+...
+✔ Service: istiod.istio-system checked successfully
+✔ ServiceAccount: istiod.istio-system checked successfully
+✔ ValidatingWebhookConfiguration: istio-validator-istio-system.istio-system checked successfully
+Checked 15 custom resource definitions
+Checked 2 Istio Deployments
+✔ Istio is installed and verified successfully
+```
+
+##### 8.4.3.2 关于IstioOperator
+
+IstioOperator（有时简称为iop）是Istio规定的一个自定义资源（按K8s中的CRD格式），它允许用户配置和部署Istio服务网格的各个组件。
+上节中我们安装的是istioctl推荐的默认配置，具体配置内容可通过`./istioctl profile dump`查看：
+
+```shell
+$ ./istioctl profile dump
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+spec:
+  components:
+    base:
+      enabled: true
+    cni:
+      enabled: false
+    egressGateways:
+    - enabled: false
+      name: istio-egressgateway
+    ingressGateways:
+    - enabled: true
+      name: istio-ingressgateway
+    istiodRemote:
+      enabled: false
+    pilot:
+      enabled: true
+...
+```
+
+其中的`spec.components`部分指定了需要安装（`enable: true`）的istio核心组件，
+默认配置只安装了`base`,`ingressGateways`,`pilot`。
+通过以下命令可以查看已安装的IstioOperator配置:
+
+```shell
+$ kubectl -n istio-system get IstioOperator installed-state -o yaml
+```
+
+每个组件的作用如下：
+
+- base：istio核心组件之一，安装控制平面时必需；
+- cni：istio后来添加的一个组件，用于代替原先注入到应用Pod的`istio-init`容器，以实现应用容器的流量劫持功能；
+    - 具体来说，在部署应用Pod时，istio不再注入`istio-init`容器，而是使用CNI插件来为应用Pod配置网络。
+    - 属于一项较为**先进**的功能，本文暂不使用；
+- ingressGateways：网格流量的入站网关，用于管控网格的所有入站流量。比如TLS设置和路由策略等；
+    - 常用组件，可用于替代K8s的ingress API；
+- egressGateways：网格流量的出站网关，与ingress网关对称。用于管控网格内的所有出站流量；
+    - 非必需组件，适用于以下场景：
+        1. 管理员需要严格管控网格内某些应用的出站流量，这是一种安全需求；
+        2. 集群内的节点没有公网IP，通过安装egress网关并为其配置公网IP，可以使网格内的流量以受控方式访问外部服务；
+- istiodRemote：在受外部控制面管理的从集群中安装istio时需要的组件，
+  可以参考[使用外部控制平面安装Istio][使用外部控制平面安装 Istio]；
+
+- pilot：istio核心组件之一，负责网格内的服务发现和配置管理；
+    - 服务发现：跟踪K8s集群中的Service资源变化，并实时下发给各个Envoy代理，避免各代理转发流量到失效主机；
+    - 配置管理：包括网格内的路由规则和流量规则等，它们以K8s CRD的形式存储在集群中。
+    - pilot划分为两个组件：
+        - pilot-discovery：位于istiod内部，负责发现集群内的配置变化和Service端点变化，并通过gRPC stream连接实时下发给Envoy代理；
+        - pilot-agent：位于Envoy代理内部，负责从pilot-discovery获取最新的证书、策略配置以及服务端点，并将其注入到Envoy代理的配置文件中；
+
+其他关于IstioOperator配置的操作命令:
+
+```shell
+# 查看内置的配置列表，查看每个配置的介绍：https://istio.io/latest/zh/docs/setup/additional-setup/config-profiles/
+# 实战中根据需求选择哪个档位。
+$ istioctl profile list
+Istio configuration profiles:
+    default
+    demo
+    empty
+    minimal
+    openshift
+    preview
+    remote
+# 查看demo档位的配置内容
+$ istioctl profile dump demo
+
+# 查看配置的某个部分
+$ istioctl profile dump --config-path components.pilot demo
+# 查看不同档位配置间的差异，例如default和demo
+$ istioctl profile diff default demo
+
+# 卸载istio
+$ istioctl uninstall --purge && kubectl delete ns istio-system
+```
+
+最后，IstioOperator自有一套配置规范，请查阅[IstioOperator Options](https://istio.io/latest/zh/docs/reference/config/istio.operator.v1alpha1)。
+
+#### 8.4.4 Envoy介绍
+
+Envoy是一个由C++开发的、开源的、面向大型现代服务架构设计的**高性能**L7代理和通信总线。它于2016年8月开源，2017年9月捐献给CNCF开始孵化，
+后在2018年11月成为CNCF继 Kubernetes 与 Prometheus 之后第三个毕业的项目。Envoy的定位是做一个高性能的通用代理，可以与任何语言构建的服务通信，
+它能够提供服务发现、负载均衡、TLS终止、L3(TCP/UDP等) & HTTP/2 & gRPC代理、熔断、追踪、健康检查、限流等丰富的网络通信转发功能。
+
+> Envoy还支持代理MongoDB、Redis协议。
+
+- [了解Envoy的完整介绍](https://cloudnative.to/envoy/intro/what_is_envoy.html)
+
+虽然Istio采用其作为默认的数据平面代理，但Envoy并不与Istio绑定。Envoy通常以sidecar模式部署在应用Pod中，但也支持作为前端/边缘代理角色部署，就像网关一样。
+参考[此页面](https://jimmysong.io/kubernetes-handbook/usecases/envoy-front-proxy.html)了解Envoy如何作为前端代理进行工作。
+
+**显著优势**
+
+- 性能：Envoy是C++开发的高性能L7代理；
+- 丰富特性：通过配置各类过滤器执行丰富的流量和路由策略；
+- 支持多种协议：支持HTTP/1.1、HTTP/2、gRPC、MongoDB、Redis、MySQL、PostgreSQL、DNS等协议；
+- 动态配置：通过xDS API协议动态接收来自控制面下发的配置，实现免重启更新配置。同时也支持静态配置，在作为前端/边缘代理时会用到。
+    - xDS（*Discovery Service的缩写），其包含L(istener)DS,C(luster)DS,R(oute)DS,E(ndpint)DS,S(ecret)DS等在内的多个发现服务。
+
+**四大组件**  
+Envoy内部有四个主要组件，下面根据工作顺序按序介绍：
+
+- 监听器（Listener）：类似Nginx的监听端口，接收来自外部的TCP入站连接请求；
+- 过滤器（Filter）：处理监听器接收到的入站请求所传输的流量；
+    - 主要是通过预配置的各种过滤器进行工作，可以进行请求路由、速率限制等操作；多个过滤器之间通过链式配置和工作；
+    - 丰富的过滤器类别是Envoy的核心功能优势。
+- 路由（Router）：指定如何将入站连接请求路由到Envoy代理内部配置的Cluster，这是一个流量出站步骤；
+- 集群（Cluster）：这里的**集群**不同于传统意义上的集群，而是指流量转发的目的地址（类似Nginx的upstream，即转发的后端地址），同时可以配置负载均衡等策略。
+
+**常用术语**
+
+- 主机（Host）：一个具有网络通信能力的端点，例如服务器、移动智能设备等，而这里的 host 通常代表上游服务
+- 集群（Cluster）：集群是Envoy连接到的一组逻辑上相似的端点；在v2中，RDS通过路由指向集群，CDS提供集群配置，而Envoy通过EDS发现集群成员，即端点（Endpoint）；
+- 下游（Downstream）：下游主机连接到 Envoy，发送请求并接收响应，它们是 Envoy 的客户端；
+- 上游（Upstream）：上游主机接收来自 Envoy 的连接和请求并返回响应，它们是 Envoy 代理的后端服务器，可能是容器、虚拟机、服务器；
+- 端点（Endpoint）：端点即上游主机，是一个或多个集群的成员，可通过 EDS 发现；
+- 侦听器（Listener）：侦听器是能够由下游客户端连接的命名网络位置，例如端口或 unix 域套接字等；
+- 子集（Subset）：子集是具有相同标签的端点的逻辑分组，例如金丝雀发布时通常会根据版本标签配置两个不同版本的服务子集，
+  然后为两个子集分配不同的流量权重（可能是1:9）；
+- 位置（Locality）：上游端点运行的区域拓扑，包括地域、区域和子区域等；
+- 管理服务器（Management Server）：实现 v3 API 的服务器，它支持复制和分片，并且能够在不同的物理机器上实现针对不同 xDS API 的
+  API 服务。Istio中指控制面；
+- 地域（Region）：区域所属地理位置；
+- 区域（Zone）：AWS 中的可用区（AZ）或 GCP 中的区域等；
+- 子区域：Envoy 实例或端点运行的区域内的位置，用于支持区域内的多个负载均衡目标；
+- Mesh和Envoy Mesh：指代服务网格，由多个基于envoy代理的sidecar构成。
+
+#### 8.4.5 使用演示
+
+TODO
 
 ## 参考
 
 - [Kubernetes实战@美 Brendan Burns Eddie Villalba](https://book.douban.com/subject/35346815/)
+- [Ambient Mesh 入门](https://istio.io/latest/zh/docs/ops/ambient/getting-started/)
+- [Istio 服务网格：深入学习网络流量和架构](https://mp.weixin.qq.com/s/KXGvEN8obm3efsDdfHbgsA)
+- [Enovy官方文档](https://cloudnative.to/envoy/)
+- [云原生架构下的微服务之：envoy 原理基础](https://www.modb.pro/db/211373)
 
 [MetricsAPI]: https://kubernetes.io/zh-cn/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/#metrics-api
 
@@ -1213,3 +1507,7 @@ Istio最初由Google、IBM和Lyft等公司共同开发。在2018年发布了其1
 [Introducing Ambient Mesh]: https://istio.io/v1.15/blog/2022/introducing-ambient-mesh/
 
 [What’s a service mesh？And why do I need one?]: https://dzone.com/articles/whats-a-service-mesh-and-why-do-i-need-one
+
+[Istio安装指南]: https://istio.io/latest/zh/docs/setup/install/
+
+[使用外部控制平面安装 Istio]: https://istio.io/latest/zh/docs/setup/install/external-controlplane
