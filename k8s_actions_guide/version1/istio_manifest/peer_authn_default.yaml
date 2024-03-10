@@ -1,0 +1,11 @@
+# nonk8s
+# 在istio安装的根命名空间中创建默认的PeerAuthentication策略，作为整个网格的默认配置。
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-system # 或者改为需要单独生效的命名空间名称
+spec:
+  # 没有selector字段
+  mtls:
+    mode: STRICT
