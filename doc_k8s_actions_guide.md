@@ -1644,8 +1644,27 @@ go-multiroute   STRICT   4m42s
 ```
 
 部署后，访问 `go-multiroute` 服务就必须遵循策略中配置的强制（STRICT）双向TLS通信模式。
-这可以通过上面使用过的tcpdump抓包方式来验证，抓取结果将是各种乱码，无法观察到人眼可读的明文。若要关闭mTLS，
-**直接删除策略是不起作用的**，必须将策略改为`DISABLE`模式然后进行更新，短暂延迟后生效。
+这可以通过上面使用过的tcpdump抓包方式来验证，抓取结果将是各种乱码，无法观察到人眼可读的明文。
+
+> 启用mTLS特性需要注意两点：
+>- 对已存在的服务启用mTLS，由于服务可能正在被调用，
+   > 需要先设置策略为`PERMISSIVE`模式（同时接收明文和HTTPS流量）进行过渡，
+   > 等待相关服务更新（建议等待1min）后再切换到`STRICT`模式。
+>- 若要关闭mTLS，**直接删除策略是不起作用的**，必须将策略改为`DISABLE`模式然后应用，这样才会生效。
+   > 同理，为了避免影响正在运行的服务，需要先设置策略为`PERMISSIVE`模式进行过渡，一段时间后再切换到`DISABLE`模式。
+>- Istio支持为纯TCP或基于TCP的HTTP、gRPC等协议提供mTLS支持；**Istio不会代理UDP协议**，
+   > 即应用容器的UDP数据报文不会经过sidecar容器的网络栈，所以也不需要在Istio的流量策略中配置应用的UDP端口；
+
+其他建议和Tips：
+
+- 可以设置根命名空间`istio-system`的默认mTLS模式为`STRICT`
+  以影响整个网格范围，使用模板 [peer_authn_default.yaml](k8s_actions_guide%2Fversion1%2Fistio_manifest%2Fpeer_authn_default.yaml)。
+- 将模板中的`namespace`字段改为非根命名空间以影响特定命名空间；
+- 策略优先级：工作负载级别 > 命名空间级别 > 根命名空间级别;
+
+##### 8.4.5.4 使用Istio特性之路由
+
+TODO
 
 - [Istio 安全](https://istio.io/latest/zh/docs/concepts/security)
 - [Istio 认证策略](https://istio.io/latest/zh/docs/tasks/security/authentication/authn-policy/)
