@@ -8,7 +8,7 @@
 
 ### 1.1 编写一个简单的Go应用
 
-- [main_multiroute.go](k8s_actions_guide/version1/main_multiroute.go)
+- [main_multiroute.go](k8s_actions_guide/version1/go_code/main_multiroute.go)
 
 这个Go应用的逻辑很简单，它是一个支持从配置动态加载路由的HTTP服务器。初始化此应用：
 
@@ -23,9 +23,9 @@ go mod tidy
 
 在K8s环境中，我们需要将配置迁移到ConfigMap中，并通过环境变量或者卷挂载的方式传递给应用。
 
-- [k8s-manifest/configmap.yaml](k8s_actions_guide/version1/k8s-manifest/configmap.yaml)
+- [base_manifest/configmap.yaml](k8s_actions_guide/version1/base_manifest/configmap.yaml)
 
-注意将K8s清单放在一个单独的目录（如`k8s-manifest`）下，以便后续批量部署。
+注意将K8s清单放在一个单独的目录（如`base_manifest`）下，以便后续批量部署。
 
 > 虽然可以在Dockerfile中直接将配置文件打包到容器，但这种方式通常伴随的是将配置文件存储在代码库中，这并不符合K8s的最佳实践。
 > 同时也不适合用来存储重要配置。
@@ -38,7 +38,7 @@ go mod tidy
 
 虽然ConfigMap也可以存储数据，但Secret更适合存储敏感信息。在K8s中，Secret用来存储敏感信息，比如密码、Token等。
 
-- [k8s-manifest/secret.yaml](k8s_actions_guide/version1/k8s-manifest/secret.yaml)
+- [base_manifest/secret.yaml](k8s_actions_guide/version1/base_manifest/secret.yaml)
 
 #### 1.3.1 加密存储Secret中的数据
 
@@ -54,7 +54,7 @@ go mod tidy
 
 这一步中，我们编写一个Dockerfile文件将Go应用打包到一个镜像中，以便后续部署为容器。
 
-- [Dockerfile](k8s_actions_guide/version1/Dockerfile)
+- [Dockerfile](k8s_actions_guide/version1/go_code/Dockerfile)
 
 注意在Dockerfile中定制你的Go版本。
 
@@ -70,7 +70,7 @@ go mod tidy
 
 Deployment是K8s中最常用的用来部署和管理应用的资源对象。它支持应用的多副本部署以及故障自愈能力。
 
-- [k8s-manifest/deployment.yaml](k8s_actions_guide/version1/k8s-manifest/deployment.yaml)
+- [base_manifest/deployment.yaml](k8s_actions_guide/version1/base_manifest/deployment.yaml)
 
 你可以在模板中定制应用的副本数量、资源限制、环境变量等配置。
 
@@ -97,7 +97,7 @@ docker pull busybox:1.36.1@sha256:7108255e7587de598006abe3718f950f2dca232f549e95
 ├── Dockerfile
 ├── go.mod
 ├── go.sum
-├── k8s-manifest
+├── base_manifest
 │   ├── configmap.yaml
 │   └── deployment.yaml
 └── main_multiroute.go
@@ -133,21 +133,19 @@ f658e2d998f1: Pushed
 v1: digest: sha256:74bf6d94ea9af3e700dfd9fe64e1cc6a04cd75fb792d994c63bbc6d69de9b7ee size: 950
 
 # 部署应用
-$ kk apply -f ./k8s-manifest
-configmap/go-multiroute created
-deployment.apps/go-multiroute unchanged
+$ kubectl apply -f ./base_manifest
 
 # 更新应用
-$ kk set image deployment/go-multiroute go-multiroute=$_IMAGE_
+$ kubectl set image deployment/go-multiroute go-multiroute=$_IMAGE_
 ```
 
 查看应用部署情况：
 
 ```shell
-$ kk get deploy
+$ kubectl get deploy
 NAME            READY   UP-TO-DATE   AVAILABLE   AGE
 go-multiroute   2/2     2            2           7s
-$ kk get po    
+$ kubectl get po    
 NAME                            READY   STATUS    RESTARTS   AGE
 go-multiroute-f4f8b64f4-564qq   1/1     Running   0          8s
 go-multiroute-f4f8b64f4-v64l6   1/1     Running   0          8s
@@ -166,22 +164,20 @@ go-multiroute-f4f8b64f4-v64l6   1/1     Running   0          8s
 
 > 如果应用是非HTTP服务器（如仅TCP、Websocket服务），则无需Ingress，仅用Service来暴露服务就可。
 
-- [k8s-manifest/service.yaml](k8s_actions_guide/version1/k8s-manifest/service.yaml)
-- [k8s-manifest/ingress.yaml](k8s_actions_guide/version1/k8s-manifest/ingress.yaml)
+- [base_manifest/service.yaml](k8s_actions_guide/version1/expose_manifest/service.yaml)
+- [base_manifest/ingress.yaml](k8s_actions_guide/version1/expose_manifest/ingress.yaml)
 
 部署Ingress控制器的步骤这里不再赘述，请参考[基础教程](doc_tutorial.md#82-安装Nginx-Ingress控制器)。
 
 下面是部署Service和Ingress的步骤：
 
 ```shell
-$ kk apply -f ./k8s-manifest
-configmap/go-multiroute unchanged
-deployment.apps/go-multiroute unchanged
+$ kubectl apply -f ./expose_manifest
 ingress.networking.k8s.io/go-multiroute created
 service/go-multiroute created
 
 # 注意：service/kubernetes是默认创建的，不用理会
-$ kk get svc,ingress                           
+$ kubectl get svc,ingress                           
 NAME                    TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
 service/go-multiroute   ClusterIP   10.96.219.33   <none>        3000/TCP   19s
 service/kubernetes      ClusterIP   10.96.0.1      <none>        443/TCP    6d
@@ -195,7 +191,7 @@ ingress.networking.k8s.io/go-multiroute   nginx   *                 80      19s
 ```shell
 # PORT(S) 部分是Nginx Ingress控制器内对外的端口映射
 # 内部80端口映射到外部 30073，内部443端口映射到外部30220
-kk get svc -ningress-nginx
+kubectl get svc -ningress-nginx
 NAME                                 TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
 ingress-nginx-controller             LoadBalancer   10.96.171.227   <pending>     80:30073/TCP,443:30220/TCP   3m46s
 ingress-nginx-controller-admission   ClusterIP      10.96.7.58      <none>        443/TCP                      3m46s
@@ -272,10 +268,10 @@ Nginx Ingress控制器默认通过NodePort方式部署，所以会在宿主机�
 
 为了简化集群的用户管理、资源额度限制以及回收工作，我们可以开发一些脚本来协助管理员轻松完成这些工作。
 
-- [new_user.sh](k8s_actions_guide/version1/k8s-script/new_user.sh)：在集群中添加一个新用户，并创建相应的命名空间、角色和额度限制。
+- [new_user.sh](k8s_actions_guide/version1/script/new_user.sh)：在集群中添加一个新用户，并创建相应的命名空间、角色和额度限制。
     - 此脚本会同时生成`client-cert-$USER.crt`和`client-cert-$USER.key`
-- [del_user.sh](k8s_actions_guide/version1/k8s-script/del_user.sh)：删除集群中的一个用户命名空间（包含空间下的所有资源）。
-- [setup_kubeconfig.sh](k8s_actions_guide/version1/k8s-script/setup_kubeconfig.sh)：初始化用户使用的kubeconfig文件。
+- [del_user.sh](k8s_actions_guide/version1/script/del_user.sh)：删除集群中的一个用户命名空间（包含空间下的所有资源）。
+- [setup_kubeconfig.sh](k8s_actions_guide/version1/script/setup_kubeconfig.sh)：初始化用户使用的kubeconfig文件。
     - 此脚本会在执行目录下生成`dev-config`文件，将此文件分发给对应开发人员作为kubeconfig文件即可。
 
 > 笔者在脚本中添加了详实的注释，你可以阅读它们来了解脚本用法和步骤含义。
@@ -973,7 +969,7 @@ NetworkPolicy可以被看做是集群中的一个东西向流量防火墙，每�
 
 #### 7.1.3 示例
 
-示例模板：[network-policy.yaml](k8s_actions_guide/version1/k8s-manifest/network-policy.yaml)
+示例模板：[network-policy.yaml](k8s_actions_guide/version1/other_manifest/network-policy.yaml)
 
 模板将实现以下目标：
 
@@ -1176,12 +1172,12 @@ Istio最初由Google、IBM和Lyft等公司共同开发。在2018年发布了其1
 
 部署后的Istio架构包含两个部分：
 
-- **数据平面**：又叫数据层，由N个代理服务（每个代理都是一个叫`istio-proxy`
-  的sidecar容器，它基于Envoy）组成，负责网格中的服务通信和流量管控，同时会收集和上报网格流量相关的观测数据。
-    - 早期通过人工的方式将Envoy容器硬编码到每个工作负载模板中，后期发展至可以通过Istio的sidecar注入器在部署工作负载时自动向模板注入Istio容器（通过K8s的webhook），
-      大大提高使用效率，减少了对业务负载模板的入侵性。
+- **数据平面**：又叫数据层，由N个代理服务（每个代理都是一个叫`istio-proxy`的sidecar容器，它基于Envoy）组成，
+  负责网格中的服务通信和流量管控，同时会收集和上报网格流量相关的观测数据。
+    - 早期通过人工的方式将Envoy容器硬编码到每个工作负载模板中，后期发展至可以通过Istio的sidecar注入功能在部署工作负载时自动向模板注入Istio容器（通过K8s提供的Webhook机制），
+      大大提高使用效率，避免了对业务负载模板的入侵。
     - 代理服务会劫持应用容器发出和接收的流量，然后按配置进行相应的处理，最后再决定是丢弃还是将流量转发出去。
-    - 向应用Pod注入sidecar容器时，同时还会注入一个`istio-init`初始化容器，负责设置Pod的iptables规则，以便入站/出站流量通过
+    - 向应用Pod注入sidecar容器时，同时还会注入一个`istio-init`**初始化**容器，负责设置Pod的iptables规则，以便入站/出站流量通过
       sidecar 代理转发。
     - Istio会跟踪K8s集群中的Services和Endpoints的变化，进而下发到每个Envoy代理中，让其可以知晓转发的实际目的地址。
 - **控制平面**：又叫控制层，由一个叫做`istiod`的服务组成，负责整个数据平面的配置规则（运行时）下发和观测数据的管理。同时支持身份标识和证书管理。
@@ -1225,10 +1221,6 @@ Istio支持的部署模型比较繁杂，它可以根据多个维度进行分类
 如果是稍微大一点的规模比如100个服务，那么sidecar这部分开销就可能接近10个G，并且由于每个代理都会接收所有的服务发现数据（即使不需要），
 这会导致代理的内存开销会随着服务规模的增长而呈指数级增长。此外，还有sidecar带来的网络多跳和路由计算所增加的网络延迟问题，
 平均延迟大致为3ms~5ms左右，这对于延迟敏感的业务中可能不会适用。
-
-此外，sidecar模式还有一个弊病是对Kubernetes的Pod范式的入侵性，即每个Pod或工作负载的YAML模板中都需要定义代理容器。
-而且由于代理与应用容器的紧密耦合，导致不论是安装或升级sidecar都需要重新启动Pod，
-这可能会对应用的可用性造成一定的影响。
 
 **Istio的新数据平面模式：No sidecar的Ambient Mesh**
 
@@ -1351,6 +1343,24 @@ $ ./istioctl verify-install manifest.yaml
 Checked 15 custom resource definitions
 Checked 2 Istio Deployments
 ✔ Istio is installed and verified successfully
+
+# 查看istio安装的API对象，istio使用它们来完成各项任务
+$ kubectl api-resources |grep istio
+wasmplugins                                    extensions.istio.io/v1alpha1           true         WasmPlugin
+istiooperators                    iop,io       install.istio.io/v1alpha1              true         IstioOperator
+destinationrules                  dr           networking.istio.io/v1beta1            true         DestinationRule
+envoyfilters                                   networking.istio.io/v1alpha3           true         EnvoyFilter
+gateways                          gw           networking.istio.io/v1beta1            true         Gateway
+proxyconfigs                                   networking.istio.io/v1beta1            true         ProxyConfig
+serviceentries                    se           networking.istio.io/v1beta1            true         ServiceEntry
+sidecars                                       networking.istio.io/v1beta1            true         Sidecar
+virtualservices                   vs           networking.istio.io/v1beta1            true         VirtualService
+workloadentries                   we           networking.istio.io/v1beta1            true         WorkloadEntry
+workloadgroups                    wg           networking.istio.io/v1beta1            true         WorkloadGroup
+authorizationpolicies                          security.istio.io/v1                   true         AuthorizationPolicy
+peerauthentications               pa           security.istio.io/v1beta1              true         PeerAuthentication
+requestauthentications            ra           security.istio.io/v1                   true         RequestAuthentication
+telemetries                       telemetry    telemetry.istio.io/v1alpha1            true         Telemetry
 ```
 
 ##### 8.4.3.2 关于IstioOperator
@@ -1490,7 +1500,155 @@ Envoy内部有四个主要组件，下面根据工作顺序按序介绍：
 
 #### 8.4.5 使用演示
 
-TODO
+##### 8.4.5.1 sidecar注入的两种方式
+
+Istio通过为对象添加标签（Label）的方式来实现sidecar注入，具体分为自动和手动两种：
+
+- 自动注入：通过为K8s集群中的命名空间（Namespace）对象添加Istio识别的特定标签来实现自动注入；
+    - 具体来说，当K8s集群中的命名空间对象被添加了`istio-injection=enabled`标签时，任何新的 Pod 都将在创建时自动添加sidecar。
+    - 这种注入对工作负载是完全无感知的，它不会修改资源模板；
+    - 若不希望Pod被注入sidecar，则可以为Pod对象添加`sidecar.istio.io/inject="false"`标签（此标签优先级**高于**命名空间标签）；
+- 手动注入：通过手动执行命令实现sidecar注入
+    - 具体来说，执行`istioctl kube-inject -f samples/sleep/sleep.yaml`命令即可将sidecar注入到指定的Pod
+    - 以上命令使用istio安装到集群的配置进行注入，也可以使用本地配置，具体方法参考[手动注入][手动注入]；
+    - 由于对资源模板的入侵性，**手动注入仅在特定情况下使用**。
+
+本文仅介绍更常用的自动注入方式，操作步骤如下：
+
+```shell
+# 为命名空间设置特定标签，以 default 为例
+$ kubectl label namespace default istio-injection=enabled --overwrite
+namespace/default labeled
+$ kubectl get ns default --show-labels                               
+NAME         STATUS   AGE    LABELS
+default      Active   2m2s   istio-injection=enabled,kubernetes.io/metadata.name=default
+
+# 删除标签命令：kubectl label namespace default istio-injection-
+```
+
+##### 8.4.5.2 部署Pod进行验证
+
+这里仍然使用第一节中只定义了一个常规容器的 [deployment.yaml](k8s_actions_guide/version1/base_manifest/deployment.yaml)
+模板进行验证，注意还需要部署相关的几个资源：
+
+- [configmap.yaml](k8s_actions_guide/version1/base_manifest/configmap.yaml)
+- [secret.yaml](k8s_actions_guide/version1/base_manifest/secret.yaml)
+- [service.yaml](k8s_actions_guide/version1/expose_manifest/service.yaml)
+    - mTLS仅在定义了service的工作负载上生效，所以必需部署service。
+
+操作步骤如下：
+
+```shell
+# 1. 部署configmap、secret以及service，步骤略。
+
+# 2. 部署deployment
+$ kubectl apply -f deployment.yaml
+
+# 3. 可以看到 READY 处的2/2表示Pod内部有2个容器正在运行
+$ kubectl get po -l app=go-multiroute
+NAME                            READY   STATUS    RESTARTS   AGE
+go-multiroute-b6fcdf544-7xfn7   2/2     Running   0          2m40s
+go-multiroute-b6fcdf544-dqncx   2/2     Running   0          5m27s
+
+# 4. 查看Pod事件，可以看到Pod启动过程中创建了注入的istio-init和istio-proxy容器，加上原本的 go-multiroute 一共3个容器
+# -- 但其中的istio-init是初始化容器
+$ kubectl describe po go-multiroute-b6fcdf544-7xfn7 |grep Events: -A 15
+Events:
+  Type    Reason     Age    From               Message
+  ----    ------     ----   ----               -------
+  Normal  Scheduled  5m16s  default-scheduler  Successfully assigned default/go-multiroute-b6fcdf544-7xfn7 to k8s-node1
+  Normal  Pulled     2d3h   kubelet            Container image "docker.io/istio/proxyv2:1.20.3" already present on machine
+  Normal  Created    2d3h   kubelet            Created container istio-init
+  Normal  Started    2d3h   kubelet            Started container istio-init
+  Normal  Pulled     2d3h   kubelet            Container image "docker.io/leigg/go_multiroute:v1" already present on machine
+  Normal  Created    2d3h   kubelet            Created container go-multiroute
+  Normal  Started    2d3h   kubelet            Started container go-multiroute
+  Normal  Pulled     2d3h   kubelet            Container image "docker.io/istio/proxyv2:1.20.3" already present on machine
+  Normal  Created    2d3h   kubelet            Created container istio-proxy
+  Normal  Started    2d3h   kubelet            Started container istio-proxy
+  
+# 5. 查看istio正在代理的所有Pod，包括每个Pod的xDS同步状态，可添加 -n 指定 namespace
+$ ./istioctl proxy-status                        
+NAME                                      CLUSTER        CDS        LDS        EDS        RDS        ECDS         ISTIOD                     VERSION
+go-multiroute-b6fcdf544-7xfn7.default     Kubernetes     SYNCED     SYNCED     SYNCED     SYNCED     NOT SENT     istiod-78478fdc7-qmzbb     1.20.3
+go-multiroute-b6fcdf544-dqncx.default     Kubernetes     SYNCED     SYNCED     SYNCED     SYNCED     NOT SENT     istiod-78478fdc7-qmzbb     1.20.3
+```
+
+##### 8.4.5.3 使用Istio特性之mTLS
+
+Istio提供诸多特性，这里将介绍如何使用其中的**mTLS**（双向TLS）特性。
+启用mTLS可以实现sidecar之间的**双向身份认证、传输流量加密**，可以避免中间人攻击，提高传输安全性。
+部署后，Istio的控制面可以自动完成将要过期的sidecar证书轮换。
+要启用mTLS，必须启动两个不同的服务进行互相通信，前面已经部署了一个`go-multiroute`服务，
+它通过configmap提供了两个HTTP接口`/route1`和`/route2`，这里将其作为被调用端，
+然后我们再启动一个调用端服务[istio_client_test.yaml](k8s_actions_guide/version1/istio_manifest/istio_client_test.yaml)，
+构建和上传镜像的步骤略，包含代码实现在内的相关清单在 [istio_manifest/](k8s_actions_guide/version1/istio_manifest) 目录下。
+
+操作步骤如下：
+
+```shell
+# 为了避免网络策略的干扰，先删除之前部署的默认拒绝 networkpolicy
+kubectl delete networkpolicy block-internal-all-egress
+kubectl delete networkpolicy deny-all-ingress
+
+# 部署调用端Pod
+kubectl apply -f istio_client_test_pod.yaml
+
+# 查看启动日志（启动时发起调用）
+$ kubectl logs istio-client-test-$POD_ID                                       
+2024/03/08 08:07:22 status:200 text: Hello, You are at /route1, Got: route1's content
+
+# 然后可在istio-client-test中的Pod上进行抓包测试。
+# - 使用tcpdump抓取默认网卡上来源是3000端口的tcp数据流，可以观察到包含"Hello"字眼的http响应明文
+# - （开始抓包后，需要同步在相同的Pod上的另一个容器中执行curl访问go-multiroute服务：kubectl exec -it istio-client-test-$POD_ID -c istio-client-test -- curl go-multiroute:3000/route1）
+# - （执行curl访问后，这边应立即可以观察到控制台输出相关tcp数据）
+$ kubectl exec -it istio-client-test-$POD_ID -c tcpdump -- tcpdump -nX tcp src port 3000
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+09:43:58.668073 IP 20.2.36.112.3000 > 20.2.36.117.60022: Flags [P.], seq 3671286507:3671287547, ack 2394647540, win 291, options [nop,nop,TS val 2452817 ecr 2452816], length 1040
+...
+	0x0040:  204f 4b0d 0a64 6174 653a 2053 756e 2c20  .OK..date:.Sun,.
+	0x0050:  3130 204d 6172 2032 3032 3420 3039 3a34  10.Mar.2024.09:4
+	0x0060:  333a 3538 2047 4d54 0d0a 636f 6e74 656e  3:58.GMT..conten
+...
+	0x00e0:  643a 2073 6964 6563 6172 7e32 302e 322e  d:.sidecar~20.2.
+	0x00f0:  3336 2e31 3132 7e67 6f2d 6d75 6c74 6972  36.112~go-multir
+	0x0100:  6f75 7465 2d62 3666 6364 6635 3434 2d62  oute-b6fcdf544-b
+	0x0110:  7a7a 7237 2e64 6566 6175 6c74 7e64 6566  zzr7.default~def
+	0x0120:  6175 6c74 2e73 7663 2e63 6c75 7374 6572  ault.svc.cluster
+	0x0130:  2e6c 6f63 616c 0d0a 782d 656e 766f 792d  .local..x-envoy-
+	0x0140:  7065 6572 2d6d 6574 6164 6174 613a 2043  peer-metadata:.C
+	0x0150:  6945 4b44 6b46 5155 4639 4454 3035 5551  iEKDkFQUF9DT05UQ
+...
+	0x03e0:  5555 5344 786f 4e5a 3238 7462 5856 7364  UUSDxoNZ28tbXVsd
+	0x03f0:  476c 7962 3356 305a 513d 3d0d 0a73 6572  Glyb3V0ZQ==..ser
+	0x0400:  7665 723a 2069 7374 696f 2d65 6e76 6f79  ver:.istio-envoy
+	0x0410:  0d0a 0d0a 4865 6c6c 6f2c 2059 6f75 2061  ....Hello,.You.a
+	0x0420:  7265 2061 7420 2f72 6f75 7465 312c 2047  re.at./route1,.G
+	0x0430:  6f74 3a20 726f 7574 6531 2773 2063 6f6e  ot:.route1's.con
+	0x0440:  7465 6e74                                tent
+```
+
+现在为 `go-multiroute`
+服务配置双向认证策略（mTLS）：[peer_authn.yaml](k8s_actions_guide/version1/istio_manifest/peer_authn.yaml)，
+它同样是以K8s资源清单的形式部署，该资源的`kind`为`PeerAuthentication`。操作步骤如下：
+
+```shell
+$ kubectl apply -f peer_authn.yaml           
+peerauthentication.security.istio.io/go-multiroute created
+
+# 可使用缩写形式：pa
+$ kubectl get peerauthentications
+NAME            MODE     AGE
+go-multiroute   STRICT   4m42s
+```
+
+部署后，访问 `go-multiroute` 服务就必须遵循策略中配置的强制（STRICT）双向TLS通信模式。
+这可以通过上面使用过的tcpdump抓包方式来验证，抓取结果将是各种乱码，无法观察到人眼可读的明文。若要关闭mTLS，
+**直接删除策略是不起作用的**，必须将策略改为`DISABLE`模式然后进行更新，短暂延迟后生效。
+
+- [Istio 安全](https://istio.io/latest/zh/docs/concepts/security)
+- [Istio 认证策略](https://istio.io/latest/zh/docs/tasks/security/authentication/authn-policy/)
 
 ## 参考
 
@@ -1511,3 +1669,5 @@ TODO
 [Istio安装指南]: https://istio.io/latest/zh/docs/setup/install/
 
 [使用外部控制平面安装 Istio]: https://istio.io/latest/zh/docs/setup/install/external-controlplane
+
+[手动注入]: https://istio.io/latest/zh/docs/setup/additional-setup/sidecar-injection/#manual-sidecar-injection
