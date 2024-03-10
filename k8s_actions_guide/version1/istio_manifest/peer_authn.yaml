@@ -1,0 +1,26 @@
+# nonk8s
+# 创建 go-multiroute 服务的对等认证策略。
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  # 一个网格或一个命名空间范围只能有一个泛域对等认证（mTLS）策略，若有多个，以旧的为准。
+  # - 泛域指的是不带或带有空的selector字段
+  name: go-multiroute
+  namespace: default
+spec:
+  # 0. 此selector仅在对应工作负载定义了K8s Service对象时生效。
+  # 1. 不带或带有空的selector意味着它适用于它所在的命名空间中的所有服务。
+  # 2. 若有多个针对非空且相同标签的策略，以旧的为准。
+  selector:
+    matchLabels:
+      app: go-multiroute
+  mtls:
+    # 支持三种模式
+    # PERMISSIVE： 接收mTLS和明文流量，一般在刚为服务开启mTLS时使用，或者作为DISABLE到STRICT的过渡模式。
+    # STRICT： 只接收mTLS流量，拒绝明文流量。
+    # DISABLE： 禁用mTLS。
+    mode: STRICT
+  # 仅为3000端口禁用mTLS；要求工作负载的Service对象中的targetPort中包含80
+  # portLevelMtls:
+  #   3000:
+  #     mode: DISABLE

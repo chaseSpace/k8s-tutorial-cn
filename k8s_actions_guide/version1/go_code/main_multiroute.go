@@ -41,6 +41,7 @@ func main() {
 		// 连接成功
 		fmt.Fprintf(w, "Hello, You are connected database successfully!")
 	})
+
 	log.Printf("Listening on http://localhost:3000\n")
 	panic(http.ListenAndServe(":3000", nil))
 }
