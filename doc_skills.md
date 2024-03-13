@@ -149,3 +149,14 @@ $ nsenter -t 42816 -n iptables -t nat -S
 -A ISTIO_OUTPUT -j ISTIO_REDIRECT
 -A ISTIO_REDIRECT -p tcp -j REDIRECT --to-ports 15001
 ```
+
+还可以直接进入该容器的命名空间调试，免去输入`nsenter`命令前缀：
+
+```shell
+$ nsenter -t 42816 -n
+$ iptables -t nat -S
+...
+
+# 退出该容器的命名空间
+$ exit
+```
