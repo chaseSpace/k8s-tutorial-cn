@@ -1735,6 +1735,12 @@ RBAC: access denied
 $ kubectl apply -f authz-allow-to-go-multiroute.yaml                                    
 authorizationpolicy.security.istio.io/allow-to-go-multiroute created
 
+# 查看default空间中的授权策略列表
+$ kubectl get authorizationpolicies                                                                                       
+NAME                     AGE
+allow-nothing            2m
+allow-to-go-multiroute   2m
+
 # 可以访问，因为满足 rules 中所要求的各种条件
 $ kubectl exec -it istio-client-test-$POD_ID -- curl -H "version: v1" go-multiroute:3000/route1
 Hello, You are at /route1, Got: route1's content
