@@ -2,8 +2,6 @@
 
 本文以一个简单Go应用为例，演示如何一步步在生产环境中使用Kubernetes。
 
-注意文中命令行使用的`kk`是kubectl的别名。
-
 ## 1. 部署一个完整的应用
 
 ### 1.1 编写一个简单的Go应用
@@ -1663,9 +1661,112 @@ go-multiroute   STRICT   4m42s
 - 将模板中的`namespace`字段改为非根命名空间以影响特定命名空间；
 - 策略优先级：工作负载级别 > 命名空间级别 > 根命名空间级别;
 
+> 对等认证即mTLS是Istio提供的两个认证特性之一，另一个认证特性是请求认证（`RequestAuthentication`），它使用JWT技术实现针对HTTP请求的认证。
+> 由于篇幅所限和使用频率不高，本文不会详述，
+> 请参考[请求认证](https://istio.io/latest/zh/docs/concepts/security/#request-authentication)。
+
 ##### 8.4.5.4 使用Istio特性之授权
 
-TODO
+Istio通过预先安装到Kubernetes集群中的`AuthorizationPolicy`自定义API资源来提供细粒度的授权功能，其具有如下优点和特性：
+
+- 实现**拒绝或允许**指定的不同`通信源`之间的流量访问；
+- `通信源`可以是一组Pod/IP块/服务账号，甚至是一整个命名空间；
+- 可以限制具体执行的HTTP方法，如GET、POST等；
+- 可以限制具体访问的HTTP路由，如`/get_order`；
+- 大部分维度支持**排除匹配**，比如`to.operations.notPaths: /get_order`表示匹配除了`/get_order`以外的HTTP路由；
+- 可以设置**工作负载、命名空间或网格维度**的默认授权策略，例如默认拒绝或允许范围内的所有HTTP通信；
+- 可以为策略设置附加条件，例如若要拒绝通信源A到B之间的访问，还要求HTTP请求的Header中必须携带`version: v1`键值对；
+- 支持HTTP 1.1/2以及HTTPS
+
+> 注意：由于K8s内置的NetworkPolicy API与Istio的AuthorizationPolicy API存在功能上的重叠，为了降低架构复杂度，
+> 建议一旦启用AuthorizationPolicy API，就尽量停止使用NetworkPolicy API（但可以使用NetworkPolicy来控制工作负载的UDP通信）。
+
+一个`AuthorizationPolicy`资源清单由以下三部分组成：
+
+- selector（选择器）：匹配一组要执行策略的目标；
+- action（动作）：要执行的动作，可以`DENY`或`ALLOW`，另外还支持`CUSTOM`和`AUDIT`动作；
+    - 包含`CUSTOM`动作的策略是将匹配后的访问信息**先**
+      交给外部程序决断，若结果是允许，再由其他策略判断。并不常用，请参考 [CUSTOM授权][CUSTOM授权]
+      和 [部署外部授权][部署外部授权]。
+- rules（规则集合）：什么条件下控制谁到谁的访问，其中每个元素由三部分组成：
+    - `from`字段指定请求来源，支持指定命名空间/认证身份/服务账号/IP块；
+    - `to`字段指定请求方法、路由和端口；
+    - `when`字段指定条件（触发时机），参考[Istio授权策略之`when`字段][Istio授权策略之`when`字段]；
+
+**授权引擎的执行过程**
+
+1. 若范围内没有创建任何策略，则允许；
+2. 按照动作`CUSTOM`->`DENY`->`ALLOW`的顺序依次匹配策略，这个过程中**只要成功匹配一个拒绝策略则立即执行**；
+3. 若没有创建任何`ALLOW`策略，则允许；
+4. 最后，在定义了`ALLOW`策略的情况下却没有匹配到任何一个允许策略则拒绝。
+
+**在普通 TCP 协议上使用 Istio 授权**  
+Istio授权策略支持纯TCP和基于TCP的其他协议，若在针对纯TCP工作负载的授权策略中配置了仅HTTP支持的字段如`methods`等，
+则Istio将忽略这些字段，但不影响其他字段的匹配行为。注意，所有授权策略都将下发给Envoy执行，所以这个执行过程是高效的。
+仅HTTP支持的字段如下：
+
+- `source.request_principals`
+- `operation`部分中的 `hosts`、`methods` 和 `paths` 字段
+- `when.key`中的`request.headers`、`request.auth.claims/principal/audiences/presenter`
+
+为了更接近最佳实践和实际环境，演示将完成以下目标（提供模板）：
+
+- 创建default空间下的默认拒绝策略；
+    - [authz-allow-nothing.yaml](k8s_actions_guide/version1/istio_manifest/authz-allow-nothing.yaml)；
+    - 注意，这不会影响UDP通信；
+- 创建一个允许策略，允许①满足条件位于`other_ns`命名空间【或】服务帐户为`cluster.local/ns/default/sa/default`的工作负载
+  **通过** ②`GET`和`POST` 方法访问③default命名空间下与`app: go-multiroute`标签匹配的工作负载提供的④以`/route`
+  为前缀的路由，附加条件⑤是HTTP
+  Header中包含键值对`version: v1`；
+    - [authz-allow-to-go-multiroute.yaml](k8s_actions_guide/version1/istio_manifest/authz-allow-to-go-multiroute.yaml)
+
+操作步骤如下：
+
+```shell
+# 首先部署默认拒绝策略
+$ kubectl apply -f authz-allow-nothing.yaml 
+authorizationpolicy.security.istio.io/allow-nothing created
+
+# 此时 istio-client-test 测试访问 go-multiroute 会得到明确的拒绝访问提示！
+$ kubectl exec -it istio-client-test-$POD_ID -- curl -H "version: v1" go-multiroute:3000/route1
+RBAC: access denied
+
+# 部署第二个策略
+$ kubectl apply -f authz-allow-to-go-multiroute.yaml                                    
+authorizationpolicy.security.istio.io/allow-to-go-multiroute created
+
+# 可以访问，因为满足 rules 中所要求的各种条件
+$ kubectl exec -it istio-client-test-$POD_ID -- curl -H "version: v1" go-multiroute:3000/route1
+Hello, You are at /route1, Got: route1's content
+$ kubectl exec -it istio-client-test-$POD_ID -- curl -H "version: v1" go-multiroute:3000/route2
+Hello, You are at /route2, Got: route2's content
+$ kubectl exec -it istio-client-test-$POD_ID -- curl -X POST -H "version: v1" go-multiroute:3000/route2
+Hello, You are at /route2, Got: route2's content
+
+# --------- 观察下面被拒绝的情况 -----------
+# - 拒绝访问（header不符合）
+$ kubectl exec -it istio-client-test-$POD_ID -- curl -H "version: v2" go-multiroute:3000/route1
+RBAC: access denied
+# - 拒绝访问（method不符合）
+$ kubectl exec -it istio-client-test-$POD_ID -- curl -X PATCH -H "version: v1" go-multiroute:3000/route1
+RBAC: access denied
+# - 拒绝访问（路由不符合）
+$ kubectl exec -it istio-client-test-$POD_ID -- curl -H "version: v1" go-multiroute:3000
+RBAC: access denied
+
+# 修改istio-client-test使用的ServiceAccount为`sa-test`（创建SA的步骤略）
+$ kubectl patch deployment istio-client-test -p '{"spec": {"template": {"spec": {"serviceAccountName": "sa-test"}}}}'
+deployment.apps/istio-client-test patched
+# ~等待deployment内Pod更新完毕
+# - 拒绝访问（ServiceAccount不符合）
+$ kubectl exec -it istio-client-test-$POD_ID -- curl -H "version: v1" go-multiroute:3000/route1
+RBAC: access denied
+```
+
+最后，本节中的示例并未列出可用的全部字段，如有兴趣请查看[Istio授权策略规范][Istio授权策略规范]。其他可供参考的示例：
+
+- [为 Ingress 网关配置授权](https://istio.io/latest/zh/docs/ops/configuration/security/security-policy-examples/)
+- [为 TCP 工作负载配置授权](https://istio.io/latest/zh/docs/tasks/security/authorization/authz-tcp/)
 
 ## 参考
 
@@ -1676,6 +1777,7 @@ TODO
 - [云原生架构下的微服务之：envoy 原理基础](https://www.modb.pro/db/211373)
 - [Istio 安全](https://istio.io/latest/zh/docs/concepts/security)
 - [Istio 认证策略](https://istio.io/latest/zh/docs/tasks/security/authentication/authn-policy/)
+- [Istio 授权](https://istio.io/latest/zh/docs/concepts/security/#authorization)
 
 [MetricsAPI]: https://kubernetes.io/zh-cn/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/#metrics-api
 
@@ -1690,3 +1792,11 @@ TODO
 [使用外部控制平面安装 Istio]: https://istio.io/latest/zh/docs/setup/install/external-controlplane
 
 [手动注入]: https://istio.io/latest/zh/docs/setup/additional-setup/sidecar-injection/#manual-sidecar-injection
+
+[Istio授权策略之`when`字段]: https://istio.io/latest/zh/docs/reference/config/security/conditions/
+
+[CUSTOM授权]: https://istio.io/latest/zh/docs/reference/config/security/authorization-policy/#AuthorizationPolicy-Action
+
+[部署外部授权]: https://istio.io/latest/zh/docs/tasks/security/authorization/authz-custom/
+
+[Istio授权策略规范]: https://istio.io/latest/zh/docs/reference/config/security/authorization-policy/
