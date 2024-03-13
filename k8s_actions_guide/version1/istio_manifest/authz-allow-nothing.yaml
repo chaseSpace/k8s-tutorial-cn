@@ -1,0 +1,11 @@
+# nonk8s
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: default
+spec:
+  action: ALLOW # 将这行替换为 `{}` 也是同样的效果
+# 不指定selector表示默认拒绝，同时作用于当前命名空间下的所有服务。
+# - 注意：这里不能将action指定为DENY来作为【默认拒绝】策略。这是因为授权引擎的判定规则认为任何DENY策略优先于任何ALLOW策略，
+# - 而一旦存在了默认的DENY策略，则其他任何ALLOW策略都会被忽略，除非你明确需要拒绝所有服务的通信。

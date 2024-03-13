@@ -1,0 +1,33 @@
+# nonk8s
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-to-go-multiroute
+  namespace: default # 此命名空间只限定selector中的访问目标，不限定访问源
+spec:
+  selector:
+    matchLabels:
+      app: go-multiroute
+  action: ALLOW
+  rules: # 下面的from、to、when逻辑块都是可选的
+    - from: # 列表中的元素之间的关系是【或】，单个元素内的子项之间的关系是【且】
+        - source:
+            namespaces: [ "other_ns" ]
+            # principals: [ "cluster.local/ns/default/sa/default" ]
+            # ipBlocks: ["203.0.113.4"]
+            # remoteIpBlocks: [ ... ] # 读取 X-Forwarded-For，前提是对ingress gateway进行相应配置
+            # notIpBlocks: ["203.0.113.4"]  # 反向匹配
+            # notPrincipals, notNamespaces, notRemoteIpBlocks
+        - source:
+            principals: [ "cluster.local/ns/default/sa/default" ]
+      to:
+        - operation:
+            methods: [ "GET", "POST" ]
+            paths: [ "/route*" ] # 此模板中的大部分字段都支持完全匹配、前缀匹配、后缀匹配、非空匹配（"*"），除了when.key, source.ipBlocks, to.ports
+            # ports: [ 3000 ]
+            # hosts: [ "foo.example.com" ] # 取自HTTP请求中的Host字段，忽略大小
+            # notMethods, notPaths, notPorts, notHosts
+      when:
+        - key: request.headers[version] # 还支持
+          values: [ "v1" ]
+          # notValues
