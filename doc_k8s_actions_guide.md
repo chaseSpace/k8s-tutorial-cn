@@ -200,7 +200,7 @@ ingress-nginx-controller-admission   ClusterIP      10.96.7.58      <none>      
 ```
 # 在任意节点上进行访问
 $ curl 127.0.0.1:30073/route1
-Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
  
 # /route2 尚未在ingress的规则中定义，所以不能通过ingress访问
 $ curl 127.0.0.1:30073/route2
@@ -1524,6 +1524,8 @@ default      Active   2m2s   istio-injection=enabled,kubernetes.io/metadata.name
 # 删除标签命令：kubectl label namespace default istio-injection-
 ```
 
+添加标签后，新部署的Pod都会自动注入sidecar，但不会修改资源清单。
+
 ##### 8.4.5.2 部署Pod进行验证
 
 这里仍然使用第一节中只定义了一个常规容器的 [deployment.yaml](k8s_actions_guide/version1/base_manifest/deployment.yaml)
@@ -1532,7 +1534,7 @@ default      Active   2m2s   istio-injection=enabled,kubernetes.io/metadata.name
 - [configmap.yaml](k8s_actions_guide/version1/base_manifest/configmap.yaml)
 - [secret.yaml](k8s_actions_guide/version1/base_manifest/secret.yaml)
 - [service.yaml](k8s_actions_guide/version1/expose_manifest/service.yaml)
-    - mTLS仅在定义了service的工作负载上生效，所以必需部署service。
+    - Istio的mTLS仅在定义了service的工作负载上生效，所以必须部署service。
 
 操作步骤如下：
 
@@ -1572,7 +1574,7 @@ go-multiroute-b6fcdf544-7xfn7.default     Kubernetes     SYNCED     SYNCED     S
 go-multiroute-b6fcdf544-dqncx.default     Kubernetes     SYNCED     SYNCED     SYNCED     SYNCED     NOT SENT     istiod-78478fdc7-qmzbb     1.20.3
 ```
 
-##### 8.4.5.3 使用Istio特性之mTLS
+##### 8.4.5.3 Istio特性之mTLS
 
 Istio提供诸多特性，这里将介绍如何使用其中的**mTLS**（双向TLS）特性。
 启用mTLS可以实现sidecar之间的**双向身份认证、传输流量加密**，可以避免中间人攻击，提高传输安全性。
@@ -1594,7 +1596,7 @@ kubectl apply -f istio_client_test_pod.yaml
 
 # 查看启动日志（启动时发起调用）
 $ kubectl logs istio-client-test-$POD_ID                                       
-2024/03/08 08:07:22 status:200 text: Hello, You are at /route1, Got: route1's content
+2024/03/08 08:07:22 status:200 text: [v1] Hello, You are at /route1, Got: route1's content
 
 # 然后可在istio-client-test中的Pod上进行抓包测试。
 # - 使用tcpdump抓取默认网卡上来源是3000端口的tcp数据流，可以观察到包含"Hello"字眼的http响应明文
@@ -1665,7 +1667,13 @@ go-multiroute   STRICT   4m42s
 > 由于篇幅所限和使用频率不高，本文不会详述，
 > 请参考[请求认证](https://istio.io/latest/zh/docs/concepts/security/#request-authentication)。
 
-##### 8.4.5.4 使用Istio特性之授权
+**清理**
+
+```shell
+kubectl delete -f peer_authn.yaml
+```
+
+##### 8.4.5.4 Istio特性之授权
 
 Istio通过预先安装到Kubernetes集群中的`AuthorizationPolicy`自定义API资源来提供细粒度的授权功能，其具有如下优点和特性：
 
@@ -1716,8 +1724,7 @@ Istio授权策略支持纯TCP和基于TCP的其他协议，若在针对纯TCP工
     - 注意，这不会影响UDP通信；
 - 创建一个允许策略，允许①满足条件位于`other_ns`命名空间【或】服务帐户为`cluster.local/ns/default/sa/default`的工作负载
   **通过** ②`GET`和`POST` 方法访问③default命名空间下与`app: go-multiroute`标签匹配的工作负载提供的④以`/route`
-  为前缀的路由，附加条件⑤是HTTP
-  Header中包含键值对`version: v1`；
+  为前缀的路由，附加条件⑤是HTTP Header中包含键值对`version: v1`；
     - [authz-allow-to-go-multiroute.yaml](k8s_actions_guide/version1/istio_manifest/authz-allow-to-go-multiroute.yaml)
 
 操作步骤如下：
@@ -1743,11 +1750,11 @@ allow-to-go-multiroute   2m
 
 # 可以访问，因为满足 rules 中所要求的各种条件
 $ kubectl exec -it istio-client-test-$POD_ID -- curl -H "version: v1" go-multiroute:3000/route1
-Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
 $ kubectl exec -it istio-client-test-$POD_ID -- curl -H "version: v1" go-multiroute:3000/route2
-Hello, You are at /route2, Got: route2's content
+[v1] Hello, You are at /route2, Got: route2's content
 $ kubectl exec -it istio-client-test-$POD_ID -- curl -X POST -H "version: v1" go-multiroute:3000/route2
-Hello, You are at /route2, Got: route2's content
+[v1] Hello, You are at /route2, Got: route2's content
 
 # --------- 观察下面被拒绝的情况 -----------
 # - 拒绝访问（header不符合）
@@ -1767,12 +1774,172 @@ deployment.apps/istio-client-test patched
 # - 拒绝访问（ServiceAccount不符合）
 $ kubectl exec -it istio-client-test-$POD_ID -- curl -H "version: v1" go-multiroute:3000/route1
 RBAC: access denied
+# （为了方便下一节的演示，请回滚这次patch）
 ```
 
-最后，本节中的示例并未列出可用的全部字段，如有兴趣请查看[Istio授权策略规范][Istio授权策略规范]。其他可供参考的示例：
+最后，本节中的示例并未列出可用的全部字段，如有兴趣请查看[Istio授权策略规范][Istio授权策略规范]。其他可供参考的文档：
 
 - [为 Ingress 网关配置授权](https://istio.io/latest/zh/docs/ops/configuration/security/security-policy-examples/)
 - [为 TCP 工作负载配置授权](https://istio.io/latest/zh/docs/tasks/security/authorization/authz-tcp/)
+
+**清理**
+
+```shell
+kubectl delete -f authz-allow-nothing.yaml
+kubectl delete -f authz-allow-to-go-multiroute.yaml
+```
+
+##### 8.4.5.5 Istio特性之流量管理
+
+Istio的流量管理可以实现以下功能：
+
+- 智能路由：对到达K8s Service的HTTP流量根据权重/HTTP-Header/sourceLabels等维度进行**分流**，基于此可轻松实现灰度发布、A/B
+  测试、金丝雀发布等部署策略；
+- 服务发现、健康检查：Envoy代理会主动发现需要关心的后端服务的端点列表，并通过健康检查移除失效的端点；
+- 负载均衡：Envoy代理会根据预设的负载均衡算法（如随机、轮询、加权轮询和最少连接等）将请求均匀地分发到后端服务；
+    - 在选择具体的负载均衡算法之前，Envoy支持三种类型的负载均衡器（不同类型支持不同算法）：
+        - simple：基于常用负载均衡算法的简单负载均衡
+        - consistentHashLB：基于一致性哈希算法的负载均衡
+        - localityLbSetting：基于地域的本地性负载均衡
+- 服务弹性：支持为后端配置限速、熔断、超时和重试等弹性能力；
+- 故障注入：支持对后端服务进行故障注入，模拟服务故障，以便进行服务弹性测试；
+- 流量镜像：也称为影子流量，用于将实时流量的副本发送到另一组后端，一般用于线上流量分析、统计和程序测试等用途；
+- Ingress和Egress：控制 Istio 服务网格的入站流量和入站流量，**可以替代K8s内置的Ingress**。
+
+以上这些特性是通过Istio预安装的 `VirtualService` 和 `DestinationRule` 两个K8s API资源实现的，它们分别定义了路由规则和目标规则。
+通俗来说，`VirtualService`定义了如何进行路由（How），`DestinationRule`定义了路由到哪儿（Where），能看出是**前者引用后者**的关系。
+
+为了尽可能模拟实际环境，本节演示内容将增加一个名为 `go-multiroute-v2` 的服务版本模拟金丝雀发布，
+它与之前部署的版本区别在于模板中定义了不同的环境变量`VERSION`，相关资源如下：
+
+- [deployment-v2.yaml](k8s_actions_guide/version1/base_manifest/deployment-v2.yaml)
+
+新版本的工作负载的部署步骤略。本次演示将实现以下功能：
+
+- 智能路由：对发送到Service：go-multiroute的流量进行按比例分流，即Deployment `go-multiroute` 和 `go-multiroute-v2`
+  分别接收80%和20%的流量；同时将HTTP Header中携带 `test-version: v2` 的请求全部路由到`go-multiroute-v2`；
+- 负载均衡：分流之后，对发送到每个Deployment控制下的Pod实例的流量进行负载均衡，使用随机算法；
+- 服务弹性：对发送到Service：go-multiroute的流量限制最多5个请求的并发数，并配置熔断、超时机制；
+
+新增下面的YAML清单：
+
+- [route-destinationrule.yaml](k8s_actions_guide/version1/istio_manifest/route-destinationrule.yaml)
+- [route-virtualservice.yaml](k8s_actions_guide/version1/istio_manifest/route-virtualservice.yaml)
+
+操作步骤如下：
+
+```shell
+# 部署流量策略
+$ kk apply -f route-destinationrule.yaml -f route-virtualservice.yaml
+destinationrule.networking.istio.io/go-multiroute created
+virtualservice.networking.istio.io/go-multiroute created
+
+# 现在进入client pod验证各项配置是否生效
+$ kk exec -it istio-client-test-$POD_ID -- sh
+
+# 8比2的权重分流：访问10次，观察返回结果（每个结果的前4个字符表示响应的deployment版本）
+/ $ for i in $(seq 1 10); do curl -s go-multiroute:3000/route1 && sleep 1 && echo; done
+[v2] Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
+[v2] Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
+[v2] Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
+
+# 特定header的分流
+/ $ for i in $(seq 1 5); do curl -s -H "test-version: v1" go-multiroute:3000/route1 && sleep 1 && echo; done
+[v1] Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
+[v1] Hello, You are at /route1, Got: route1's content
+
+# 分流后的负载均衡：轮询（可观察到v1版本的ip分布是均衡的）
+/ $ for i in $(seq 1 10); do curl -s go-multiroute:3000/get_ip && sleep 1 && echo; done
+[v2] Hello, Your ip is 20.2.36.111
+[v2] Hello, Your ip is 20.2.36.112
+[v1] Hello, Your ip is 20.2.36.113
+[v1] Hello, Your ip is 20.2.36.114
+[v1] Hello, Your ip is 20.2.36.113
+[v1] Hello, Your ip is 20.2.36.114
+[v1] Hello, Your ip is 20.2.36.113
+[v2] Hello, Your ip is 20.2.36.111
+[v1] Hello, Your ip is 20.2.36.114
+[v1] Hello, Your ip is 20.2.36.113
+
+# 超时
+# - 由于接口 /test_timeout 会等待3s再返回，超过了策略中的2s，所以会超时
+/ $ for i in $(seq 1 3); do curl -s go-multiroute:3000/test_timeout && echo " $(date)"; done
+upstream request timeout Thu Mar 14 05:47:29 UTC 2024
+upstream request timeout Thu Mar 14 05:47:30 UTC 2024
+upstream request timeout Thu Mar 14 05:47:31 UTC 2024
+
+# 熔断
+# - 由于Service：go-multiroute目前的端点较多（2个Deployment共4个Pod对应4个端点），为了方便观察测试结果，先删除deployment-v2（不演示）。
+# - 现在只剩下一个deployment，其中Pod副本数为2，而且负载均衡策略为轮询，根据如下熔断策略计算：
+#    outlierDetection: # 定义熔断策略
+#      consecutive5xxErrors: 3 # 指定连续多少个 5xx 错误会导致端点被剔除，默认5，0表示禁用（但是时间窗口未知）
+#      interval: 1s # 熔断检测间隔，默认10s，要求>=1ms
+#      baseEjectionTime: 10s # 初始的端点剔除时间，支持单位 ms s m h，默认30s，要求>=1ms
+#      maxEjectionPercent: 100
+# 最少并发6（即2x3）个请求后，将触发熔断，10s后恢复
+
+# 现在打开另一个窗口，进入到istio-client-test的bench容器内进行并发访问
+$ kk exec -it istio-client-test-$POD_ID -c bench -- sh
+# 进入bench容器使用siege工具进行并发测试，-c 6 表示并发6个请求，-r 1 表示只运行1次
+root@istio-client-test-668bb6fc86-rrml2:/# siege -c 6 -r 1 http://go-multiroute:3000/test_timeout
+** SIEGE 3.0.5
+** Preparing 6 concurrent users for battle.
+The server is now under siege..      done.
+
+Transactions:		           0 hits
+Availability:		        0.00 %
+Elapsed time:		        1.01 secs
+Data transferred:	        0.00 MB
+Response time:		        0.00 secs
+Transaction rate:	        0.00 trans/sec
+Throughput:		        0.00 MB/sec
+Concurrency:		        0.05
+Successful transactions:           0
+Failed transactions:	           6
+Longest transaction:	        0.01
+Shortest transaction:	        0.00
+ 
+FILE: /var/log/siege.log
+You can disable this annoying message by editing
+the .siegerc file in your home directory; change
+the directive 'show-logfile' to false.
+
+# 再立即切换到之前的istio-client-test第一个容器内使用curl访问测试，可观察到约10s后端点恢复（根据不同的响应文本得出结论）
+/ # for i in $(seq 1 15); do curl -s go-multiroute:3000/test_timeout && sleep 1 && echo " $(date)"; done
+no healthy upstream Thu Mar 14 05:42:46 UTC 2024
+no healthy upstream Thu Mar 14 05:42:47 UTC 2024
+no healthy upstream Thu Mar 14 05:42:48 UTC 2024
+no healthy upstream Thu Mar 14 05:42:49 UTC 2024
+no healthy upstream Thu Mar 14 05:42:50 UTC 2024
+no healthy upstream Thu Mar 14 05:42:51 UTC 2024
+no healthy upstream Thu Mar 14 05:42:52 UTC 2024
+no healthy upstream Thu Mar 14 05:42:53 UTC 2024
+no healthy upstream Thu Mar 14 05:42:54 UTC 2024
+no healthy upstream Thu Mar 14 05:42:55 UTC 2024
+upstream request timeout Thu Mar 14 05:42:57 UTC 2024
+upstream request timeout Thu Mar 14 05:42:59 UTC 2024
+upstream request timeout Thu Mar 14 05:43:01 UTC 2024
+upstream request timeout Thu Mar 14 05:43:02 UTC 2024
+upstream request timeout Thu Mar 14 05:43:03 UTC 2024
+
+# 最大并发数
+# - 为了不受熔断策略影响，这里暂时注释熔断策略部分并更新（不演示）
+# - 为了不受多副本影响，这里将deployment-v1的副本数改为1（不演示）
+# - 直接进入bench容器内进行并发访问
+TODO
+```
+
+#  
 
 ## 参考
 
