@@ -7,10 +7,17 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync/atomic"
+	"time"
 )
 
+type RouteConf struct {
+	Response string        `yaml:"response"`
+	Duration time.Duration `yaml:"duration"`
+}
+
 type Config struct {
-	Routes map[string]string `yaml:"routes"`
+	Routes map[string]*RouteConf `yaml:"routes"`
 }
 
 func main() {
@@ -18,12 +25,16 @@ func main() {
 	if !ok {
 		return
 	}
-	for route, resp := range cfg.Routes {
-		log.Printf("Load path:%s\n", route)
+	version := os.Getenv("VERSION")
+	for route, rconf := range cfg.Routes {
+		log.Printf("Load path:%s, conf: %+v\n", route, *rconf)
 		_route := route
-		_resp := resp // 避免闭包问题
+		_rconf := *rconf
 		http.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "Hello, You are at %s, Got: %s", _route, _resp)
+			time.Sleep(time.Second * _rconf.Duration)
+			fmt.Fprintf(w, "[%s] ", version)
+			fmt.Fprintf(w, "Hello, You are at %s, Got: %s", _route, _rconf.Response)
+			w.WriteHeader(200)
 		})
 	}
 
@@ -40,8 +51,32 @@ func main() {
 
 		// 连接成功
 		fmt.Fprintf(w, "Hello, You are connected database successfully!")
+		w.WriteHeader(200)
 	})
 
+	http.HandleFunc("/get_ip", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "[%s] ", version)
+		fmt.Fprintf(w, "Hello, Your ip is %s", os.Getenv("POD_IP"))
+		w.WriteHeader(200)
+	})
+
+	var i int64 = 0
+	var ip = &i
+
+	http.HandleFunc("/test_limiter", func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(ip, 1)
+		defer atomic.AddInt64(ip, -1)
+		fmt.Fprintf(w, "[%s] ", version)
+		if atomic.LoadInt64(ip) >= 5 {
+			fmt.Fprintf(w, "Sorry, Too Many Requests(go-multiroute)")
+			w.WriteHeader(500)
+			return
+		}
+		time.Sleep(time.Second)
+		fmt.Fprintf(w, "Hello, this request is success")
+		w.WriteHeader(200)
+
+	})
 	log.Printf("Listening on http://localhost:3000\n")
 	panic(http.ListenAndServe(":3000", nil))
 }

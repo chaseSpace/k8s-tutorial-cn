@@ -5,5 +5,10 @@ metadata:
 data:
   config.yml: |
     routes:
-      /route1: "route1's content"
-      /route2: "route2's content"
+      /route1:
+        response: "route1's content"
+      /route2:
+        response: "route2's content"
+      /test_timeout:
+        response: "test_timeout's content"
+        duration: 3

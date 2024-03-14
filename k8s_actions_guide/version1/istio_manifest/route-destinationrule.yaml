@@ -1,0 +1,30 @@
+# nonk8s
+# 规范：https://istio.io/latest/zh/docs/reference/config/networking/destination-rule/
+# - 下面的示例远远没有列出所有选项，请参考上面的规范以获取更多信息。
+# - 先定义 DestinationRule，再被 VirtualService 引用
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: go-multiroute
+spec:
+  host: go-multiroute # 与k8s service名称一致
+  trafficPolicy: # 定义默认流量策略（还可以在subset下的每个元素中单独配置）
+    #    tls:
+    #      mode: ISTIO_MUTUAL # 若负载启用了mTLS，则必需启用，否则503，默认DISABLE
+    loadBalancer: # 定义负载均衡策略
+      simple: ROUND_ROBIN # 其他：LEAST_CONN，LEAST_REQUEST，RANDOM，PASSTHROUGH
+    connectionPool:
+      tcp:
+        maxConnections: 5 # 定义tcp连接最大并发数，这里的值仅用于测试
+#    outlierDetection: # 定义熔断策略
+#      consecutive5xxErrors: 3 # 指定连续多少个 5xx 错误会导致端点被剔除，默认5，0表示禁用（但是时间窗口未知）
+#      interval: 1s # 熔断检测间隔，默认10s，要求>=1ms
+#      baseEjectionTime: 1m # 初始的端点剔除时间，支持单位 ms s m h，默认30s，要求>=1ms
+#      maxEjectionPercent: 100 # 端点最大剔除百分比，例如一共3个端点（pod），100%表示可以全部剔除，若允许全部可剔除，届时可能将无端点可用
+  subsets: # 定义service下的不同子集（通过标签区分）
+    - name: v1
+      labels: # 匹配Deployment中Pod的标签
+        version: v1
+    - name: v2
+      labels:
+        version: v2

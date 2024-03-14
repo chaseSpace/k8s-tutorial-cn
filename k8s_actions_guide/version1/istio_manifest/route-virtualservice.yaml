@@ -1,0 +1,56 @@
+# nonk8s
+# 规范：https://istio.io/latest/zh/docs/reference/config/networking/virtual-service/
+# - 下面的示例远远没有列出所有选项，请参考上面的规范以获取更多信息。
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: go-multiroute
+spec:
+  hosts:
+    - go-multiroute # 与 DestinationRule 中的 host 匹配
+
+  # 下面的路由规则将按顺序匹配执行，每个HTTP请求最多匹配成功一个规则（一般最后的规则是无条件的默认规则）
+  http:
+    # 第一组路由规则：将HTTP header中包含键值对 test-version: v2 的流量路由到子集 v2
+    - match:
+        - headers:
+            test-version:
+              exact: "v1" # 除了exact，还支持prefix、regex
+      route:
+        - destination:
+            host: go-multiroute
+            subset: v1
+    # 第二组路由规则：将所有流量路由到按权重分流到不同目标（即 DestinationRule 定义好的子集）
+    # 此规则不含匹配条件，但配置了超时、重试和熔断机制
+    - timeout: 2s
+#      retries:
+#        attempts: 3
+#        perTryTimeout: 2s
+      route:
+        - destination:
+            host: go-multiroute
+            subset: v1
+          weight: 80
+        - destination:
+            host: go-multiroute
+            subset: v2
+          weight: 20
+
+
+
+
+# 扩展
+# - 下面的规则将来自 sourceLabels 且路由是 /v1/get_user 的流量重定向为 /v2/get_user，然后发送到 flaskapp 的 v1 子集
+#  http:
+#    - match:
+#      - sourceLabels:
+#          app: sleep
+#          version: v1
+#        uri:
+#          exact: "/v1/get_user"
+#      redirect:
+#        uri: /v2/get_user
+#      route:
+#        - destination:
+#            host: flaskapp
+#            subset: v1

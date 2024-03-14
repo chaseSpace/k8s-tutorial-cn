@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: go-multiroute
+  name: go-multiroute-v2
   labels:
     app: web-backend # 可能有多个Deployment拥有相同的app名称，例如，后端服务通常由多个应用组成。
     app/env: prod # 由cd脚本更新
@@ -10,12 +10,12 @@ spec:
   selector:
     matchLabels:
       app: go-multiroute
-      version: v1
+      version: v2
   template:
     metadata:
       labels:
         app: go-multiroute
-        version: v1
+        version: v2
     spec:
       containers:
         - image: docker.io/leigg/go_multiroute:v1
@@ -33,7 +33,7 @@ spec:
               mountPath: "/config"
           env:
             - name: VERSION
-              value: v1
+              value: v2
             - name: POD_IP
               valueFrom:
                 fieldRef:

@@ -7,5 +7,6 @@ spec:
   selector:
     app: go-multiroute
   ports:
-    - port: 3000 # service端口
+    - name: http
+      port: 3000 # service端口
       targetPort: 3000 # 后端pod端口

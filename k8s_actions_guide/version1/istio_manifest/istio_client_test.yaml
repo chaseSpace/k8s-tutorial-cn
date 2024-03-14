@@ -22,3 +22,6 @@ spec:
         - name: tcpdump # 可以使用此容器抓取 Pod 上流经 sidecar 容器的流量
           image: docker.io/kaazing/tcpdump:latest
           command: [ "sleep", "1h" ]
+#        - name: bench
+#          image: docker.io/yokogawa/siege:latest
+#          command: [ "sleep", "1h" ]
