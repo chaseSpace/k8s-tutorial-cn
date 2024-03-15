@@ -1830,12 +1830,12 @@ Istio的流量管理可以实现以下功能：
 
 ```shell
 # 部署流量策略
-$ kk apply -f route-destinationrule.yaml -f route-virtualservice.yaml
+$ kubectl apply -f route-destinationrule.yaml -f route-virtualservice.yaml
 destinationrule.networking.istio.io/go-multiroute created
 virtualservice.networking.istio.io/go-multiroute created
 
 # 现在进入client pod验证各项配置是否生效
-$ kk exec -it istio-client-test-$POD_ID -- sh
+$ kubectl exec -it istio-client-test-$POD_ID -- sh
 
 # 8比2的权重分流：访问10次，观察返回结果（每个结果的前4个字符表示响应的deployment版本）
 / $ for i in $(seq 1 10); do curl -s go-multiroute:3000/route1 && sleep 1 && echo; done
@@ -1936,9 +1936,29 @@ upstream request timeoutupstream request timeoutupstream request timeout
 upstream request timeoutupstream request timeoutupstream request timeout
 ```
 
-##### 8.4.5.6 Istio特性之Ingress
+**完整的金丝雀发布**
+
+通过`VirtualService`API可以实现将流量路由到不同版本的服务（Pod组），这是第一步；分流以后，我们需要观察一段时间内v2版本服务的请求处理是否正常，这是第二步；
+若不正常，则需要回滚，将流量全部路由回v1版本。若基本正常，则可以进行第三步，即修改`VirtualService`清单中的路由规则，
+将所有流量仅路由到v2版本即可；最后，继续观察一段时间，确保v2版本服务稳定，则可以删除v1版本服务了。
+
+**清理**
+
+```shell
+$ kubectl delete -f route-destinationrule.yaml -f route-virtualservice.yaml
+destinationrule.networking.istio.io "go-multiroute" deleted
+virtualservice.networking.istio.io "go-multiroute" deleted
+```
+
+##### 8.4.5.6 流量管理之Ingress
 
 TODO
+
+##### 8.4.5.7 流量管理之Egress
+
+TODO
+
+##### 8.4
 
 ## 参考
 
