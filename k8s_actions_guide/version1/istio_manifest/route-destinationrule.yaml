@@ -16,11 +16,11 @@ spec:
     connectionPool:
       tcp:
         maxConnections: 5 # 定义tcp连接最大并发数，这里的值仅用于测试
-#    outlierDetection: # 定义熔断策略
-#      consecutive5xxErrors: 3 # 指定连续多少个 5xx 错误会导致端点被剔除，默认5，0表示禁用（但是时间窗口未知）
-#      interval: 1s # 熔断检测间隔，默认10s，要求>=1ms
-#      baseEjectionTime: 1m # 初始的端点剔除时间，支持单位 ms s m h，默认30s，要求>=1ms
-#      maxEjectionPercent: 100 # 端点最大剔除百分比，例如一共3个端点（pod），100%表示可以全部剔除，若允许全部可剔除，届时可能将无端点可用
+    outlierDetection: # 定义熔断策略
+      consecutive5xxErrors: 3 # 指定连续多少个 5xx 错误会导致端点被剔除，默认5，0表示禁用（但是时间窗口未知）
+      interval: 1s # 熔断检测间隔，默认10s，要求>=1ms
+      baseEjectionTime: 10s # 初始的端点剔除时间，支持单位 ms s m h，默认30s，要求>=1ms
+      maxEjectionPercent: 100 # 端点最大剔除百分比，例如一共3个端点（pod），100%表示可以全部剔除，若允许全部可剔除，届时可能将无端点可用
   subsets: # 定义service下的不同子集（通过标签区分）
     - name: v1
       labels: # 匹配Deployment中Pod的标签

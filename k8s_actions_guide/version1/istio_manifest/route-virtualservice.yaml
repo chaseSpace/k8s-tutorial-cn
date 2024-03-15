@@ -15,11 +15,12 @@ spec:
     - match:
         - headers:
             test-version:
-              exact: "v1" # 除了exact，还支持prefix、regex
+              exact: "v2" # 除了exact，还支持prefix、regex
+      timeout: 1200ms
       route:
         - destination:
             host: go-multiroute
-            subset: v1
+            subset: v2
     # 第二组路由规则：将所有流量路由到按权重分流到不同目标（即 DestinationRule 定义好的子集）
     # 此规则不含匹配条件，但配置了超时、重试和熔断机制
     - timeout: 2s

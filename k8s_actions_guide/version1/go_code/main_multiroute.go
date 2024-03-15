@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sync/atomic"
 	"time"
 )
 
@@ -34,7 +33,6 @@ func main() {
 			time.Sleep(time.Second * _rconf.Duration)
 			fmt.Fprintf(w, "[%s] ", version)
 			fmt.Fprintf(w, "Hello, You are at %s, Got: %s", _route, _rconf.Response)
-			w.WriteHeader(200)
 		})
 	}
 
@@ -51,32 +49,19 @@ func main() {
 
 		// 连接成功
 		fmt.Fprintf(w, "Hello, You are connected database successfully!")
-		w.WriteHeader(200)
 	})
 
 	http.HandleFunc("/get_ip", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "[%s] ", version)
 		fmt.Fprintf(w, "Hello, Your ip is %s", os.Getenv("POD_IP"))
-		w.WriteHeader(200)
 	})
 
-	var i int64 = 0
-	var ip = &i
-
-	http.HandleFunc("/test_limiter", func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt64(ip, 1)
-		defer atomic.AddInt64(ip, -1)
-		fmt.Fprintf(w, "[%s] ", version)
-		if atomic.LoadInt64(ip) >= 5 {
-			fmt.Fprintf(w, "Sorry, Too Many Requests(go-multiroute)")
-			w.WriteHeader(500)
-			return
-		}
-		time.Sleep(time.Second)
-		fmt.Fprintf(w, "Hello, this request is success")
-		w.WriteHeader(200)
-
+	// 熔断测试
+	http.HandleFunc("/test_circuit_breaker", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		fmt.Fprintf(w, "[%s] test_circuit_breaker returned 500\n", version)
 	})
+
 	log.Printf("Listening on http://localhost:3000\n")
 	panic(http.ListenAndServe(":3000", nil))
 }

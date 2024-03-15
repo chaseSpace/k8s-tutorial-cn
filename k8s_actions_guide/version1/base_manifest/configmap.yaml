@@ -12,3 +12,6 @@ data:
       /test_timeout:
         response: "test_timeout's content"
         duration: 3
+      /test_limiter:
+        response: "test_limiter's content\n"
+        duration: 1
