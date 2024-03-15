@@ -1802,7 +1802,7 @@ Istio的流量管理可以实现以下功能：
         - consistentHashLB：基于一致性哈希算法的负载均衡
         - localityLbSetting：基于地域的本地性负载均衡
 - 服务弹性：支持为后端配置限速、熔断、超时和重试等弹性能力；
-- 故障注入：支持对后端服务进行故障注入，模拟服务故障，以便进行服务弹性测试；
+- 故障注入：支持对后端服务进行故障注入，模拟服务故障，以便进行服务弹性测试。也可用来实现手动熔断的目的；
 - 流量镜像：也称为影子流量，用于将实时流量的副本发送到另一组后端，一般用于线上流量分析、统计和程序测试等用途；
 - Ingress和Egress：控制 Istio 服务网格的入站流量和入站流量，**可以替代K8s内置的Ingress**。
 
@@ -1850,15 +1850,15 @@ $ kk exec -it istio-client-test-$POD_ID -- sh
 [v2] Hello, You are at /route1, Got: route1's content
 [v1] Hello, You are at /route1, Got: route1's content
 
-# 特定header的分流
-/ $ for i in $(seq 1 5); do curl -s -H "test-version: v1" go-multiroute:3000/route1 && sleep 1 && echo; done
-[v1] Hello, You are at /route1, Got: route1's content
-[v1] Hello, You are at /route1, Got: route1's content
-[v1] Hello, You are at /route1, Got: route1's content
-[v1] Hello, You are at /route1, Got: route1's content
-[v1] Hello, You are at /route1, Got: route1's content
+# 测试特定header的分流
+/ $ for i in $(seq 1 5); do curl -s -H "test-version: v2" go-multiroute:3000/route1 && sleep 1 && echo; done
+[v2] Hello, You are at /route1, Got: route1's content
+[v2] Hello, You are at /route1, Got: route1's content
+[v2] Hello, You are at /route1, Got: route1's content
+[v2] Hello, You are at /route1, Got: route1's content
+[v2] Hello, You are at /route1, Got: route1's content
 
-# 分流后的负载均衡：轮询（可观察到v1版本的ip分布是均衡的）
+# 测试分流后的负载均衡：轮询（可观察到v1版本的ip分布是均衡的）
 / $ for i in $(seq 1 10); do curl -s go-multiroute:3000/get_ip && sleep 1 && echo; done
 [v2] Hello, Your ip is 20.2.36.111
 [v2] Hello, Your ip is 20.2.36.112
@@ -1871,75 +1871,74 @@ $ kk exec -it istio-client-test-$POD_ID -- sh
 [v1] Hello, Your ip is 20.2.36.114
 [v1] Hello, Your ip is 20.2.36.113
 
-# 超时
+# 测试超时
 # - 由于接口 /test_timeout 会等待3s再返回，超过了策略中的2s，所以会超时
 / $ for i in $(seq 1 3); do curl -s go-multiroute:3000/test_timeout && echo " $(date)"; done
 upstream request timeout Thu Mar 14 05:47:29 UTC 2024
 upstream request timeout Thu Mar 14 05:47:30 UTC 2024
 upstream request timeout Thu Mar 14 05:47:31 UTC 2024
 
-# 熔断
-# - 由于Service：go-multiroute目前的端点较多（2个Deployment共4个Pod对应4个端点），为了方便观察测试结果，先删除deployment-v2（不演示）。
-# - 现在只剩下一个deployment，其中Pod副本数为2，而且负载均衡策略为轮询，根据如下熔断策略计算：
+# 测试熔断
+# - 由于Service：go-multiroute目前的端点较多（2个Deployment共4个Pod对应4个端点），为了方便观察测试结果，先删除deployment-v1（操作略）。
+# - 现在只剩下deployment-v2，其中Pod副本数为2，将其改为1，操作略。而且负载均衡策略为轮询，根据如下熔断策略计算：
 #    outlierDetection: # 定义熔断策略
 #      consecutive5xxErrors: 3 # 指定连续多少个 5xx 错误会导致端点被剔除，默认5，0表示禁用（但是时间窗口未知）
 #      interval: 1s # 熔断检测间隔，默认10s，要求>=1ms
 #      baseEjectionTime: 10s # 初始的端点剔除时间，支持单位 ms s m h，默认30s，要求>=1ms
 #      maxEjectionPercent: 100
-# 最少并发6（即2x3）个请求后，将触发熔断，10s后恢复
+# 即最少并发3(=1x3)个请求后，将触发熔断，10s后恢复（命令尾部的&表示并发）
+# - 观察3个请求响应状态码均为500，因此会立即触发熔断，下一步进行验证
+/ $ seq 3 | xargs -I {} sh -c 'curl -s -H "test-version:v2" -H "need_500:true" http://go-multiroute:3000/test_circuit_breaker &' && echo $(date)
+Fri Mar 15 06:17:41 UTC 2024
+[v2] test_circuit_breaker returned 500
+[v2] test_circuit_breaker returned 500
+[v2] test_circuit_breaker returned 500
 
-# 现在打开另一个窗口，进入到istio-client-test的bench容器内进行并发访问
-$ kk exec -it istio-client-test-$POD_ID -c bench -- sh
-# 进入bench容器使用siege工具进行并发测试，-c 6 表示并发6个请求，-r 1 表示只运行1次
-root@istio-client-test-668bb6fc86-rrml2:/# siege -c 6 -r 1 http://go-multiroute:3000/test_timeout
-** SIEGE 3.0.5
-** Preparing 6 concurrent users for battle.
-The server is now under siege..      done.
+# 立即执行如下命令验证熔断策略已触发
+# - 下面的命令是以1次/1s的频率顺序执行12个HTTP请求
+# - 观察前几个响应内容是来自Envoy的no healthy upstream，说明熔断策略已触发，并在约10s后恢复（之后又触发）
+/ $ seq 12 | xargs -I {} sh -c 'curl -s -H "test-version:v2" http://go-multiroute:3000/test_circuit_breaker && echo " $(date)" && sleep 1'
+no healthy upstream Fri Mar 15 06:17:44 UTC 2024
+no healthy upstream Fri Mar 15 06:17:45 UTC 2024
+no healthy upstream Fri Mar 15 06:17:46 UTC 2024
+no healthy upstream Fri Mar 15 06:17:47 UTC 2024
+no healthy upstream Fri Mar 15 06:17:48 UTC 2024
+no healthy upstream Fri Mar 15 06:17:49 UTC 2024
+no healthy upstream Fri Mar 15 06:17:50 UTC 2024
+[v2] test_circuit_breaker returned 500
+ Fri Mar 15 06:17:51 UTC 2024   <--- 约10s后恢复！
+[v2] test_circuit_breaker returned 500
+ Fri Mar 15 06:17:52 UTC 2024
+[v2] test_circuit_breaker returned 500
+ Fri Mar 15 06:17:53 UTC 2024
+no healthy upstream Fri Mar 15 06:17:54 UTC 2024
+no healthy upstream Fri Mar 15 06:17:55 UTC 2024
 
-Transactions:		           0 hits
-Availability:		        0.00 %
-Elapsed time:		        1.01 secs
-Data transferred:	        0.00 MB
-Response time:		        0.00 secs
-Transaction rate:	        0.00 trans/sec
-Throughput:		        0.00 MB/sec
-Concurrency:		        0.05
-Successful transactions:           0
-Failed transactions:	           6
-Longest transaction:	        0.01
-Shortest transaction:	        0.00
- 
-FILE: /var/log/siege.log
-You can disable this annoying message by editing
-the .siegerc file in your home directory; change
-the directive 'show-logfile' to false.
+# 测试最大并发数①
+# - 为了方便测试，这里暂时注释熔断策略配置，以及将deployment-v2的副本数改为1（操作略）
+# - 进入默认容器内进行并发访问（配置最大并发数5，测试并发数8，结果中5个响应成功，3个超时）
+/ $ seq 8 | xargs -I {} sh -c 'curl -s http://go-multiroute:3000/test_limiter &'
+[v1] Hello, You are at /test_limiter, Got: test_limiter's content
+[v2] Hello, You are at /test_limiter, Got: test_limiter's content
+[v2] Hello, You are at /test_limiter, Got: test_limiter's content
+[v2] Hello, You are at /test_limiter, Got: test_limiter's content
+[v2] Hello, You are at /test_limiter, Got: test_limiter's content
+upstream request timeoutupstream request timeoutupstream request timeout
 
-# 再立即切换到之前的istio-client-test第一个容器内使用curl访问测试，可观察到约10s后端点恢复（根据不同的响应文本得出结论）
-/ # for i in $(seq 1 15); do curl -s go-multiroute:3000/test_timeout && sleep 1 && echo " $(date)"; done
-no healthy upstream Thu Mar 14 05:42:46 UTC 2024
-no healthy upstream Thu Mar 14 05:42:47 UTC 2024
-no healthy upstream Thu Mar 14 05:42:48 UTC 2024
-no healthy upstream Thu Mar 14 05:42:49 UTC 2024
-no healthy upstream Thu Mar 14 05:42:50 UTC 2024
-no healthy upstream Thu Mar 14 05:42:51 UTC 2024
-no healthy upstream Thu Mar 14 05:42:52 UTC 2024
-no healthy upstream Thu Mar 14 05:42:53 UTC 2024
-no healthy upstream Thu Mar 14 05:42:54 UTC 2024
-no healthy upstream Thu Mar 14 05:42:55 UTC 2024
-upstream request timeout Thu Mar 14 05:42:57 UTC 2024
-upstream request timeout Thu Mar 14 05:42:59 UTC 2024
-upstream request timeout Thu Mar 14 05:43:01 UTC 2024
-upstream request timeout Thu Mar 14 05:43:02 UTC 2024
-upstream request timeout Thu Mar 14 05:43:03 UTC 2024
-
-# 最大并发数
-# - 为了不受熔断策略影响，这里暂时注释熔断策略部分并更新（不演示）
-# - 为了不受多副本影响，这里将deployment-v1的副本数改为1（不演示）
-# - 直接进入bench容器内进行并发访问
-TODO
+# 测试最大并发数②
+# - 修改配置中的最大并发数为3，操作略
+# - 可观察到测试并发数6，结果中3个响应成功，3个超时）
+# - 之所以超时是因为该接口默认sleep 1s，对于非并发执行的请求，其响应耗时必将超过1s，则触发 VirtualService 中的timeout: 1200ms
+/ $ seq 6 | xargs -I {} sh -c 'curl -s -H "test-version:v2" http://go-multiroute:3000/test_limiter &'
+[v2] Hello, You are at /test_limiter, Got: test_limiter's content
+[v2] Hello, You are at /test_limiter, Got: test_limiter's content
+[v2] Hello, You are at /test_limiter, Got: test_limiter's content
+upstream request timeoutupstream request timeoutupstream request timeout
 ```
 
-#  
+##### 8.4.5.6 Istio特性之Ingress
+
+TODO
 
 ## 参考
 
