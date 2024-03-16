@@ -1,0 +1,45 @@
+# nonk8s
+# 规范：https://istio.io/latest/docs/reference/config/networking/gateway/
+# ingress网关仅接收外部请求，还需要组合VirtualService才能实现流量转发
+# ingress网关定义要对外暴露的端口&协议&主机名&证书相关
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  # 命名携带 ingress前缀，方便与egress网关策略进行区分
+  name: ingress-go-multiroute
+  namespace: default
+spec:
+  selector: # 关联ingress网关的pod（默认在所有命名空间中匹配，除非istiod中的 PILOT_SCOPE_GATEWAY_TO_NAMESPACE 变量设置true）
+    app: istio-ingressgateway
+  servers:
+    - name: go-multiroute # 为这个server起个备注，可省略
+      port: # 网关（本地Pod或公有云的LoadBalancer）对外监听的端口&协议
+        name: http
+        number: 8080 # 此端口号在 service：istio-ingressgateway 的Target端口映射中存在，且协议能够对应。
+        protocol: HTTP # HTTP|HTTPS|GRPC|GRPC-WEB|HTTP2|MONGO|TCP|TLS
+      # 允许VirtualService绑定的域名或集群服务名，"*"表示不限制或用作通配符如 "*.foo.com" "ns/*"
+      # - 注意：这里定义host只是步骤一，还需要有一个VirtualService来匹配网关中的host来进行转发
+      # - 若下面定义的host不能匹配到任何VS策略，则404处理
+      hosts:
+        # 不能使用 go-multiroute 这种简写。HTTP请求必须携带 "Host: 下面任何一个名称" 这个Header字段，否则网关返回404
+        - go-multiroute.default.svc.cluster.local
+        - "*.foobar.com"
+    - name: go-multiroute-https
+      port:
+        name: https
+        number: 8443
+        protocol: HTTPS
+      hosts:
+        - go-multiroute.default.svc.cluster.local
+        - "*.foobar.com"
+      tls:
+        mode: SIMPLE
+        credentialName: cert-foobar
+
+    # 可以在同一个gateway中配置多个server；但若存在较多server，最好将它们分类到不同模板下进行管理。
+    #- port:
+    #    number: 2379
+    #    name: mongo
+    #    protocol: MONGO
+    # hosts:
+    #    - "*"
