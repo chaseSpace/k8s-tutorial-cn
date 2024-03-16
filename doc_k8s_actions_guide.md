@@ -1791,7 +1791,7 @@ kubectl delete -f authz-allow-to-go-multiroute.yaml
 
 ##### 8.4.5.5 Istio特性之流量管理
 
-Istio的流量管理可以实现以下功能：
+Istio的[流量管理][Istio流量管理]可以实现以下功能：
 
 - 智能路由：对到达K8s Service的HTTP流量根据权重/HTTP-Header/sourceLabels等维度进行**分流**，基于此可轻松实现灰度发布、A/B
   测试、金丝雀发布等部署策略；
@@ -1948,13 +1948,172 @@ upstream request timeoutupstream request timeoutupstream request timeout
 $ kubectl delete -f route-destinationrule.yaml -f route-virtualservice.yaml
 destinationrule.networking.istio.io "go-multiroute" deleted
 virtualservice.networking.istio.io "go-multiroute" deleted
+$ 
 ```
 
-##### 8.4.5.6 流量管理之Ingress
+##### 8.4.5.6 流量管理之Ingress网关
 
-TODO
+与K8s内置的Ingress类似，如果你按照前面的[安装步骤](#8431-安装)Istio在安装时也部署了一个Ingress
+网关（本质是Envoy）来管理集群的入站流量，它可以用来替换K8s内置的Ingress，
+好处是它具有更细粒度的控制功能。
 
-##### 8.4.5.7 流量管理之Egress
+> 注意：K8s Ingress也可与Istio网格协同工作。
+
+如果没有安装Ingress网关，使用`istioctl install`命令安装即可。使用如下命令检查是否安装：
+
+```shell
+$ kk get deploy,svc,hpa -n istio-system |grep gateway -B 1
+NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/istio-ingressgateway   1/1     1            1           3d7h
+--
+NAME                           TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                                      AGE
+service/istio-ingressgateway   LoadBalancer   20.1.185.158   <pending>     15021:31132/TCP,80:31227/TCP,443:30215/TCP   3d7h
+--
+NAME                                                       REFERENCE                         TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/istio-ingressgateway   Deployment/istio-ingressgateway   <unknown>/80%   1         5         1          3d7
+```
+
+可见Ingress网关是以Deployment形式部署，并且还创建了一个HPA以供Pod副本弹性伸缩。最后，Istio为Ingress网关创建了一个LoadBalancer类型的Service，将其对外暴露。
+但由于笔者的集群是自建的，所以无法为LoadBalancer类型的Service分配一个外部的IP地址，但我们可以使用它的 `CLUSTER-IP`
+字段即`20.1.185.158`来做访问测试。
+
+与K8s Ingress不同的是，Istio Ingress网关的编程方式是一个Gateway 资源绑定一个VirtualService 资源的组合。当然也非常简单，
+你可以通过下面的演示来了解具体细节。
+
+本节演示要实现的目标只有一个：将`Service: go-multiroute`的3000端口通过Ingress对外暴露到80和443端口，
+使用证书对应的域名是：`*.foobar.com`，然后在任一集群节点上进行访问测试。
+新增的资源清单文件如下：
+
+- [ingress-gwy.yaml](k8s_actions_guide/version1/istio_manifest/ingress-gwy.yaml)
+- [ingress-virtualservice.yaml](k8s_actions_guide/version1/istio_manifest/ingress-virtualservice.yaml)
+
+具体操作步骤如下：
+
+```shell
+# 1. 因为使用了HTTPS协议，所以先为服务生成一个自签名证书
+
+# - 1.1 生成根私钥和根证书
+openssl genpkey -algorithm RSA -out ca.key
+openssl req -new -key ca.key -out ca.csr -subj '/C=US/ST=California/CN=My CA/O=My Company'
+openssl x509 -req -in ca.csr -signkey ca.key -out ca.crt -days 3650
+openssl x509 -noout -text -in ca.crt # check crt
+
+# - 1.2 为域名 *.foobar.com 生成服务私钥和证书（foobar.key | foobar.crt）
+openssl genrsa -out foobar.key 2048
+openssl req -key foobar.key -new -out foobar.csr -subj '/C=US/ST=California/CN=*.foobar.com/O=My Company'
+openssl x509 -req -in foobar.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out foobar.crt -days 365
+
+# 2. 创建secret
+kubectl create secret tls cert-foobar --cert=foobar.crt --key=foobar.key -n istio-system
+
+# - 使用istioctl查看网关Pod关联的secret（最后一个参数是<POD>.[ns]的格式）
+$ ./istioctl pc secret istio-ingressgateway-d4db74f5b-l44h4.istio-system
+RESOURCE NAME                TYPE           STATUS     VALID CERT     SERIAL NUMBER                        NOT AFTER                NOT BEFORE
+default                      Cert Chain     ACTIVE     true           653e6e499c6dd8ac7309498fa7ee7dd5     2024-03-17T12:28:45Z     2024-03-16T12:26:45Z
+kubernetes://cert-foobar     Cert Chain     ACTIVE     true           aaec8a8aee3fc3f9                     2024-04-15T15:49:40Z     2024-03-16T15:49:40Z
+ROOTCA                       CA             ACTIVE     true           f915f3f5c5b3b5ffe27c8b3894d3d2bb     2034-03-11T04:58:57Z     2024-03-13T04:58:57Z
+
+
+# 3. 创建Gateway和VirtualService
+kk apply -f ingress-gwy.yaml -f ingress-virtualservice.yaml
+
+# 使用istioctl查看网关路由
+$ ./istioctl pc routes istio-ingressgateway-d4db74f5b-l44h4.istio-system
+NAME          VHOST NAME                                       DOMAINS                                                   MATCH                  VIRTUAL SERVICE
+http.8080     go-multiroute.default.svc.cluster.local:8080     go-multiroute.default.svc.cluster.local, *.foobar.com     /*                     ingress-go-multiroute.default
+              backend                                          *                                                         /healthz/ready*        
+              backend                                          *                                                         /stats/prometheus*
+
+# 4.1 任何一个集群节点上进行HTTP访问
+$ curl -H "Host: go-multiroute.default.svc.cluster.local" 20.1.185.158/route1  
+[v2] Hello, You are at /route1, Got: route1's content
+$ curl -H "Host: x.foobar.com" 20.1.185.158/route1 
+[v2] Hello, You are at /route1, Got: route1's content
+$ curl 20.1.185.158/route1 -w %{http_code}% # 不带匹配主机名的Host头部会被当做404处理
+404
+
+# 4.2 现在进行HTTPS访问
+$ echo '20.1.185.158 go-multiroute.default.svc.cluster.local' >> /etc/hosts
+$ echo '20.1.185.158 x.foobar.com' >> /etc/hosts
+# -k 禁用客户端对服务器证书的检查（因为根证书没有对go-multiroute...这个地址生成过证书）
+$ curl -k -H "Host: go-multiroute.default.svc.cluster.local" https://go-multiroute.default.svc.cluster.local/route1
+[v2] Hello, You are at /route1, Got: route1's content
+$ curl --cacert ./ca.crt -H 'Host: x.foobar.com' https://x.foobar.com/route1   
+[v2] Hello, You are at /route1, Got: route1's content
+```
+
+演示完成。下面我们简单看一下网关的一些运行时信息：
+
+```shell
+# listener是当前网关Pod（Envoy）运行时监听的端口以及对应服务。这里前两行就是我们刚才的配置
+$ ./istioctl pc listener istio-ingressgateway-d4db74f5b-l44h4.istio-system
+ADDRESSES PORT  MATCH                                                     DESTINATION
+0.0.0.0   8080  ALL                                                       Route: http.8080
+0.0.0.0   8443  SNI: *.foobar.com,go-multiroute.default.svc.cluster.local Route: https.8443.https.ingress-go-multiroute.default
+0.0.0.0   15021 ALL                                                       Inline Route: /healthz/ready*
+0.0.0.0   15090 ALL                                                       Inline Route: /stats/prometheus*
+
+# routes是当前网关Pod（Envoy）运行时维护的路由规则，这里可以看到我们刚才配置的规则
+$ ./istioctl pc routes istio-ingressgateway-d4db74f5b-l44h4.istio-system
+NAME                                               VHOST NAME                                       DOMAINS                                                   MATCH                  VIRTUAL SERVICE
+http.8080                                          go-multiroute.default.svc.cluster.local:8080     go-multiroute.default.svc.cluster.local, *.foobar.com     /*                     ingress-go-multiroute.default
+https.8443.https.ingress-go-multiroute.default     go-multiroute.default.svc.cluster.local:8443     go-multiroute.default.svc.cluster.local, *.foobar.com     /*                     ingress-go-multiroute.default
+                                                   backend                                          *                                                         /healthz/ready*        
+                                                   backend                                          *                                                         /stats/prometheus*     
+
+# clusters是当前网关Pod（Envoy）运行时维护的后端（envoy中称为cluster）列表
+$ ./istioctl pc clusters istio-ingressgateway-d4db74f5b-l44h4.istio-system
+SERVICE FQDN                                            PORT      SUBSET     DIRECTION     TYPE           DESTINATION RULE
+BlackHoleCluster                                        -         -          -             STATIC         
+agent                                                   -         -          -             STATIC         
+go-multiroute.default.svc.cluster.local                 3000      -          outbound      EDS            
+istio-ingressgateway.istio-system.svc.cluster.local     80        -          outbound      EDS            
+istio-ingressgateway.istio-system.svc.cluster.local     443       -          outbound      EDS            
+istio-ingressgateway.istio-system.svc.cluster.local     15021     -          outbound      EDS            
+istiod.istio-system.svc.cluster.local                   443       -          outbound      EDS            
+istiod.istio-system.svc.cluster.local                   15010     -          outbound      EDS            
+istiod.istio-system.svc.cluster.local                   15012     -          outbound      EDS            
+istiod.istio-system.svc.cluster.local                   15014     -          outbound      EDS            
+kube-dns.kube-system.svc.cluster.local                  53        -          outbound      EDS            
+kube-dns.kube-system.svc.cluster.local                  9153      -          outbound      EDS            
+kubernetes.default.svc.cluster.local                    443       -          outbound      EDS            
+prometheus_stats                                        -         -          -             STATIC         
+sds-grpc                                                -         -          -             STATIC         
+xds-grpc                                                -         -          -             STATIC         
+zipkin                                                  -         -          -             STRICT_DNS  
+
+# endpoint是网关Pod（Envoy）运行时维护的cluster背后的所有端点健康状态（比如一个service后面可能有几个pod，就都会展示在这里）
+$ ./istioctl pc endpoint istio-ingressgateway-d4db74f5b-l44h4.istio-system
+ENDPOINT                                                STATUS      OUTLIER CHECK     CLUSTER
+127.0.0.1:15000                                         HEALTHY     OK                prometheus_stats
+127.0.0.1:15020                                         HEALTHY     OK                agent
+192.168.31.2:6443                                       HEALTHY     OK                outbound|443||kubernetes.default.svc.cluster.local
+20.2.36.83:53                                           HEALTHY     OK                outbound|53||kube-dns.kube-system.svc.cluster.local
+20.2.36.83:9153                                         HEALTHY     OK                outbound|9153||kube-dns.kube-system.svc.cluster.local
+20.2.36.86:8080                                         HEALTHY     OK                outbound|80||istio-ingressgateway.istio-system.svc.cluster.local
+20.2.36.86:8443                                         HEALTHY     OK                outbound|443||istio-ingressgateway.istio-system.svc.cluster.local
+20.2.36.86:15021                                        HEALTHY     OK                outbound|15021||istio-ingressgateway.istio-system.svc.cluster.local
+20.2.36.89:3000                                         HEALTHY     OK                outbound|3000||go-multiroute.default.svc.cluster.local
+20.2.36.90:53                                           HEALTHY     OK                outbound|53||kube-dns.kube-system.svc.cluster.local
+20.2.36.90:9153                                         HEALTHY     OK                outbound|9153||kube-dns.kube-system.svc.cluster.local
+20.2.36.91:15010                                        HEALTHY     OK                outbound|15010||istiod.istio-system.svc.cluster.local
+20.2.36.91:15012                                        HEALTHY     OK                outbound|15012||istiod.istio-system.svc.cluster.local
+20.2.36.91:15014                                        HEALTHY     OK                outbound|15014||istiod.istio-system.svc.cluster.local
+20.2.36.91:15017                                        HEALTHY     OK                outbound|443||istiod.istio-system.svc.cluster.local
+unix://./etc/istio/proxy/XDS                            HEALTHY     OK                xds-grpc
+unix://./var/run/secrets/workload-spiffe-uds/socket     HEALTHY     OK                sds-grpc
+
+# 它们都可以通过一些参数进行过滤
+$ ./istioctl pc endpoint istio-ingressgateway-d4db74f5b-l44h4.istio-system --port 3000
+ENDPOINT            STATUS      OUTLIER CHECK     CLUSTER
+20.2.36.92:3000     HEALTHY     OK                outbound|3000||go-multiroute.default.svc.cluster.local
+20.2.36.94:3000     HEALTHY     OK                outbound|3000||go-multiroute.default.svc.cluster.local
+```
+
+最后，有一个小的细节需要注意，删除包含证书配置的secret并不会影响网关继续正常响应对应证书域名的请求，
+这是因为网关不会处理删除证书的操作，除非网关重启重新加载这些数据。所以要删除一个对外的服务端口，我们一定要删除对应的Gateway配置。
+
+##### 8.4.5.7 流量管理之Egress网关
 
 TODO
 
@@ -1992,3 +2151,5 @@ TODO
 [部署外部授权]: https://istio.io/latest/zh/docs/tasks/security/authorization/authz-custom/
 
 [Istio授权策略规范]: https://istio.io/latest/zh/docs/reference/config/security/authorization-policy/
+
+[Istio流量管理]: https://istio.io/latest/zh/docs/concepts/traffic-management/
