@@ -1996,12 +1996,12 @@ horizontalpodautoscaler.autoscaling/istio-ingressgateway   Deployment/istio-ingr
 # 1. 因为使用了HTTPS协议，所以先为服务生成一个自签名证书
 
 # - 1.1 生成根私钥和根证书
-openssl genpkey -algorithm RSA -out ca.key
-openssl req -new -key ca.key -out ca.csr -subj '/C=US/ST=California/CN=My CA/O=My Company'
-openssl x509 -req -in ca.csr -signkey ca.key -out ca.crt -days 3650
+openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 \
+  -subj '/O=example Inc./CN=example.com' \
+  -keyout ca.key -out ca.crt
 openssl x509 -noout -text -in ca.crt # check crt
 
-# - 1.2 为域名 *.foobar.com 生成服务私钥和证书（foobar.key | foobar.crt）
+# - 1.2 使用根证书和根私钥为泛域名 *.foobar.com 生成私钥和证书（foobar.key | foobar.crt）
 openssl genrsa -out foobar.key 2048
 openssl req -key foobar.key -new -out foobar.csr -subj '/C=US/ST=California/CN=*.foobar.com/O=My Company'
 openssl x509 -req -in foobar.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out foobar.crt -days 365
@@ -2126,7 +2126,7 @@ kk delete -f ingress-virtualservice.yaml -f ingress-gwy.yaml
 
 TODO
 
-##### 8.4
+##### 8.4.5.8 Istio特性之ServiceEntry
 
 ## 参考
 
