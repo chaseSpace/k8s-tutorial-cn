@@ -1,6 +1,6 @@
 # nonk8s
 # 规范：https://istio.io/latest/docs/reference/config/networking/gateway/
-# ingress网关仅接收外部请求，还需要组合VirtualService才能实现流量转发
+# ingress网关仅接收外部请求，还需要组合VirtualService才能实现流量转发（强依赖）
 # ingress网关定义要对外暴露的端口&协议&主机名&证书相关
 apiVersion: networking.istio.io/v1beta1
 kind: Gateway
