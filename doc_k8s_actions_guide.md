@@ -1804,10 +1804,14 @@ Istio的[流量管理][Istio流量管理]可以实现以下功能：
 - 服务弹性：支持为后端配置限速、熔断、超时和重试等弹性能力；
 - 故障注入：支持对后端服务进行故障注入，模拟服务故障，以便进行服务弹性测试。也可用来实现手动熔断的目的；
 - 流量镜像：也称为影子流量，用于将实时流量的副本发送到另一组后端，一般用于线上流量分析、统计和程序测试等用途；
-- Ingress和Egress：控制 Istio 服务网格的入站流量和入站流量，**可以替代K8s内置的Ingress**。
+- Ingress和Egress：控制 Istio 服务网格的入站流量和入站流量，前者可以替代K8s内置的Ingress。
 
 以上这些特性是通过Istio预安装的 `VirtualService` 和 `DestinationRule` 两个K8s API资源实现的，它们分别定义了路由规则和目标规则。
-通俗来说，`VirtualService`定义了如何进行路由（How），`DestinationRule`定义了路由到哪儿（Where），能看出是**前者引用后者**的关系。
+通俗来说，`VirtualService`定义了如何进行路由（How），`DestinationRule`定义了路由到哪儿（Where），
+一定程度上是**前者引用后者**的关系。
+
+> 注意：VirtualService和DestinationRule资源并不是强绑定的关系，它们可以各自定义并独立工作，
+> 仅在定义subset（子集）时前者才会依赖后者。但只有将二者结合使用才能充分应用Istio丰富的流量管理特性。
 
 为了尽可能模拟实际环境，本节演示内容将增加一个名为 `go-multiroute-v2` 的服务版本模拟金丝雀发布，
 它与之前部署的版本区别在于模板中定义了不同的环境变量`VERSION`，相关资源如下：
@@ -1948,7 +1952,6 @@ upstream request timeoutupstream request timeoutupstream request timeout
 $ kubectl delete -f route-destinationrule.yaml -f route-virtualservice.yaml
 destinationrule.networking.istio.io "go-multiroute" deleted
 virtualservice.networking.istio.io "go-multiroute" deleted
-$ 
 ```
 
 ##### 8.4.5.6 流量管理之Ingress网关
@@ -1974,8 +1977,8 @@ horizontalpodautoscaler.autoscaling/istio-ingressgateway   Deployment/istio-ingr
 ```
 
 可见Ingress网关是以Deployment形式部署，并且还创建了一个HPA以供Pod副本弹性伸缩。最后，Istio为Ingress网关创建了一个LoadBalancer类型的Service，将其对外暴露。
-但由于笔者的集群是自建的，所以无法为LoadBalancer类型的Service分配一个外部的IP地址，但我们可以使用它的 `CLUSTER-IP`
-字段即`20.1.185.158`来做访问测试。
+但由于笔者的集群是自建的，所以无法为LoadBalancer类型的Service分配一个外部的公网IP，但我们可以使用它的 `CLUSTER-IP`
+字段即`20.1.185.158`来做集群内的访问测试。
 
 与K8s Ingress不同的是，Istio Ingress网关的编程方式是一个Gateway 资源绑定一个VirtualService 资源的组合。当然也非常简单，
 你可以通过下面的演示来了解具体细节。
@@ -2053,7 +2056,7 @@ ADDRESSES PORT  MATCH                                                     DESTIN
 0.0.0.0   15021 ALL                                                       Inline Route: /healthz/ready*
 0.0.0.0   15090 ALL                                                       Inline Route: /stats/prometheus*
 
-# routes是当前网关Pod（Envoy）运行时维护的路由规则，这里可以看到我们刚才配置的规则
+# routes是当前网关Pod（Envoy）运行时维护的路由规则，这里可以看到我们刚才配置的两条规则
 $ ./istioctl pc routes istio-ingressgateway-d4db74f5b-l44h4.istio-system
 NAME                                               VHOST NAME                                       DOMAINS                                                   MATCH                  VIRTUAL SERVICE
 http.8080                                          go-multiroute.default.svc.cluster.local:8080     go-multiroute.default.svc.cluster.local, *.foobar.com     /*                     ingress-go-multiroute.default
@@ -2110,8 +2113,14 @@ ENDPOINT            STATUS      OUTLIER CHECK     CLUSTER
 20.2.36.94:3000     HEALTHY     OK                outbound|3000||go-multiroute.default.svc.cluster.local
 ```
 
-最后，有一个小的细节需要注意，删除包含证书配置的secret并不会影响网关继续正常响应对应证书域名的请求，
-这是因为网关不会处理删除证书的操作，除非网关重启重新加载这些数据。所以要删除一个对外的服务端口，我们一定要删除对应的Gateway配置。
+最后，有一个小的细节需要注意，删除包含证书的secret并不会影响网关继续正常响应对应证书域名的请求，
+这是因为网关不会处理删除证书的操作，除非网关重启重新加载这些数据。所以要删除一个对外的服务端口，我们必须删除对应的Gateway配置。
+
+**清理**
+
+```shell
+kk delete -f ingress-virtualservice.yaml -f ingress-gwy.yaml
+```
 
 ##### 8.4.5.7 流量管理之Egress网关
 
