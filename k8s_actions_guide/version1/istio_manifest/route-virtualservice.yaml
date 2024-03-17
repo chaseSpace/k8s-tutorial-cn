@@ -7,7 +7,9 @@ metadata:
   name: go-multiroute
   namespace: default
 spec:
-  hosts: # 指定要应用此虚拟服务的目标主机列表，可以是（携带通配符）域名/ip/集群服务名
+  # 指定要应用此虚拟服务的目标地址列表，可以是（携带通配符）域名/ip/集群服务名
+  # - 但凡匹配了任何一个列出的host地址的请求都会应用此虚拟服务，若请求不匹配下面的任何规则，则Envoy返回404
+  hosts:
     - go-multiroute # 若service与规则不在同一命名空间，最好使用完整服务名：go-multiroute.default.svc.cluster.local
 
   # 下面的路由规则将按顺序匹配执行，每个HTTP请求最多匹配成功一个规则（一般最后的规则是无条件的默认规则）
@@ -33,6 +35,8 @@ spec:
             # 目的服务名，建议使用 go-multiroute.default.svc.cluster.local 的FQDN完整形式
             # - 避免当策略与服务名不在同一命名空间时出现错误
             host: go-multiroute
+            # 可选字段，用于匹配DestinationRule资源中的子集定义
+            # - 若不指定subset，则流量会发送给 go-multiroute服务 的所有后端实例
             subset: v1
           weight: 80
         - destination:

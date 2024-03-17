@@ -1,7 +1,6 @@
 # nonk8s
 # 规范：https://istio.io/latest/zh/docs/reference/config/networking/destination-rule/
 # - 下面的示例远远没有列出所有选项，请参考上面的规范以获取更多信息。
-# - 先定义 DestinationRule，再被 VirtualService 引用
 apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
