@@ -2006,7 +2006,7 @@ openssl genrsa -out foobar.key 2048
 openssl req -key foobar.key -new -out foobar.csr -subj '/C=US/ST=California/CN=*.foobar.com/O=My Company'
 openssl x509 -req -in foobar.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out foobar.crt -days 365
 
-# 2. 创建secret
+# 2. 创建网关使用的secret（只能在istio-system空间下创建才能被找到）
 kubectl create secret tls cert-foobar --cert=foobar.crt --key=foobar.key -n istio-system
 
 # - 使用istioctl查看网关Pod关联的secret（最后一个参数是<POD>.[ns]的格式）
@@ -2115,12 +2115,17 @@ ENDPOINT            STATUS      OUTLIER CHECK     CLUSTER
 
 最后，有一个小的细节需要注意，删除包含证书的secret并不会影响网关继续正常响应对应证书域名的请求，
 这是因为网关不会处理删除证书的操作，除非网关重启重新加载这些数据。所以要删除一个对外的服务端口，我们必须删除对应的Gateway配置。
+此外，在部署验证过程中，观察网关Pod的日志可以确认网关是否成功加载了新配置。
 
 **清理**
 
 ```shell
 kk delete -f ingress-virtualservice.yaml -f ingress-gwy.yaml
 ```
+
+- [配置双向TLS入站网关](https://istio.io/latest/zh/docs/tasks/traffic-management/ingress/secure-ingress/#configure-a-mutual-tls-ingress-gateway)
+- [当为多个 Gateway 配置了相同的 TLS 证书导致 404 异常](https://istio.io/latest/zh/docs/ops/common-problems/network-issues/#not-found-errors-occur-when-multiple-gateways-configured-with-same-TLS-certificate)
+- [不发送 SNI 时配置 SNI 路由](https://istio.io/latest/zh/docs/ops/common-problems/network-issues/#configuring-SNI-routing-when-not-sending-SNI)
 
 ##### 8.4.5.7 流量管理之Egress网关
 
