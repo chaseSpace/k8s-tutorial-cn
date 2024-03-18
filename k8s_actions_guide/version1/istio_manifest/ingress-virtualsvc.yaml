@@ -9,7 +9,6 @@ spec:
   # 指定最终要接收流量的目标主机列表，可以是（携带通配符）域名/ip/集群服务名
   # - 若网关那边定义了hosts，则此处hosts必须匹配其中一个，未匹配任何VS策略的主机名的请求将统一被网关以404处理
   hosts:
-    - go-multiroute.default.svc.cluster.local
     - "*.foobar.com"
   gateways: # 指定要关联的网关策略
     - default/ingress-go-multiroute # 需要指定ns前缀，否则无法正常工作

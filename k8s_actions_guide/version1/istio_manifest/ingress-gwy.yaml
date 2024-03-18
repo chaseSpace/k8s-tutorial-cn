@@ -1,6 +1,6 @@
 # nonk8s
 # 规范：https://istio.io/latest/docs/reference/config/networking/gateway/
-# ingress网关仅接收外部请求，还需要组合VirtualService才能实现流量转发（强依赖）
+# ingress网关根据下面定义的Host接收外部请求，再结合VirtualService实现流量转发（强依赖）
 # ingress网关定义要对外暴露的端口&协议&主机名&证书相关
 apiVersion: networking.istio.io/v1beta1
 kind: Gateway
@@ -21,8 +21,7 @@ spec:
       # - 注意：这里定义host只是步骤一，还需要有一个VirtualService来匹配网关中的host来进行转发
       # - 若下面定义的host不能匹配到任何VS策略，则404处理
       hosts:
-        # 不能使用 go-multiroute 这种简写。HTTP请求必须携带 "Host: 下面任何一个名称" 这个Header字段，否则网关返回404
-        - go-multiroute.default.svc.cluster.local
+        # HTTP请求必须携带 "Host: 下面任何一个名称" 这个Header字段，否则网关返回404
         - "*.foobar.com"
     - name: go-multiroute-https
       port:
@@ -30,7 +29,6 @@ spec:
         number: 8443
         protocol: HTTPS
       hosts:
-        - go-multiroute.default.svc.cluster.local
         - "*.foobar.com"
       tls:
         mode: SIMPLE
