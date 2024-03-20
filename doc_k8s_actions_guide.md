@@ -1090,6 +1090,13 @@ Pod安全准入控制器会对命名空间下的所有Pod或控制器的 PodSpec
 
 ## 8. 服务网格
 
+本节是一个笔者新增的一个大章节，严格来说本节主题与K8s并不绑定，但笔者认为服务网格是在K8s中运行微服务架构的一个流行的发展方向（其实在大厂或国内早已普遍应用）。
+可能由于早期的文档或教程缺失，导致国内开发者对服务网格的认知和实践步骤并不清晰，因此在本节中，笔者将结合
+一些权威书籍、官方指导以及笔者在实际生产环境中的实践经验，对服务网格进行一个系统的理论和实践介绍。
+此外，本章节也将作为一个特别篇在项目主页中进行展示。
+
+> 此章节中的演示将继续复用第一节中的demo项目。
+
 ### 8.1 出现时间与背景
 
 早在十多年前，国外就开始流行起了从单体服务转向微服务架构的潮流，并在2014年传入国内。
@@ -1191,13 +1198,6 @@ Istio架构图如下：
 </div>
 
 
-点击以下链接了解更多：
-
-- [Envoy介绍](https://www.thebyte.com.cn/MicroService/Envoy.html)
-- [Istio介绍](https://www.thebyte.com.cn/MicroService/Istio.html)
-- [sidecar自动注入原理](https://istio.io/latest/zh/blog/2019/data-plane-setup/#automatic-injection)
-- [sidecar流量捕获原理](https://istio.io/latest/zh/blog/2019/data-plane-setup/#traffic-flow-from-application-container-to-sidecar-proxy)
-
 **独立的Envoy**  
 需要注意的是，Envoy组件是可以单独运行的，就像一个Nginx进程一样，只要你为它添加合理的配置。
 
@@ -1208,6 +1208,14 @@ Istio支持的部署模型比较繁杂，它可以根据多个维度进行分类
 当部署Istio时，我们需要根据服务规模和团队数量来规划具体的部署模型。
 
 > 请参考 [部署模型](https://istio.io/latest/zh/docs/ops/deployment/deployment-models/) 来详细了解Istio的部署模型。
+
+
+**更多细节**
+
+- [Envoy介绍](https://www.thebyte.com.cn/MicroService/Envoy.html)
+- [Istio介绍](https://www.thebyte.com.cn/MicroService/Istio.html)
+- [sidecar自动注入原理](https://istio.io/latest/zh/blog/2019/data-plane-setup/#automatic-injection)
+- [sidecar流量捕获原理](https://istio.io/latest/zh/blog/2019/data-plane-setup/#traffic-flow-from-application-container-to-sidecar-proxy)
 
 #### 8.4.2 Ambient Mesh
 
@@ -2123,15 +2131,265 @@ ENDPOINT            STATUS      OUTLIER CHECK     CLUSTER
 kk delete -f ingress-virtualservice.yaml -f ingress-gwy.yaml
 ```
 
+**扩展主题**
+
 - [配置双向TLS入站网关](https://istio.io/latest/zh/docs/tasks/traffic-management/ingress/secure-ingress/#configure-a-mutual-tls-ingress-gateway)
 - [当为多个 Gateway 配置了相同的 TLS 证书导致 404 异常](https://istio.io/latest/zh/docs/ops/common-problems/network-issues/#not-found-errors-occur-when-multiple-gateways-configured-with-same-TLS-certificate)
 - [不发送 SNI 时配置 SNI 路由](https://istio.io/latest/zh/docs/ops/common-problems/network-issues/#configuring-SNI-routing-when-not-sending-SNI)
 
-##### 8.4.5.7 流量管理之Egress网关
+##### 8.4.5.7 流量管理之访问外部服务
 
+Ingress网关控制的是外部流量如何进入网格，但网格如何访问外部服务呢？目前的默认做法是sidecar没有针对未知目标服务的流量代理做出任何限制，
+比如应用容器可以直接访问类似`www.google.com`的外部域名或IP，这种不受控的对外访问会带来安全风险，
+尤其在某些组织要求对所有对外流量进行加密时。
+
+Istio提供了三种方式来解决这个问题：
+
+1. 配置sidecar代理拒绝调用未知的目标服务
+2. 配置ServiceEntry来声明外部服务，然后就可以通过VirtualService和DestinationRule来控制网格如何访问外部服务
+3. 对于特定IP范围的目标服务，配置Istio使应用容器绕过sidecar代理
+
+本节内容主要参考自[Istio：访问外部服务][Istio访问外部服务]，其中第一种和第三种方式操作起来都很简单，所以本节演示仅限于第二种方式，
+读者可以结合本节演示和官文加深对ServiceEntry的理解。
+
+本节演示将实现如果通过ServiceEntry+VirtualService的方式来管理网格如何访问外部的一个专用于HTTP测试的网站`httpbin.org`，
+所使用的清单是 [external-access-control.yaml](k8s_actions_guide/version1/istio_manifest/external-access-control.yaml)，
+演示步骤如下：
+
+```shell
+# 部署两种对象
+$ kk apply -f external-access-control.yaml
+serviceentry.networking.istio.io/httpbin created
+virtualservice.networking.istio.io/httpbin created
+
+# 验证一：根路由重定向到 /ip （-L跟随跳转）
+$ kk exec -it istio-client-test-$POD_ID -- curl -L httpbin.org
+{
+  "origin": "119.x.198.51"
+}
+# 验证二：设置超时2s，要求延时3s返回（预期超时）
+$ kk exec -it istio-client-test-$POD_ID -- curl httpbin.org/delay/3 -I
+HTTP/1.1 504 Gateway Timeout
+content-length: 24
+content-type: text/plain
+date: Mon, 18 Mar 2024 09:59:12 GMT
+server: envoy
+
+# 验证三：设置超时2s，要求延时1s返回（预期正常200）
+$ kk exec -it istio-client-test-$POD_ID -- curl httpbin.org/delay/1 -I
+HTTP/1.1 200 OK
+date: Tue, 19 Mar 2024 13:29:55 GMT
+content-type: application/json
+content-length: 1473
+server: envoy
+access-control-allow-origin: *
+access-control-allow-credentials: true
+x-envoy-upstream-service-time: 1557
+```
+
+**理解原理**
+
+创建Istio ServiceEntry对象可以帮助我们将一个外部的域名注册到Istio sidecar中，之后就可以在VirtualService中引用该域名并编写路由规则。
+若没有注册外部服务就直接引入外部Host到路由策略中，创建对象不会报错，但是应用在访问时会得到503的状态码结果。
+
+ServiceEntry对象支持为指定Host声明多个IP地址以及分别为每个IP指定端口，免去了DNS查询的步骤，方便管理仅通过IP公开的外部服务，
+具体请参考其编写[规范](https://istio.io/latest/docs/reference/config/networking/service-entry/)。
+
+##### 8.4.5.8 流量管理之Egress网关
+
+Ingress网关和Egress网关共同实现了网格网络的东西向流量控制。但相比Ingress而言，Egress网关并不算常用，
+因为大部分系统并不会要求对出口流量做控制，除非是一些特殊的、对网络出站安全有特别管控的系统。
+也是由于sidecar的存在，Istio可以很轻松的实现对出站流量的管控。这里的管控包含以下功能：
+
+- 针对指定域名的出站流量的流量管理（熔断/超时等）
+- 针对指定域名的出站流量的加密（TLS）
+    - 例如某些项目不允许服务器对外发起HTTP访问，所以当app发起HTTP请求时，请求到达Egress网关后，Egress网关将按策略对目标发起HTTPS请求
+- 统一监控并记录网格服务的出站流量（在Egress网关处查询即可）
+
+> K8s虽然没有提出Egress网关的概念，但提供了NetworkPolicy来控制Egress流量，其原理是通过CNI即网络插件来实现的（部分功能需要安装的CNI插件支持），
+> 但所提供的功能丰富性无法与Istio相提并论。
+
+此外，Istio还提及了Egress网关的另一个使用场景是：“集群中的应用节点没有公有 IP，所以在该节点上运行的网格 Service
+无法访问互联网。通过定义Egress gateway，将公有IP分配给 Egress Gateway 节点，用它引导所有的出站流量，可以使应用节点以受控的方式访问外部服务。”
+
+**安装Egress网关**
+
+安装Egress网关，同时开启sidecar的访问日志
+
+```shell
+# 修改 iop 配置文件 istio-operator.yaml
+# 此命令会更改已安装的名称为istio的configmap，并向网格中所有的Envoy实例注入新的配置。
+
+#spec:
+#  components:
+#    egressGateways:
+#    - enabled: true  
+#      name: istio-egressgateway
+#    ...
+#  meshConfig:
+#    ...
+#    accessLogFile: /dev/stdout
+#    accessLogEncoding: JSON
+
+# 再次安装istio
+$ ./istioctl install -f istio-operator.yaml
+
+# 查看已安装的egress网关
+$ kk get deploy,svc -n istio-system |grep egress -B 1
+NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/istio-egressgateway    1/1     1            1           4m58s
+--
+NAME                           TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                                      AGE
+service/istio-egressgateway    ClusterIP      20.1.68.34     <none>        80/TCP,443/TCP                               4m58s
+
+# 查询sidecar的访问日志
+$ kk exec -it istio-client-test-$POD_ID -- curl go-multiroute:3000/route1
+[v2] Hello, You are at /route1, Got: route1's content
+
+# 简单分析一下客户端sidecar的访问日志
+
+# ①upstream是指sidecar代理的服务（也是转发目标），即sidecar1与sidecar2（远端节点）之间的连接
+# client-app <---> sidecar1    ----------->    sidecar2 <---> server-app
+# upstream_local_address -- sidecar1与sidecar2连接时的ip:port
+# upstream_host -- sidecar2的ip:port
+# upstream_cluster -- sidecar2的DNS信息
+
+# ②downstream是指sidecar接收流量的客户端，即sidecar1与client-app（近端节点）之间的连接
+# client-app <---> sidecar1    ----------->    sidecar2 <---> server-app
+# downstream_remote_address：client-app的ip:port（与downstream_local_address建立连接）
+# downstream_local_address：sidecar1的ip:port
+
+# 其他还有response_code、route、duration、request_id、bytes_sent等有用信息。
+$ kk logs -l app=istio-client-test -c istio-proxy --tail 1
+{"upstream_transport_failure_reason":null,"protocol":"HTTP/1.1","user_agent":"curl/7.59.0","route_name":"default",
+"response_code":200,"upstream_local_address":"20.2.36.96:39984","connection_termination_details":null,
+"request_id":"5877d0cb-bd2b-4aa6-83c1-dd2e7dbf01be","response_flags":"-","upstream_host":"20.2.36.94:3000",
+"bytes_sent":53,"x_forwarded_for":null,"upstream_cluster":"outbound|3000||go-multiroute.default.svc.cluster.local",
+"authority":"go-multiroute:3000","start_time":"2024-03-17T16:42:07.449Z","method":"GET",
+"response_code_details":"via_upstream","downstream_local_address":"20.1.207.122:3000","requested_server_name":null,
+"duration":2,"upstream_service_time":"2","downstream_remote_address":"20.2.36.96:46218","path":"/route1","bytes_received":0}
+
+# 此外，你还可以查看服务端istio-proxy的日志，并自行分析获得更清晰的访问记录认识。
+```
+
+sidecar默认的日志级别是Info，有时候可能需要为特定负载设置Debug级别日志，以便进行网络故障排查。可通过下面的方式设置：
+
+```shell
+# 方式一
+kubectl exec {POD-NAME} -c istio-proxy -- curl -X POST http://127.0.0.1:15000/logging?level=debug
+# 方式二
+./istioctl pc log <POD-NAME>.[NAMESPACE] --level debug
+```
+
+本节演示包含两部分：
+
+- 演示一：Egress网关透明转发HTTP请求（HTTP->HTTP）
+    - 使用模板：[egressgwy-proxy-http2http.yaml][egressgwy-proxy-http2http.yaml]
+- 演示二：Egress网关透明转发HTTPS请求（HTTPS->HTTPS）
+- 演示三：Egress网关将HTTP请求转换为HTTPS请求（HTTP->HTTPS）
+- ~~演示四：Egress网关将HTTPS请求转换为HTTP请求（HTTPS->HTTP）~~ 没有这种要求
+
+[egressgwy-proxy-http2http.yaml]: k8s_actions_guide/version1/istio_manifest/egressgwy-proxy-http2http.yaml
+
+**演示一**
+主题：Egress网关透明转发HTTP请求（HTTP->HTTP）
+
+```shell
+# 部署策略
+$ kk apply -f egressgwy-proxy-http2http.yaml
+serviceentry.networking.istio.io/istio-io created
+gateway.networking.istio.io/egress-istio-io created
+virtualservice.networking.istio.io/egressgateway-proxy-http-istio-io created
+
+# 验证：在注入sidecar的客户端容器中访问注册的外部服务（预期：HTTP访问应该返回301）
+$ kk exec -it istio-client-test-668bb6fc86-mmqf9 -- curl istio.io -I              
+HTTP/1.1 301 Moved Permanently
+content-type: text/plain; charset=utf-8
+date: Wed, 20 Mar 2024 04:12:07 GMT
+location: https://istio.io/
+server: envoy
+x-nf-request-id: 01HSD0YB5MSPEPC1Y5R85AMREM
+x-envoy-upstream-service-time: 387
+transfer-encoding: chunked
+
+# 验证：查询egress网关日志，确认流量通过网关转发（根据 upstream_cluster 和 response_code 字段判断）
+# - 在部署策略前，egress网关不会出现这条访问日志
+# - 网关中的 upstream 是指自己所代理的服务，而egress代理的是外部服务；
+$ kk logs -l istio=egressgateway -nistio-system --tail 2
+{"requested_server_name":null,"authority":"istio.io","upstream_service_time":"376","path":"/","downstream_remote_address":"20.2.36.112:42936",
+"x_forwarded_for":"20.2.36.112","upstream_local_address":"20.2.36.108:52900","downstream_local_address":"20.2.36.108:8080",
+"duration":377,"bytes_sent":32,"upstream_transport_failure_reason":null,"response_code_details":"via_upstream",
+"response_flags":"-","request_id":"252fce5c-0a92-99c2-93cd-4ce7ba0bd995","connection_termination_details":null,
+"response_code":301,"upstream_cluster":"outbound|80||istio.io","start_time":"2024-03-18T16:52:08.157Z","bytes_received":0,
+"upstream_host":"75.2.60.5:80","method":"GET","user_agent":"curl/7.59.0","route_name":null,"protocol":"HTTP/2"}
+2024-03-18T16:35:39.362022Z	info	xdsproxy	connected to upstream XDS server: istiod.istio-system.svc:15012
+
+# 清理
+$ kk delete -f egressgwy-proxy-http2http.yaml
+```
+
+**演示二**
+主题：Egress网关透明转发HTTPS请求（HTTPS->HTTPS）
+
+```shell
+# 部署策略
+$ kk apply -f egressgwy-proxy-https2https.yaml
+serviceentry.networking.istio.io/istio-io-https created
+gateway.networking.istio.io/egress-istio-io-https created
+virtualservice.networking.istio.io/egressgateway-proxy-https-istio-io created
+
+# 验证：查询egress网关日志，确认流量通过网关转发（根据 upstream_cluster 和 response_code 字段判断）
+# - 在部署策略前，egress网关不会出现这条访问日志
+$ kk logs -l istio=egressgateway -nistio-system --tail 1
+{"upstream_local_address":"20.2.36.108:35544","duration":961,"requested_server_name":"istio.io","protocol":null,"path":null,
+"method":null,"bytes_received":454,"authority":null,"connection_termination_details":null,"response_flags":"-","bytes_sent":3204,
+"start_time":"2024-03-18T17:33:45.987Z","user_agent":null,"upstream_transport_failure_reason":null,"upstream_cluster":"outbound|443||istio.io",
+"response_code_details":null,"upstream_service_time":null,"route_name":null,"upstream_host":"75.2.60.5:443","response_code":0,
+"downstream_local_address":"20.2.36.108:8443","request_id":null,"x_forwarded_for":null,"downstream_remote_address":"20.2.36.112:52658"}
+
+# 清理
+$ kk delete -f egressgwy-proxy-https2https.yaml
+```
+
+**演示三**
+主题：Egress网关将HTTP请求转换为HTTPS请求（HTTP->HTTPS）
+
+```shell
 TODO
+```
 
-##### 8.4.5.8 Istio特性之ServiceEntry
+**必要的安全措施**
+
+如果你不希望集群中有任何Pod的出站流量能够绕过Egress网关（脱离Istio的监控和控制），
+建议你部署K8s的 NetworkPolicy 来保证**仅允许**来自Egress网关的流量可以到达外部世界，
+这样可以避免网格外的Pod绕过Egress网关直接对外发起访问，这将导致Egress网关相关的流量策略如同虚设，
+具体请参考[Istio Egress安全事项][Istio Egress安全]。
+
+**仅允许访问已注册的服务**
+
+如果你希望控制网格内的服务**仅能访问**已在网格或集群中注册的服务，那你可以通过修改 IstioOperator 配置文件来完成。执行命令：
+`istioctl install -f istio-operator.yaml --set meshConfig.outboundTrafficPolicy.mode=REGISTRY_ONLY`，默认的 `mode`
+配置是`ALLOW_ANY`，即允许访问任何域名，而`REGISTRY_ONLY`表示**仅允许访问已注册的服务**。更改配置后，等待几秒钟生效，
+然后你就会发现网格内的服务无法访问类似`api.alibaba.com`这样的外部地址了，因为它没有在网格内进行注册，
+通过 ServiceEntry 对象完成网格内的服务注册就可以正常访问了。
+
+#### 8.4.6 故障处理
+
+**故障一：配置下发失败**
+
+故障体现为应用容器没有安装配置的路由策略执行，通过`istioctl pc route ...`无法看到最新的路由策略。
+此外观察istiod日志发现大量`error`级别的日志。
+
+```shell
+$ kubectl logs -l app=istiod -nistio-system --tail 5
+2024-03-18T15:28:07.316091Z	error	security	Failed to authenticate client from 20.2.36.105:40058: 
+Authenticator ClientCertAuthenticator: no verified chain is found; Authenticator KubeJWTAuthenticator: 
+failed to validate the JWT from cluster "Kubernetes": the service account authentication returns an error: 
+[invalid bearer token, service account token has expired]
+...重复
+```
+
+解决：todo
 
 ## 参考
 
@@ -2143,6 +2401,7 @@ TODO
 - [Istio 安全](https://istio.io/latest/zh/docs/concepts/security)
 - [Istio 认证策略](https://istio.io/latest/zh/docs/tasks/security/authentication/authn-policy/)
 - [Istio 授权](https://istio.io/latest/zh/docs/concepts/security/#authorization)
+- [Envoy日志分析](https://www.zhaohuabing.com/istio-guide/docs/debug-istio/envoy-log/)
 
 [MetricsAPI]: https://kubernetes.io/zh-cn/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/#metrics-api
 
@@ -2167,3 +2426,7 @@ TODO
 [Istio授权策略规范]: https://istio.io/latest/zh/docs/reference/config/security/authorization-policy/
 
 [Istio流量管理]: https://istio.io/latest/zh/docs/concepts/traffic-management/
+
+[Istio访问外部服务]: https://istio.io/latest/zh/docs/tasks/traffic-management/egress/egress-control/#access-an-external-http-service
+
+[Istio Egress安全]: https://istio.io/latest/zh/docs/tasks/traffic-management/egress/egress-gateway/#additional-security-considerations
