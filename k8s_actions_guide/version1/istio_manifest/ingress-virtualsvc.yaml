@@ -10,7 +10,7 @@ spec:
   # - 若网关那边定义了hosts，则此处hosts必须匹配其中一个，未匹配任何VS策略的主机名的请求将统一被网关以404处理
   hosts:
     - "*.foobar.com"
-  gateways: # 指定要关联的网关策略
+  gateways: # 指定策略要应用的网关
     - default/ingress-go-multiroute # 需要指定ns前缀，否则无法正常工作
     #- mesh # 应用于整个网格
   http:

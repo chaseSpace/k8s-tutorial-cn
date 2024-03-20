@@ -1,0 +1,68 @@
+# nonk8s
+# ServiceEntry规范：https://istio.io/latest/docs/reference/config/networking/service-entry/
+# 1. 首先使用ServiceEntry对象定义外部域名：istio.io（定义后才能在VirtualService中作为dst）
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: istio-io
+spec:
+  hosts:
+    - istio.io
+  ports:
+    - number: 80
+      name: http
+      protocol: HTTP
+  resolution: DNS
+  location: MESH_EXTERNAL
+---
+# 2. 为 Host：istio.io 定义一个 egressGateway
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: egress-istio-io
+spec:
+  selector:
+    istio: egressgateway
+  servers:
+    - port:
+        # 此端口号定义此网关要用于监听 去往 host：istio.io 流量的端口号（必须是egress网关Service已经暴露的端口号之一）
+        # 端口号错误会导致应用访问404/503
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - istio.io
+---
+# 3. 定义VS将 istio.io 流量转发到 egressGateway，再从 egressGateway 转发到 istio.io
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: egressgateway-proxy-http-istio-io
+spec:
+  hosts:
+    - istio.io
+  gateways: # 指定路由规则要应用的网关
+    - mesh
+    - egress-istio-io
+  http:
+    # rule-1：定义整个网格（不含网关）内去往 host：istio.io:80 的请求转发到 istio-egressgateway.istio-system.svc.cluster.local:80
+    - match:
+        - gateways:
+            - mesh
+          port: 80
+      route:
+        # 目的地是 egressGateway svc的80端口（该service暴露了80和443端口）
+        - destination:
+            host: istio-egressgateway.istio-system.svc.cluster.local
+            port: # 可省略（因为目标svc定义的ports[0].name是可读的“http2”）
+              number: 80
+    # rule-2：定义从egress-istio-io网关出发并去往 host：istio.io:80 的请求转发到 istio.io:80
+    - match:
+        - gateways:
+            - egress-istio-io
+          port: 80
+      route:
+        - destination:
+            host: istio.io
+            port:
+              number: 80

@@ -1,0 +1,37 @@
+# nonk8s
+# ServiceEntry规范：https://istio.io/latest/docs/reference/config/networking/service-entry/
+# 1. 首先使用ServiceEntry对象定义外部域名：httpbin.org（定义后才能在VirtualService中作为dst）
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: httpbin
+spec:
+  hosts:
+    # 这里定义的host必需是有效的外部域名，否则应用容器将无法解析该域名（因为也不是集群Service）
+    - httpbin.org
+  ports:
+    - number: 80
+      name: http
+      protocol: HTTP
+  resolution: DNS
+  location: MESH_EXTERNAL
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: httpbin
+spec:
+  hosts:
+    - httpbin.org
+  http:
+    # rule-1：将 / 重定向到 /ip
+    - match:
+        - uri:
+            exact: /
+      redirect:
+        uri: /ip
+    # rule-2：无条件转发至 httpbin.org，但限制超时2s
+    - timeout: 2s
+      route:
+        - destination:
+            host: httpbin.org # 这里的host要么是集群service，要么是通过ServiceEntry定义的host，其他任何地址都将导致访问503
