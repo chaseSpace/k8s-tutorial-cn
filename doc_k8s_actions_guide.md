@@ -1109,7 +1109,7 @@ Pod安全准入控制器会对命名空间下的所有Pod或控制器的 PodSpec
 我们可以为相同语言实现的微服务配置相同的一系列基础设施，但一旦出现其他语言构建的服务，
 则又要单独去添加这些基础设施，这就造成了重复工作，还带来了大量的排错及维护成本。
 
-上面提到的一系列基础设施，它们可能是由不同的第三方包提供，
+上面提到的一系列基础设施，它们可能是由不同的第三方包提供（也叫做基于SDK的架构模式），
 这种独立分散的方式也带来了服务组件的版本管理、依赖管理、服务部署、服务监控等问题的困扰。
 并且使用它们的逻辑一定程度上耦合在业务代码中，这也使得整个代码库变得臃肿且增加了复杂度。
 
@@ -1154,11 +1154,12 @@ Service Mesh将服务通信及相关管控功能从业务程序中分离并下�
 
 虽然到目前为止，在CNCF旗下托管的Service Mesh生态圈已经呈现繁荣姿态，例如Linkerd、Istio、Consul Connect、Kuma、Gloo Mesh等。
 但由于庞大的贡献者数量和社区支持，最终**Istio成为服务网格领域的领先者**。能够与之比较的是商业产品Linkerd，它的优势是更轻量，
-适合部署在中小规模云环境中，但缺少部分Istio才有的高级功能。关于Istio与Linkerd的详细对比，请阅读 [Istio vs Linkerd: The Best Service Mesh for 2023](https://imesh.ai/blog/istio-vs-linkerd-the-best-service-mesh-for-2023/)。
+适合部署在中小规模云环境中，但缺少部分Istio才有的高级功能。关于Istio与Linkerd的详细对比，请查看
+[Istio vs Linkerd: The Best Service Mesh for 2023][Istio vs Linkerd]。
 
-Istio最初由Google、IBM和Lyft等公司共同开发。在2018年发布了其1.0版本。随后，Istio在2022年4月宣布捐赠给CNCF（正式孵化时间是同年9月底），最终Istio在2023年7月正式毕业（不到一年），且如今已经有
-**数百家**公司为其贡献代码。
-截至今日（2024年3月5日），它已迭代至v1.20，可见其发展之迅速。
+Istio最初由Google、IBM和Lyft等公司共同开发。在2018年发布了其1.0版本。随后，Istio在2022年4月宣布捐赠给CNCF（正式孵化时间是同年9月底），
+最终Istio在2023年7月正式毕业（不到一年），且如今已经有 **数百家** 公司为其贡献代码。
+截至当前（2024年3月5日），它已迭代至v1.20，可见其发展之迅速。
 
 **Istio的口号**
 
@@ -1973,7 +1974,7 @@ virtualservice.networking.istio.io "go-multiroute" deleted
 如果没有安装Ingress网关，使用`istioctl install`命令安装即可。使用如下命令检查是否安装：
 
 ```shell
-$ kk get deploy,svc,hpa -n istio-system |grep gateway -B 1
+$ kubectl get deploy,svc,hpa -n istio-system |grep gateway -B 1
 NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
 deployment.apps/istio-ingressgateway   1/1     1            1           3d7h
 --
@@ -2026,7 +2027,7 @@ ROOTCA                       CA             ACTIVE     true           f915f3f5c5
 
 
 # 3. 创建Gateway和VirtualService
-kk apply -f ingress-gwy.yaml -f ingress-virtualservice.yaml
+kubectl apply -f ingress-gwy.yaml -f ingress-virtualservice.yaml
 
 # 使用istioctl查看网关路由
 $ ./istioctl pc routes istio-ingressgateway-d4db74f5b-l44h4.istio-system
@@ -2128,7 +2129,7 @@ ENDPOINT            STATUS      OUTLIER CHECK     CLUSTER
 **清理**
 
 ```shell
-kk delete -f ingress-virtualservice.yaml -f ingress-gwy.yaml
+kubectl delete -f ingress-virtualservice.yaml -f ingress-gwy.yaml
 ```
 
 **扩展主题**
@@ -2158,17 +2159,17 @@ Istio提供了三种方式来解决这个问题：
 
 ```shell
 # 部署两种对象
-$ kk apply -f external-access-control.yaml
+$ kubectl apply -f external-access-control.yaml
 serviceentry.networking.istio.io/httpbin created
 virtualservice.networking.istio.io/httpbin created
 
 # 验证一：根路由重定向到 /ip （-L跟随跳转）
-$ kk exec -it istio-client-test-$POD_ID -- curl -L httpbin.org
+$ kubectl exec -it istio-client-test-$POD_ID -- curl -L httpbin.org
 {
   "origin": "119.x.198.51"
 }
 # 验证二：设置超时2s，要求延时3s返回（预期超时）
-$ kk exec -it istio-client-test-$POD_ID -- curl httpbin.org/delay/3 -I
+$ kubectl exec -it istio-client-test-$POD_ID -- curl httpbin.org/delay/3 -I
 HTTP/1.1 504 Gateway Timeout
 content-length: 24
 content-type: text/plain
@@ -2176,7 +2177,7 @@ date: Mon, 18 Mar 2024 09:59:12 GMT
 server: envoy
 
 # 验证三：设置超时2s，要求延时1s返回（预期正常200）
-$ kk exec -it istio-client-test-$POD_ID -- curl httpbin.org/delay/1 -I
+$ kubectl exec -it istio-client-test-$POD_ID -- curl httpbin.org/delay/1 -I
 HTTP/1.1 200 OK
 date: Tue, 19 Mar 2024 13:29:55 GMT
 content-type: application/json
@@ -2235,7 +2236,7 @@ Ingress网关和Egress网关共同实现了网格网络的东西向流量控制�
 $ ./istioctl install -f istio-operator.yaml
 
 # 查看已安装的egress网关
-$ kk get deploy,svc -n istio-system |grep egress -B 1
+$ kubectl get deploy,svc -n istio-system |grep egress -B 1
 NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
 deployment.apps/istio-egressgateway    1/1     1            1           4m58s
 --
@@ -2243,7 +2244,7 @@ NAME                           TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(
 service/istio-egressgateway    ClusterIP      20.1.68.34     <none>        80/TCP,443/TCP                               4m58s
 
 # 查询sidecar的访问日志
-$ kk exec -it istio-client-test-$POD_ID -- curl go-multiroute:3000/route1
+$ kubectl exec -it istio-client-test-$POD_ID -- curl go-multiroute:3000/route1
 [v2] Hello, You are at /route1, Got: route1's content
 
 # 简单分析一下客户端sidecar的访问日志
@@ -2260,7 +2261,7 @@ $ kk exec -it istio-client-test-$POD_ID -- curl go-multiroute:3000/route1
 # downstream_local_address：sidecar1的ip:port
 
 # 其他还有response_code、route、duration、request_id、bytes_sent等有用信息。
-$ kk logs -l app=istio-client-test -c istio-proxy --tail 1
+$ kubectl logs -l app=istio-client-test -c istio-proxy --tail 1
 {"upstream_transport_failure_reason":null,"protocol":"HTTP/1.1","user_agent":"curl/7.59.0","route_name":"default",
 "response_code":200,"upstream_local_address":"20.2.36.96:39984","connection_termination_details":null,
 "request_id":"5877d0cb-bd2b-4aa6-83c1-dd2e7dbf01be","response_flags":"-","upstream_host":"20.2.36.94:3000",
@@ -2291,18 +2292,17 @@ kubectl exec {POD-NAME} -c istio-proxy -- curl -X POST http://127.0.0.1:15000/lo
 
 [egressgwy-proxy-http2http.yaml]: k8s_actions_guide/version1/istio_manifest/egressgwy-proxy-http2http.yaml
 
-**演示一**
-主题：Egress网关透明转发HTTP请求（HTTP->HTTP）
+**演示一：Egress网关透明转发HTTP请求（HTTP->HTTP）**
 
 ```shell
 # 部署策略
-$ kk apply -f egressgwy-proxy-http2http.yaml
+$ kubectl apply -f egressgwy-proxy-http2http.yaml
 serviceentry.networking.istio.io/istio-io created
 gateway.networking.istio.io/egress-istio-io created
 virtualservice.networking.istio.io/egressgateway-proxy-http-istio-io created
 
 # 验证：在注入sidecar的客户端容器中访问注册的外部服务（预期：HTTP访问应该返回301）
-$ kk exec -it istio-client-test-668bb6fc86-mmqf9 -- curl istio.io -I              
+$ kubectl exec -it istio-client-test-668bb6fc86-mmqf9 -- curl istio.io -I              
 HTTP/1.1 301 Moved Permanently
 content-type: text/plain; charset=utf-8
 date: Wed, 20 Mar 2024 04:12:07 GMT
@@ -2315,7 +2315,7 @@ transfer-encoding: chunked
 # 验证：查询egress网关日志，确认流量通过网关转发（根据 upstream_cluster 和 response_code 字段判断）
 # - 在部署策略前，egress网关不会出现这条访问日志
 # - 网关中的 upstream 是指自己所代理的服务，而egress代理的是外部服务；
-$ kk logs -l istio=egressgateway -nistio-system --tail 2
+$ kubectl logs -l istio=egressgateway -nistio-system --tail 2
 {"requested_server_name":null,"authority":"istio.io","upstream_service_time":"376","path":"/","downstream_remote_address":"20.2.36.112:42936",
 "x_forwarded_for":"20.2.36.112","upstream_local_address":"20.2.36.108:52900","downstream_local_address":"20.2.36.108:8080",
 "duration":377,"bytes_sent":32,"upstream_transport_failure_reason":null,"response_code_details":"via_upstream",
@@ -2325,22 +2325,21 @@ $ kk logs -l istio=egressgateway -nistio-system --tail 2
 2024-03-18T16:35:39.362022Z	info	xdsproxy	connected to upstream XDS server: istiod.istio-system.svc:15012
 
 # 清理
-$ kk delete -f egressgwy-proxy-http2http.yaml
+$ kubectl delete -f egressgwy-proxy-http2http.yaml
 ```
 
-**演示二**
-主题：Egress网关透明转发HTTPS请求（HTTPS->HTTPS）
+**演示二：Egress网关透明转发HTTPS请求（HTTPS->HTTPS）**
 
 ```shell
 # 部署策略
-$ kk apply -f egressgwy-proxy-https2https.yaml
+$ kubectl apply -f egressgwy-proxy-https2https.yaml
 serviceentry.networking.istio.io/istio-io-https created
 gateway.networking.istio.io/egress-istio-io-https created
 virtualservice.networking.istio.io/egressgateway-proxy-https-istio-io created
 
 # 验证：查询egress网关日志，确认流量通过网关转发（根据 upstream_cluster 和 response_code 字段判断）
 # - 在部署策略前，egress网关不会出现这条访问日志
-$ kk logs -l istio=egressgateway -nistio-system --tail 1
+$ kubectl logs -l istio=egressgateway -nistio-system --tail 1
 {"upstream_local_address":"20.2.36.108:35544","duration":961,"requested_server_name":"istio.io","protocol":null,"path":null,
 "method":null,"bytes_received":454,"authority":null,"connection_termination_details":null,"response_flags":"-","bytes_sent":3204,
 "start_time":"2024-03-18T17:33:45.987Z","user_agent":null,"upstream_transport_failure_reason":null,"upstream_cluster":"outbound|443||istio.io",
@@ -2348,11 +2347,10 @@ $ kk logs -l istio=egressgateway -nistio-system --tail 1
 "downstream_local_address":"20.2.36.108:8443","request_id":null,"x_forwarded_for":null,"downstream_remote_address":"20.2.36.112:52658"}
 
 # 清理
-$ kk delete -f egressgwy-proxy-https2https.yaml
+$ kubectl delete -f egressgwy-proxy-https2https.yaml
 ```
 
-**演示三**
-主题：Egress网关将HTTP请求转换为HTTPS请求（HTTP->HTTPS）
+**演示三：Egress网关将HTTP请求转换为HTTPS请求（HTTP->HTTPS）**
 
 ```shell
 TODO
@@ -2430,3 +2428,5 @@ failed to validate the JWT from cluster "Kubernetes": the service account authen
 [Istio访问外部服务]: https://istio.io/latest/zh/docs/tasks/traffic-management/egress/egress-control/#access-an-external-http-service
 
 [Istio Egress安全]: https://istio.io/latest/zh/docs/tasks/traffic-management/egress/egress-gateway/#additional-security-considerations
+
+[Istio vs Linkerd]: https://imesh.ai/blog/istio-vs-linkerd-the-best-service-mesh-for-2023/
