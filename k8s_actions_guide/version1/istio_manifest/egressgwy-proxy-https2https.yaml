@@ -29,7 +29,7 @@ spec:
     istio: egressgateway
   servers:
     - port:
-        # 此端口号定义此网关要用于监听 去往 host：istio.io 流量的端口号（必须是egress网关Service已经暴露的端口号之一）
+        # 定义此网关要用于监听 去往 host：istio.io 流量的端口号（必须是egress网关Service已经暴露的端口号之一）
         # 端口号错误会导致应用访问404/503
         number: 443
         name: tls

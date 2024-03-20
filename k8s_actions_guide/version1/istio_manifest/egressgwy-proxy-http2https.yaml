@@ -1,0 +1,102 @@
+# nonk8s
+# ServiceEntry规范：https://istio.io/latest/docs/reference/config/networking/service-entry/
+# 1. 首先使用ServiceEntry对象定义外部域名：istio.io（定义后才能在VirtualService中作为dst）
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: istio-io
+spec:
+  hosts:
+    - istio.io
+  ports: # 需要同时定义80和443端口，因为网关规则需要转发到Host的两个端口
+    - number: 80
+      name: http
+      protocol: HTTP
+    - number: 443
+      name: https
+      protocol: HTTPS
+  resolution: DNS
+  location: MESH_EXTERNAL
+
+---
+# 2. 为 Host：istio.io 定义一个 egressGateway
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: egress-istio-io-http2https
+spec:
+  selector:
+    istio: egressgateway
+  servers:
+    - port:
+        # 定义此网关用于监听 去往 host：istio.io 流量的端口号（必须是egress网关Service已经暴露的端口号之一）
+        # 端口号错误会导致应用访问404/503
+        number: 80
+        name: https
+        protocol: HTTPS # 虽然是监听80端口，但因为要在网关和sidecar之间启用mTLS，所以实际上仍然使用HTTPS协议（mtls是可选项，可以为HTTP流量加密）
+      hosts:
+        - istio.io
+      tls:
+        mode: ISTIO_MUTUAL # 网关与sidecar之间采用 mTLS 模式通信（网关的证书由istio自动生成）
+---
+# 3. 定义DR声明与egressGateway通信时使用TLS（这是因为上面的tls.mode定义启用了ISTIO_MUTUAL，若不设置则访问503）
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: egressgateway-for-istio-io
+spec:
+  host: istio-egressgateway.istio-system.svc.cluster.local
+  trafficPolicy: # 这里仅为 egressGateway 的80端口配置tls
+    portLevelSettings:
+      - port:
+          number: 80
+        tls:
+          mode: ISTIO_MUTUAL
+          sni: istio.io
+---
+# 4. 定义VS将 istio.io 流量转发到 egressGateway，再从 egressGateway 转发到 istio.io
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: egressgateway-proxy-istio-io-http2https
+spec:
+  hosts:
+    - istio.io
+  gateways:
+    - mesh
+    - egress-istio-io-http2https
+  http:
+    - match:
+        - gateways:
+            - mesh
+          port: 80
+      route:
+        - destination:
+            host: istio-egressgateway.istio-system.svc.cluster.local
+            port:
+              number: 80
+    - match:
+        - gateways:
+            - egress-istio-io-http2https
+          port: 80
+      route:
+        - destination:
+            host: istio.io
+            port:
+              number: 443
+---
+# 5. 定义DR声明与 istio.io 通信时使用TLS
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: originate-tls-for-istio-io
+spec:
+  host: istio.io
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    portLevelSettings:
+      - port:
+          number: 443
+        tls:
+          mode: SIMPLE # 对 host：istio.io 发起tls连接
