@@ -2287,10 +2287,16 @@ kubectl exec {POD-NAME} -c istio-proxy -- curl -X POST http://127.0.0.1:15000/lo
 - 演示一：Egress网关透明转发HTTP请求（HTTP->HTTP）
     - 使用模板：[egressgwy-proxy-http2http.yaml][egressgwy-proxy-http2http.yaml]
 - 演示二：Egress网关透明转发HTTPS请求（HTTPS->HTTPS）
+    - 使用模板：[egressgwy-proxy-https2https.yaml][egressgwy-proxy-https2https.yaml]
 - 演示三：Egress网关将HTTP请求转换为HTTPS请求（HTTP->HTTPS）
+    - 使用模板：[egressgwy-proxy-http2https.yaml][egressgwy-proxy-http2https.yaml]
 - ~~演示四：Egress网关将HTTPS请求转换为HTTP请求（HTTPS->HTTP）~~ 没有这种要求
 
 [egressgwy-proxy-http2http.yaml]: k8s_actions_guide/version1/istio_manifest/egressgwy-proxy-http2http.yaml
+
+[egressgwy-proxy-https2https.yaml]: k8s_actions_guide/version1/istio_manifest/egressgwy-proxy-https2https.yaml
+
+[egressgwy-proxy-http2https.yaml]: k8s_actions_guide/version1/istio_manifest/egressgwy-proxy-http2https.yaml
 
 **演示一：Egress网关透明转发HTTP请求（HTTP->HTTP）**
 
@@ -2353,14 +2359,38 @@ $ kubectl delete -f egressgwy-proxy-https2https.yaml
 **演示三：Egress网关将HTTP请求转换为HTTPS请求（HTTP->HTTPS）**
 
 ```shell
-TODO
+# 部署策略
+$ kk apply -f egressgwy-proxy-http2https.yaml 
+serviceentry.networking.istio.io/istio-io created
+gateway.networking.istio.io/egress-istio-io-http2https created
+destinationrule.networking.istio.io/egressgateway-for-istio-io created
+virtualservice.networking.istio.io/egressgateway-proxy-istio-io-http2https created
+destinationrule.networking.istio.io/originate-tls-for-istio-io created
+
+# 验证：在客户端容器使用http协议访问host（预期会因为网关的转发而得到200响应）
+# - 若没有网管的tls转发，则会得到301响应
+$ kk exec -it istio-client-test-$POD_ID -- curl istio.io -I
+HTTP/1.1 200 OK
+...
+
+# 清理
+$ kubectl delete -f egressgwy-proxy-http2https.yaml
 ```
+
+这三个演示可以覆盖大部分Egress网关的使用场景。对于演示三，我们需要知道网关是以`SIMPLE`方式对`istio.io`发起TLS连接，
+这表示作为客户端的网关没有提供自己的证书给对方主机，因此存在第四个场景就是：网关与对方主机之间建立mTLS连接。
+这个场景比较少见，它首先要求对方主机需要验证客户端证书，否则提供也没意义；如有兴趣，请参考官方提供的
+[Egress网关发起的mTLS][Egress网关发起的mTLS演示] 演示。
+
+[Egress网关发起的mTLS演示]: https://istio.io/latest/zh/docs/tasks/traffic-management/egress/egress-gateway-tls-origination/#perform-mutual-TLS-origination-with-an-egress-gateway
 
 **必要的安全措施**
 
-如果你不希望集群中有任何Pod的出站流量能够绕过Egress网关（脱离Istio的监控和控制），
-建议你部署K8s的 NetworkPolicy 来保证**仅允许**来自Egress网关的流量可以到达外部世界，
-这样可以避免网格外的Pod绕过Egress网关直接对外发起访问，这将导致Egress网关相关的流量策略如同虚设，
+请注意，Istio无法做到让集群中的所有出站流量都经过Egress网关转发，所以存在集群服务**绕过Egress网关直接访问外部服务**的可能，
+这些服务的外站访问能够完全脱离Istio的控制和监控。
+
+如果你不希望集群中有任何Pod的出站流量能够绕过Egress网关（脱离Istio的控制和监控），
+建议你部署K8s的 NetworkPolicy 来保证**仅允许**来自Egress网关的流量可以通过集群边缘，
 具体请参考[Istio Egress安全事项][Istio Egress安全]。
 
 **仅允许访问已注册的服务**
@@ -2370,6 +2400,22 @@ TODO
 配置是`ALLOW_ANY`，即允许访问任何域名，而`REGISTRY_ONLY`表示**仅允许访问已注册的服务**。更改配置后，等待几秒钟生效，
 然后你就会发现网格内的服务无法访问类似`api.alibaba.com`这样的外部地址了，因为它没有在网格内进行注册，
 通过 ServiceEntry 对象完成网格内的服务注册就可以正常访问了。
+
+最后，如果你在配置TLS时感到困惑，可以阅读官网文档
+[理解 TLS 配置](https://istio.io/latest/zh/docs/ops/configuration/traffic-management/tls-configuration/)。
+
+##### 8.4.5.9 其他示例
+
+- 你可以将网格中的出站流量通过 ServiceEntry 引导至其他专用代理（而不是Egress网关），然后由专用代理负责控制和转发流量；
+    - [使用外部HTTPS代理](https://istio.io/latest/zh/docs/tasks/traffic-management/egress/http-proxy/)
+- 上一节中的演示案例都是针对单一域名的引导配置，你也可以为一个泛域名创建 ServiceEntry 和 Gateway 等对象
+    - [Wildcard 主机的 Egress](https://istio.io/latest/zh/docs/tasks/traffic-management/egress/wildcard-egress-hosts/)
+- 流量镜像：你可以配置将访问某个Host的流量按百分比复制到其他目标，这可以助你实现实施流量分析和安全审计；
+    - [流量镜像](https://istio.io/latest/zh/docs/tasks/traffic-management/mirroring/)
+- 速率限制：你可以为ingress网关和sidecar配置速率限制，以限制访问某个Host的流量速率；
+    - [速率限制](https://istio.io/latest/zh/docs/tasks/policy-enforcement/rate-limit/)
+
+此外，还有可观测性相关的更多示例，请参考[Istio 可观测性](https://istio.io/latest/zh/docs/tasks/observability/)。
 
 #### 8.4.6 故障处理
 
