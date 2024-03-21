@@ -2436,6 +2436,55 @@ failed to validate the JWT from cluster "Kubernetes": the service account authen
 具体原理笔者还未查明，但已经查到的问题是运行app容器的节点与K8s集群主节点时间不同步（相差好几个小时），
 同步后无需操作集群，问题自动消失。
 
+#### 8.4.7 Istio服务的健康检查
+
+Istio需要对APP容器的部分类型的**存活及就绪探针**规则进行重写，以使它们能够正常工作。这是因为：
+
+- 对于HTTP类型的探针：kubelet负责向应用发送探测请求。但在启用Istio mTLS的情况下，由于kubelet没有Istio颁发的证书，因此健康检查会失败；
+- 对于TCP类型的探针：kubelet仅检查Pod某端口是否开放。但在注入Istio sidecar的情况下，
+  Pod已经被`istio-init`初始化容器所添加的iptables规则将从任意端口流入Pod的流量转发到sidecar处理，因为从外部探测Pod的任意TCP端口都会成功；
+    - `iptables -t nat -A PREROUTING -p tcp -j REDIRECT --to-port 15001`是一条示例iptables规则（实际会稍复杂点），
+      它将所有进入Pod的TCP流量转发到sidecar的15001端口，即只要sidecar容器的15001端口正常监听，则外部对Pod的任意TCP端口探测都会成功。
+
+其他类型的探针如Shell命令、gRPC类型的探针则不会被重写。当工作负载部署后，你可以查看其描述来了解重写后的规则。
+当然，若你不希望为全局开启默认重写**或**想要为特定负载关闭规则重写行为，Istio也提供了对应的方法，具体操作较为简单，
+请参考官方文档 [Istio 健康检查][Istio健康检查]。
+
+#### 8.4.8 协议选择
+
+首先，Istio 提供的sidecar代理支持原始TCP和基于TCP的HTTP系列协议以及gRPC协议。Istio 注入的sidecar不会代理UDP协议，
+外部流量将直接到达APP容器而不会由sidecar转发。
+
+> Istio 还实验性的对mongo、redis、mysql协议进行支持。
+
+**显式的为Service指定协议类型**
+
+当我们为应用定义K8s Service对象时，通常按照下面的模板定义：
+
+```yaml
+...
+spec:
+  type: ClusterIP
+  selector:
+    ...
+  ports:
+    - name: custom-name
+      port: 80
+      targetPort: 80
+```
+
+然而这种定义方式存在一个问题，那就是没有指定协议类型（K8s可能不需要，但Istio需要）。Istio仅支持对HTTP/HTTP2流量的识别，
+对于其他TCP流量，统一当做不透明的原始TCP流量进入路由规则（VirtualService）匹配。此时，如果你提前为HTTPS流量定义了`tls`
+类型的路由规则，那么很遗憾，这条规则不会生效，sidecar将按照默认方式转发流量，除了路由规则，一些高级流量策略（DestinationRule）也都将形同虚设。
+
+因此，**最好显式的为Service指定协议类型**，Istio支持两种识别方式：
+
+1. Service中的`ports.name`命名格式为`<protocol>[-<suffix>]`，例如`http`或`http-xxx`；
+    - _不建议_。因为与sidecar不同，当Service作为Ingress网关的后端时，网关无法根据`ports.name`来识别协议类型，因此建议都使用第二种。
+2. 在版本 v1.18+ 的Kubernetes，通过 `ports.appProtocol` 字段配置协议（优先于第一种）。
+
+**备注**：本节内容是对官方文档 [Istio 协议选择][Istio协议选择] 更深度的解读与补充。
+
 ## 参考
 
 - [Kubernetes实战@美 Brendan Burns Eddie Villalba](https://book.douban.com/subject/35346815/)
@@ -2477,3 +2526,6 @@ failed to validate the JWT from cluster "Kubernetes": the service account authen
 [Istio Egress安全]: https://istio.io/latest/zh/docs/tasks/traffic-management/egress/egress-gateway/#additional-security-considerations
 
 [Istio vs Linkerd]: https://imesh.ai/blog/istio-vs-linkerd-the-best-service-mesh-for-2023/
+
+[Istio健康检查]: https://istio.io/latest/zh/docs/ops/configuration/mesh/app-health-check/
+[Istio协议选择]: https://istio.io/latest/zh/docs/ops/configuration/traffic-management/protocol-selection/
