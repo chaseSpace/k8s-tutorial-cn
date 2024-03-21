@@ -2433,7 +2433,8 @@ failed to validate the JWT from cluster "Kubernetes": the service account authen
 ...重复
 ```
 
-解决：todo
+具体原理笔者还未查明，但已经查到的问题是运行app容器的节点与K8s集群主节点时间不同步（相差好几个小时），
+同步后无需操作集群，问题自动消失。
 
 ## 参考
 
