@@ -15,6 +15,9 @@ spec:
     connectionPool:
       tcp:
         maxConnections: 5 # 定义tcp连接最大并发数，这里的值仅用于测试
+      # 若来源是网关，可以指定如下字段来使用相同协议转发流量至目标
+      #http:
+      #  useClientProtocol: true
     outlierDetection: # 定义熔断策略
       consecutive5xxErrors: 3 # 指定连续多少个 5xx 错误会导致端点被剔除，默认5，0表示禁用（但是时间窗口未知）
       interval: 1s # 熔断检测间隔，默认10s，要求>=1ms

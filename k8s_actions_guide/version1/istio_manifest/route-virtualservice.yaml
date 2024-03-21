@@ -13,7 +13,7 @@ spec:
     - go-multiroute # 若service与规则不在同一命名空间，最好使用完整服务名：go-multiroute.default.svc.cluster.local
 
   # 下面的路由规则将按顺序匹配执行，每个HTTP请求最多匹配成功一个规则（一般最后的规则是无条件的默认规则）
-  http:
+  http: # 适用于http、http2以及gRPC在内的多种协议类型的流量
     # 第一组路由规则：将HTTP header中包含键值对 test-version: v2 的流量路由到子集 v2
     - match:
         - headers:
@@ -43,7 +43,8 @@ spec:
             host: go-multiroute
             subset: v2
           weight: 20
-#  tcp:
+#  tls: # 适用于HTTPS或TLS的流量
+#  tcp: # 适用于非HTTP且非TLS的流量
 
 
 
