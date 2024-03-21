@@ -93,8 +93,6 @@ metadata:
 spec:
   host: istio.io
   trafficPolicy:
-    loadBalancer:
-      simple: ROUND_ROBIN
     portLevelSettings:
       - port:
           number: 443
