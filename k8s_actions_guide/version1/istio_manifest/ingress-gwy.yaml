@@ -15,7 +15,7 @@ spec:
     - name: go-multiroute # 为这个server起个备注，可省略
       port: # 网关（本地Pod或公有云的LoadBalancer）对外监听的端口&协议
         name: http
-        number: 8080 # 此端口号在 service：istio-ingressgateway 的Target端口映射中存在，且协议能够对应。
+        number: 8080 # 此端口号必须在 service：istio-ingressgateway 定义的Port端口映射中存在（http:80/8080,https:443/8443），且协议能够对应。
         protocol: HTTP # HTTP|HTTPS|GRPC|GRPC-WEB|HTTP2|MONGO|TCP|TLS
       # 允许VirtualService绑定的域名或集群服务名，"*"表示不限制或用作通配符如 "*.foo.com" "ns/*"
       # - 注意：这里定义host只是步骤一，还需要有一个VirtualService来匹配网关中的host来进行转发
@@ -31,6 +31,8 @@ spec:
       hosts:
         - "*.foobar.com"
       tls:
+        # tls.mode=SIMPLE表示网关不会要求外部客户端提供证书，并且网关会进行TLS终止！即网关转发到集群内的流量是HTTP或原始TCP的，而不是TLS的
+        # - ingress网关的tls.mode一般选择SIMPLE，即手动配置host证书（证书一般由权威机构签发，client才能信任）
         mode: SIMPLE
         credentialName: cert-foobar
 

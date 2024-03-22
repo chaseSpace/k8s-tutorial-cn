@@ -37,7 +37,7 @@ spec:
       hosts:
         - istio.io
       tls:
-        mode: ISTIO_MUTUAL # 网关与sidecar之间采用 mTLS 模式通信（网关的证书由istio自动生成）
+        mode: ISTIO_MUTUAL # egress网关通常会设置ISTIO_MUTUAL。表示网关与sidecar之间采用 mTLS 模式通信（网关的证书由istio自动生成）
 ---
 # 3. 定义DR声明与egressGateway通信时使用TLS（这是因为上面的tls.mode定义启用了ISTIO_MUTUAL，若不设置则访问503）
 apiVersion: networking.istio.io/v1beta1
