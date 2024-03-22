@@ -2050,7 +2050,7 @@ $ echo '20.1.185.158 x.foobar.com' >> /etc/hosts
 # -k 禁用客户端对服务器证书的检查（因为根证书没有对go-multiroute...这个地址生成过证书）
 $ curl -k -H "Host: go-multiroute.default.svc.cluster.local" https://go-multiroute.default.svc.cluster.local/route1
 [v2] Hello, You are at /route1, Got: route1's content
-$ curl --cacert ./ca.crt -H 'Host: x.foobar.com' https://x.foobar.com/route1   
+$ curl --cacert ./ca.crt https://x.foobar.com/route1   
 [v2] Hello, You are at /route1, Got: route1's content
 ```
 
@@ -2066,6 +2066,7 @@ ADDRESSES PORT  MATCH                                                     DESTIN
 0.0.0.0   15090 ALL                                                       Inline Route: /stats/prometheus*
 
 # routes是当前网关Pod（Envoy）运行时维护的路由规则，这里可以看到我们刚才配置的两条规则
+# - 注意观察【VIRTUAL SERVICE】列，该列非404即说明网关内配置的目标成功匹配到了定义的虚拟路由！
 $ ./istioctl pc routes istio-ingressgateway-d4db74f5b-l44h4.istio-system
 NAME                                               VHOST NAME                                       DOMAINS                                                   MATCH                  VIRTUAL SERVICE
 http.8080                                          go-multiroute.default.svc.cluster.local:8080     go-multiroute.default.svc.cluster.local, *.foobar.com     /*                     ingress-go-multiroute.default
@@ -2436,6 +2437,8 @@ failed to validate the JWT from cluster "Kubernetes": the service account authen
 具体原理笔者还未查明，但已经查到的问题是运行app容器的节点与K8s集群主节点时间不同步（相差好几个小时），
 同步后无需操作集群，问题自动消失。
 
+关于流量管理配置相关的故障，请参考官方文档[流量管理问题](https://istio.io/latest/zh/docs/ops/common-problems/network-issues/)。
+
 #### 8.4.7 Istio服务的健康检查
 
 Istio需要对APP容器的部分类型的**存活及就绪探针**规则进行重写，以使它们能够正常工作。这是因为：
@@ -2528,4 +2531,5 @@ spec:
 [Istio vs Linkerd]: https://imesh.ai/blog/istio-vs-linkerd-the-best-service-mesh-for-2023/
 
 [Istio健康检查]: https://istio.io/latest/zh/docs/ops/configuration/mesh/app-health-check/
+
 [Istio协议选择]: https://istio.io/latest/zh/docs/ops/configuration/traffic-management/protocol-selection/
