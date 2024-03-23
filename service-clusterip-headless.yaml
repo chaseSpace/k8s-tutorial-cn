@@ -11,6 +11,6 @@ spec:
   clusterIP: None # None 表示不分配集群IP
   selector:
     app: hellok8s  # 通过selector 选择映射的pod
-  ports:
+  ports: # 可选字段。若不配置，则 kube-proxy 转发时不做任何处理，请求直达DNS解析后的某个Pod
     - port: 3000 # service端口
       targetPort: 3000 # 后端pod端口
