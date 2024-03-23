@@ -2529,6 +2529,16 @@ spec:
 K8s中的Headless Service 是一种特殊的 Service，它没有 ClusterIP，而是通过DNS解析的方式，将 Service 的名称解析为一组 Pod 的
 IP 地址。这种类型的 Service 作为 Istio 的转发后端时，Istio 要求它必须定义 `ports`字段，否则无法匹配。
 
+#### 8.4.10 保留客户端IP
+
+对于存在反向代理或网关的集群来说，在转发请求时保留客户端IP是一个常见且许多场景下必要的需求，
+Istio允许通过配置以支持网关在转发时保留客户端IP。具体来说，支持两种方式：
+
+- 使用 IstioOperator 自定义资源去配置全局设置；
+- 为入口网关 Pod 配置特定注解；
+
+这包含对HTTP系列协议和TCP协议的支持，本节不演示具体操作，请直接参考[官网文档][配置Istio网络拓扑]。
+
 ## 参考
 
 - [Kubernetes实战@美 Brendan Burns Eddie Villalba](https://book.douban.com/subject/35346815/)
@@ -2580,3 +2590,5 @@ IP 地址。这种类型的 Service 作为 Istio 的转发后端时，Istio 要�
 [gRPC authority头部]: https://chromium.googlesource.com/external/github.com/grpc/grpc/+/HEAD/doc/PROTOCOL-HTTP2.md#protocol
 
 [what-is-sni]: https://www.cloudflare.com/zh-cn/learning/ssl/what-is-sni/
+
+[配置Istio网络拓扑]: https://istio.io/latest/zh/docs/ops/configuration/traffic-management/network-topologies/#forwarding-external-client-attributes-to-destination-workloads
