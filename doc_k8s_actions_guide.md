@@ -2494,6 +2494,41 @@ spec:
 
 **备注**：本节内容是对官方文档 [Istio 协议选择][Istio协议选择] 更深度的解读与补充。
 
+#### 8.4.9 流量路由详细过程
+
+假设现在已经定义了一个 VirtualService（下简称VS） 和 DestinationRule（下简称DR） 对象，下面基于此假设进行阐述。
+
+在 Istio 的流量路由中，我们将整个过程分为两个阶段：
+
+- **匹配前端**：匹配待处理流量的协议类型
+    - Istio 将创建的上述路由规则写入 sidecar 容器（或网关），可通过`istioctl pc route $SIDE_CAR_POD_ID`进行验证；
+    - 当流量发送至 sidecar （或网关）时，后者根据 VS 中定义的流量协议进行匹配；
+        - 若定义了`http`协议，则匹配HTTP/HTTP2/gRPC协议类型的流量（会检查[`Host`头部][HTTP-host-header]
+          是否匹配，若是gRPC则检查[`:authority`头部][gRPC authority头部]）；
+        - 若定义了`tls`协议，则匹配TLS协议类型（包含HTTPS和TCP over TLS）的流量（会在配置了 `tls.sniHosts`
+          的情况下检查[`SNI`头部][what-is-sni]是否匹配，并且无法使用path和header相关的匹配条件）；
+        - 若定义了`tcp`协议，则匹配原始TCP协议类型（包含以上所有协议）的流量（没有头部可供检查，但可以添加目标子网、端口或源负载标签的匹配条件）；
+    - 若 sidecar （或网关）没有匹配到配置中的流量协议，则按以下流程处理流量:
+        - 情况1：若是 ingress 网关，则返回404。若是 egress 网关，由于流量未到网关，则由sidecar自行处理（参照情况2）；
+        - 情况2：若是 sidecar，则按本地路由表转发，目的地可能是网格内/外的服务，具体转发规则如下:
+            - 若是网格内服务，则可能使用 mTLS 进行转发（前提是配置了相应的 mTLS 策略）；
+            - 其他情况则应该是统一当做不透明的TCP流量处理。
+- **转发后端**：决定以何种协议转发流量至后端
+    - 当 sidecar （或网关）成功匹配到流量协议后，会根据 VS 中定义的`route.destination`进行转发，进入下一步；
+    - 若 VS 中为转发后端还定义了`subset`（那该后端一定是集群内定义的Service），则查找 Host 对应的 DR 规则，根据 DR
+      规则中定义的`subset`进行转发（若找不到对应的`subset`则返回404）；
+        - 转发时遵循 DR 中定义的`spec.trafficPolicy`；
+    - 若 VS 中没有定义`subset`，则也查找 Host 对应的 DR 规则，根据 DR 规则中定义的`spec.trafficPolicy`进行转发；
+        - 若没有对应的 DR 规则，则按本地路由表转发；
+    - 转发时需要决定使用何种协议类型：
+        - 若后端是集群内定义的 Service，则使用 Service 定义中的`ports[?].appProtocol`或`ports.name`指示的协议；
+        - 若后端是通过 Istio ServiceEntry 注册的外部服务，则使用 ServiceEntry 中定义的`ports[?].protocol`指示的协议；
+
+**关于 Headless Service**
+
+K8s中的Headless Service 是一种特殊的 Service，它没有 ClusterIP，而是通过DNS解析的方式，将 Service 的名称解析为一组 Pod 的
+IP 地址。这种类型的 Service 作为 Istio 的转发后端时，Istio 要求它必须定义 `ports`字段，否则无法匹配。
+
 ## 参考
 
 - [Kubernetes实战@美 Brendan Burns Eddie Villalba](https://book.douban.com/subject/35346815/)
@@ -2539,3 +2574,9 @@ spec:
 [Istio健康检查]: https://istio.io/latest/zh/docs/ops/configuration/mesh/app-health-check/
 
 [Istio协议选择]: https://istio.io/latest/zh/docs/ops/configuration/traffic-management/protocol-selection/
+
+[HTTP-host-header]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Host
+
+[gRPC authority头部]: https://chromium.googlesource.com/external/github.com/grpc/grpc/+/HEAD/doc/PROTOCOL-HTTP2.md#protocol
+
+[what-is-sni]: https://www.cloudflare.com/zh-cn/learning/ssl/what-is-sni/
