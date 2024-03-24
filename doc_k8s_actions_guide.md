@@ -1792,10 +1792,16 @@ RBAC: access denied
 # （为了方便下一节的演示，请回滚这次patch）
 ```
 
-最后，本节中的示例并未列出可用的全部字段，如有兴趣请查看[Istio授权策略规范][Istio授权策略规范]。其他可供参考的文档：
+> 💡提示！  
+> 若你已为网格启用了全局`STRICT`
+> mTLS，那么你可以在鉴权层进行额外检查，即当主体为空时拒绝通信，
+> 参考 [authz-deny-emptyid.yaml](k8s_actions_guide/version1/istio_manifest/authz-deny-emptyid.yaml) 。
+
+最后，本节中的示例并未列出可用的全部字段，如有兴趣请查看[Istio授权策略规范][Istio授权策略规范]。其他可供参考的文档或模板：
 
 - [为 Ingress 网关配置授权](https://istio.io/latest/zh/docs/ops/configuration/security/security-policy-examples/)
 - [为 TCP 工作负载配置授权](https://istio.io/latest/zh/docs/tasks/security/authorization/authz-tcp/)
+- [authz-accept-only-ingress.yaml](k8s_actions_guide/version1/istio_manifest/authz-accept-only-ingress.yaml)
 
 **清理**
 
@@ -2538,6 +2544,10 @@ Istio允许通过配置以支持网关在转发时保留客户端IP。具体来�
 - 为入口网关 Pod 配置特定注解；
 
 这包含对HTTP系列协议和TCP协议的支持，本节不演示具体操作，请直接参考[官网文档][配置Istio网络拓扑]。
+
+> 💡提示！
+> - 即使不做任何配置，Istio 网关也会通过XFF HTTP头部保留客户端IP（可能是一个IP列表，需要自行解析），但TCP协议仍需配置；
+> - 若网关前面没有任何反向代理，则后端服务收到的Header头不含`X-Envoy-External-Address`字段，仅含`X-Forwarded-For`字段。
 
 ## 参考
 
