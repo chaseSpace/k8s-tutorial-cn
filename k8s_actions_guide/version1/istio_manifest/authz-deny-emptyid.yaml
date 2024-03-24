@@ -1,0 +1,12 @@
+# nonk8s
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: require-mtls
+  namespace: foo
+spec:
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notPrincipals: ["*"]

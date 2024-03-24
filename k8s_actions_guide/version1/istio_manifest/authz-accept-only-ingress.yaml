@@ -1,0 +1,16 @@
+# nonk8s
+# 此策略将拒绝 非foo命名空间 且 非ingress网关 的所有请求。
+# - 换言之，次策略将foo空间进行隔离，除了ingress网关
+# - 定义 DENY 策略的好处是不需要担心还有其他 ALLOW 策略对此进行覆盖
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: ns-isolation-except-ingress
+  namespace: foo
+spec:
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notNamespaces: ["foo"]
+            notPrincipals: ["cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"]
