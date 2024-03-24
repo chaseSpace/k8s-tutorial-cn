@@ -1166,7 +1166,7 @@ Istio最初由Google、IBM和Lyft等公司共同开发。在2018年发布了其1
 “Simplify observability, traffic management, security, and policy with the leading service mesh.”
 
 使用领先的服务网格技术来简化可观测性（WebUI、4/7层流量指标、延迟、链路跟踪、健康检查、日志、网络拓扑）、
-流量管理（负载均衡、多集群流量路由、服务发现、熔断/重试/超时/限速、动态配置、HTTP 1.1/2/3支持、TCP/UDP/gRPC支持、延迟注入等）、
+流量管理（负载均衡、多集群流量路由、服务发现、熔断/重试/超时/限速、动态配置、HTTP 1.1/2/3支持、TCP/gRPC支持、延迟注入等）、
 安全（认证、mTLS等）和策略。
 
 > Istio目前在中国互联网公司中并没有大量普及，这主要是由于其上手成本较高，在生产环境中应用Istio需要团队中至少有一位Istio
