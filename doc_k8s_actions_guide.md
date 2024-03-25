@@ -2573,6 +2573,72 @@ spec:
 对于 XEEA（即`X-Envoy-External-Address`）头，笔者认为其实不需要去配置，因为 Istio 网关默认会通过 XFF 头保留客户端IP，
 所以只需要手动解析 XFF 头即可获取客户端IP。而 XEEA 头仅在多个代理间传递时会存在。
 
+#### 8.4.11 最佳实践
+
+以下将 VirtualService 简称 VS，DestinationRule 简称 DR。
+
+**为每个 Service 配置默认路由**
+
+官方建议为刚开始部署每个Service的是时候就为其配置默认的路由规则，以便在Service需要使用灰度上线时可以简单修改规则以快速完成部署。
+提供的清单示例：[default_svc_route_rule.yaml](k8s_actions_guide/version1/istio_manifest/default_svc_route_rule.yaml)
+
+**跨命名空间重用配置**
+
+你可以在一个命名空间中创建一个 VirtualService，DestinationRule 或 ServiceEntry，然后在另一个命名空间中引用它，以避免重复配置。
+默认情况下，Istio 允许一个配置在所有空间下可用，但你可以通过设置`exportTo`来限制其可用范围（可限制到当前空间/指定空间/全部空间）。
+
+**将 DestinationRule 部署在服务所在空间**
+
+首先，DR 的生效是有一个规则的，例如 DR 部署在 default 空间（但对所有空间可见），然后 Service 在 `ns1`
+空间，且发出请求的客户端在 `ns2` 空间，那么这个 DR 规则永远不会生效，这是因为 Istio 要求 DR 规则的查找路径是：客户端空间-->
+Service 所在空间 --> 根空间（`istio-system`）。
+
+所以，我们在创建 DR 时最好在清单中就定义`metadata.namespace`与 Service 所在空间一致，以避免网格策略增长后产生一定的混乱。
+之所以不放在根空间，是因为实际环境中并不一定每个人都被允许访问根空间。
+
+**将大型 VirtualService 和 DestinationRule 拆分为多个资源**
+
+就比如在Ingress网关关联的 VS 对象，通常会定义多个 HTTP 路由匹配规则。若这些规则都放在一个 VS 清单中，就会造成管理上的混乱，
+因为这些规则对应的子集服务可能被部署在不同的命名空间中（可能由不同团队管理）。
+
+所以，最好将这些规则拆分为多个清单（以Service为单位划分），以便于管理，它们在应用时会自动合并。
+此外，若你的 VirtualService 规则中存在**严格先后顺序**的流量匹配规则，
+则你只能将它们合并到一个清单中，因为拆分后无法保证先后顺序，
+提供一个存在匹配规则重叠的示例：[virtualservice-in-order.yaml][virtualservice-in-order.yaml]。**此外**，
+对于针对相同 Host 的多个 VS 策略，只有在绑定网关时，多个 VS 策略才能合并；当应用于 sidecar 时，多个 VS 策略是**不支持**合并的，
+只有一个 VS 策略会生效（通过`istioctl pc route $POD`查看生效的策略），
+示例清单：[unmergeable-vs.yaml][unmergeable-vs.yaml]。
+
+[virtualservice-in-order.yaml]: k8s_actions_guide/version1/istio_manifest/virtualservice-in-order.yaml
+
+[unmergeable-vs.yaml]: k8s_actions_guide/version1/istio_manifest/unmergeable-vs.yaml
+
+另外，对于 DR 对象，如果多个 DR 清单都应用于同一个 Host，则它的合并情况与 VR 对象不同。具体来说，对于同一个 Host：
+
+- Istio **不支持**合并多个清单中定义的同名子集（其他 DR 清单中命名重复的子集将被抛弃）；
+- 同一 Host 只能有一个`spec.trafficPolicy`配置（其他 DR 清单中的同级策略将被抛弃）
+
+**按照顺序增删 VS 和 DR 对象**
+
+首先，我们应该明白，清单的生效是有延时的（从控制面传播到sidecar）。当我们同时部署有关联的 VS 和 DR 清单时，
+是有可能会出现客户端访问得到503的HTTP状态码。这是因为 VS 对象可能先于 DR 对象被传播到 sidecar，导致 VS 引用了不存在的 DR
+子集。为了避免此类情况，我们需要将二者分离到不同清单，然后先部署 DR 对象，等待几秒后，再部署 VS 对象。
+若要百分百确定 DR 对象的生效，可使用命令：`istioctl pc cluster $POD`。
+
+反过来，按照先 VS 再 DR 的顺序进行删除（解除引用）。
+
+#### 8.4.12 扩展—注入的iptables规则
+
+TODO
+
+#### 8.4.13 扩展—Envoy之坑
+
+TODO
+
+#### 8.4.X 其他有用的文档链接
+
+- [Istio: 加固Docker容器镜像](https://istio.io/latest/zh/docs/ops/configuration/security/harden-docker-images/)
+
 ## 参考
 
 - [Kubernetes实战@美 Brendan Burns Eddie Villalba](https://book.douban.com/subject/35346815/)
