@@ -14,14 +14,6 @@ spec:
       containers:
         - name: istio-client-test
           image: docker.io/leigg/istio_client_test_pod:v1
-        - name: iptables # 可以使用此容器查看Pod上的iptables规则
-          image: docker.io/vimagick/iptables:latest
-          command: [ "sleep", "1h" ]
-          securityContext:
-            privileged: true # 查看iptables需要开启特权模式
         - name: tcpdump # 可以使用此容器抓取 Pod 上流经 sidecar 容器的流量
           image: docker.io/kaazing/tcpdump:latest
-          command: [ "sleep", "1h" ]
-#        - name: bench
-#          image: docker.io/yokogawa/siege:latest
-#          command: [ "sleep", "1h" ]
+          command: [ "sleep", "1d" ]

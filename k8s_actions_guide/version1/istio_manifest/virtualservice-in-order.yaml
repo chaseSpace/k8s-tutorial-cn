@@ -1,0 +1,24 @@
+# nonk8s
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: myapp
+spec:
+  hosts:
+    - myapp.com
+  gateways:
+    - myapp-gateway
+  http: # 下面的两条流量匹配规则存在重叠，所以必需合并在一个清单中才能保证匹配顺序
+    - match:
+        - header:
+            version:
+              exact: "s1"
+      route:
+        - destination:
+            host: service1.default.svc.cluster.local
+    - match:
+        - uri:
+            prefix: /service2
+      route:
+        - destination:
+            host: service2.default.svc.cluster.local

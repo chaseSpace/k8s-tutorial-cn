@@ -1,0 +1,51 @@
+# nonk8s
+# 下面两个 VS 针对同一个Host，它们无法合并，只有 go-multiroute-1 有效！！！
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: go-multiroute-1
+spec:
+  hosts:
+    - go-multiroute
+#  gateways:
+#    - gateway
+  http:
+    - match:
+        - uri:
+            exact: /route1
+      route:
+        - destination:
+            host: go-multiroute
+            subset: v1
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: go-multiroute-2
+spec:
+  hosts:
+    - go-multiroute
+  #  gateways:
+  #    - gateway
+  http:
+    - match:
+        - uri:
+            exact: /route2
+      route:
+        - destination:
+            host: go-multiroute
+            subset: v2
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: go-multiroute
+spec:
+  host: go-multiroute
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+    - name: v2
+      labels:
+        version: v2
