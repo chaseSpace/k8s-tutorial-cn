@@ -1,4 +1,4 @@
-# K8s小技巧汇总
+# Kubernetes 小技巧汇总
 
 ## 获取当前版本支持的API列表
 
@@ -159,4 +159,97 @@ $ iptables -t nat -S
 
 # 退出该容器的命名空间
 $ exit
+```
+
+## 调试Pod
+
+首先，我们在定义负载（无论是Deployment还是裸Pod）时，没有必要在Pod内添加仅用于调试的容器，这样会无端消耗节点的CPU/内存资源。
+K8s提供了`kubectl debug`命令，可以快速创建一个临时容器以进入Pod的命名空间，并执行调试命令，下面是操作步骤：
+
+以 [pod.yaml](pod.yaml) 为例。
+
+```shell
+$ kk apply -f pod.yaml
+
+# 源容器不支持iptables命令
+$ kk exec -it go-http -- iptables -L
+error: Internal error occurred: error executing command in container: failed to exec in container: failed to start exec "4eed822c2c4f81e34710bfde16f47063d641acbe352811c15b045583e404a217": OCI runtime exec failed: exec failed: unable to start container process: exec: "iptables": executable file not found in $PATH: unknown
+
+# 使用专用容器进行调试, --target命令表示共享目标容器的进程空间（就能看到目标容器内运行的进程，可选参数）
+# --profile=netadmin表示赋予网络管理权限给临时容器（该容器需要），否则无法启动。其他容器一般不需要设置此参数
+$ kk debug go-http -it --image vimagick/iptables --profile=netadmin --target=go-http -- sh  
+Targeting container "go-http". If you don't see processes from this container it may be because the container runtime doesn't support this feature.
+Defaulting debug container name to debugger-vw2jz.
+If you don't see a command prompt, try pressing enter.
+/ # ps
+PID   USER     TIME  COMMAND
+    1 root      0:00 /main  # <------- 目标容器运行的主进程
+   19 root      0:00 sh
+   24 root      0:00 ps
+
+# Pod内的网络空间是多容器共享的，所以可直接查看它们共享的iptables规则
+/ # iptables -t nat -S
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+...
+
+# 退出临时容器
+# exit
+```
+
+但如果目标容器已经崩溃，上面的方法就失效了。需要采用Pod副本的方式来调试，步骤如下：
+
+```shell
+# 修改pod.yaml如下
+spec:
+  containers:
+    - name: go-http
+      image: leigg/hellok8s:v1
+      command: ["xxx"]  # 添加此行，xxx是一个无效的程序，所以Pod无法正常启动
+      
+$ kk apply -f pod.yaml
+
+$ kk get po go-http        
+NAME      READY   STATUS              RESTARTS      AGE
+go-http   1/2     RunContainerError   2 (25h ago)   22s
+
+# exec命令无法进入容器shell
+$ kk exec -it go-http -- sh 
+error: unable to upgrade connection: container not found ("go-http")
+
+# 第一种方式也失败
+$ kk debug go-http -it --image vimagick/iptables --profile=netadmin --target=go-http -- sh
+Targeting container "go-http". If you don't see processes from this container it may be because the container runtime doesn't support this feature.
+Defaulting debug container name to debugger-djmsn.
+Warning: container debugger-djmsn: failed to generate container "5c8a0a7cbea5a941e5c31bdb8f5646f9b9c44eac5c60d577e059308ad43e61d2" spec: invalid target container: 
+  container "efe86231f87668855b285305fe7b628fa9401e79c3272cac4673bfed97498f50" is not running - in state CONTAINER_EXITED
+  
+# 现在使用创建Pod副本的方式
+# - 此时就可以进入目标容器shell，然后可以检查你的程序无法启动的原因（你可以将启动日志输出到某个文件以便定位）
+$ kk debug go-http -it --image vimagick/iptables --profile=netadmin --share-processes --copy-to=debugger -- sh
+Defaulting debug container name to debugger-45wx8.
+If you don't see a command prompt, try pressing enter.
+/ # ps
+PID   USER     TIME  COMMAND
+    1 65535     0:00 /pause
+   26 root      0:00 sh
+   31 1337      0:00 /usr/local/bin/pilot-agent proxy sidecar --domain default.svc.cluster.local --proxyLogLevel=warning --proxyComponentLogLevel=mis
+   45 1337      0:00 /usr/local/bin/envoy -c etc/istio/proxy/envoy-rev.json --drain-time-s 45 --drain-strategy immediate --local-address-ip-version v
+   63 root      0:00 ps
+
+# 调试结束记得删除Pod副本
+$ kk delete po debugger
+```
+
+其他还有一种使用方式，根据情况使用：
+
+```shell
+# 在创建Pod副本时，使用包含调试命令的镜像替换原来的镜像
+kubectl debug myapp --copy-to=myapp-debug --set-image=*=busybox
+
+# 直接使用一个临时容器连接到无法运行Pod的节点上进行调试（一般是推测因为节点原因导致Pod无法运行，才会使用此法）
+# - 此时节点的文件系统将挂在到容器的 host/ 目录
+# - 此容器与目标节点共享IPC空间、NET空间、PID空间，但没有特权
+kubectl debug node/mynode -it --image=ubuntu
 ```
