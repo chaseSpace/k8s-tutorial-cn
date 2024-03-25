@@ -1662,14 +1662,15 @@ go-multiroute   STRICT   4m42s
 部署后，访问 `go-multiroute` 服务就必须遵循策略中配置的强制（STRICT）双向TLS通信模式。
 这可以通过上面使用过的tcpdump抓包方式来验证，抓取结果将是各种乱码，无法观察到人眼可读的明文。
 
-> 启用mTLS特性需要注意两点：
->- 对已存在的服务启用mTLS，由于服务可能正在被调用，
-   > 需要先设置策略为`PERMISSIVE`模式（同时接收明文和HTTPS流量）进行过渡，
-   > 等待相关服务更新（建议等待1min）后再切换到`STRICT`模式。
->- 若要关闭mTLS，**直接删除策略是不起作用的**，必须将策略改为`DISABLE`模式然后应用，这样才会生效。
-   > 同理，为了避免影响正在运行的服务，需要先设置策略为`PERMISSIVE`模式进行过渡，一段时间后再切换到`DISABLE`模式。
->- Istio支持为纯TCP或基于TCP的HTTP、gRPC等协议提供mTLS支持；**Istio不会代理UDP协议**（但Envoy本身支持），
-   > 即应用容器的UDP数据报文不会经过sidecar容器的网络栈，所以也不需要在Istio的流量策略中配置应用的UDP端口；
+启用mTLS特性需要注意两点：
+
+- 对已存在的服务启用mTLS，由于服务可能正在被调用，
+  需要先设置策略为`PERMISSIVE`模式（同时接收明文和HTTPS流量）进行过渡，
+  等待相关服务更新（建议等待1min）后再切换到`STRICT`模式。
+- 若要关闭mTLS，**直接删除策略是不起作用的**，必须将策略改为`DISABLE`模式然后应用，这样才会生效。
+  同理，为了避免影响正在运行的服务，需要先设置策略为`PERMISSIVE`模式进行过渡，一段时间后再切换到`DISABLE`模式。
+- Istio支持为纯TCP或基于TCP的HTTP、gRPC等协议提供mTLS支持；**Istio不会代理UDP协议**（但Envoy本身支持），
+  即应用容器的UDP数据报文不会经过sidecar容器的网络栈，所以也不需要在Istio的流量策略中配置应用的UDP端口；
 
 其他建议和Tips：
 
@@ -1792,10 +1793,9 @@ RBAC: access denied
 # （为了方便下一节的演示，请回滚这次patch）
 ```
 
-> 💡提示！  
-> 若你已为网格启用了全局`STRICT`
-> mTLS，那么你可以在鉴权层进行额外检查，即当主体为空时拒绝通信，
-> 参考 [authz-deny-emptyid.yaml](k8s_actions_guide/version1/istio_manifest/authz-deny-emptyid.yaml) 。
+> [!TIP]
+> 若你已为网格启用了全局`STRICT`模式的 mTLS，那么你可以在鉴权层进行额外检查，即当主体为空时拒绝通信，参考
+> [authz-deny-emptyid.yaml](k8s_actions_guide/version1/istio_manifest/authz-deny-emptyid.yaml) 。
 
 最后，本节中的示例并未列出可用的全部字段，如有兴趣请查看[Istio授权策略规范][Istio授权策略规范]。其他可供参考的文档或模板：
 
@@ -1831,7 +1831,8 @@ Istio的[流量管理][Istio流量管理]可以实现以下功能：
 通俗来说，`VirtualService`定义了如何进行路由（How），`DestinationRule`定义了路由到哪儿（Where），
 一定程度上是**前者引用后者**的关系。
 
-> 注意：VirtualService和DestinationRule资源并不是强绑定的关系，它们可以各自定义并独立工作，
+> [!NOTE]
+> VirtualService 和 DestinationRule 资源并不是强绑定的关系，它们可以各自定义并独立工作，
 > 仅在定义subset（子集）时前者才会依赖后者。但只有将二者结合使用才能充分应用Istio丰富的流量管理特性。
 
 为了尽可能模拟实际环境，本节演示内容将增加一个名为 `go-multiroute-v2` 的服务版本模拟金丝雀发布，
@@ -2135,9 +2136,10 @@ ENDPOINT            STATUS      OUTLIER CHECK     CLUSTER
 20.2.36.94:3000     HEALTHY     OK                outbound|3000||go-multiroute.default.svc.cluster.local
 ```
 
-最后，有一个小的细节需要注意，删除包含证书的secret并不会影响网关继续正常响应对应证书域名的请求，
-这是因为网关不会处理删除证书的操作，除非网关重启重新加载这些数据。所以要删除一个对外的服务端口，我们必须删除对应的Gateway配置。
-此外，在部署验证过程中，观察网关Pod的日志可以确认网关是否成功加载了新配置。
+> [!WARNING] 
+> 删除包含证书的secret并不会影响网关继续正常响应对应证书域名的请求，这是因为网关不会处理删除证书的操作，
+> 除非网关重启重新加载这些数据。所以要删除一个对外的服务端口，我们必须删除对应的Gateway配置。  
+> 此外，在部署验证过程中，观察网关Pod的日志可以确认网关是否成功加载了新配置。
 
 **清理**
 
@@ -2220,6 +2222,7 @@ Ingress网关和Egress网关共同实现了网格网络的东西向流量控制�
     - 例如某些项目不允许服务器对外发起HTTP访问，所以当app发起HTTP请求时，请求到达Egress网关后，Egress网关将按策略对目标发起HTTPS请求
 - 统一监控并记录网格服务的出站流量（在Egress网关处查询即可）
 
+> [!NOTE]
 > K8s虽然没有提出Egress网关的概念，但提供了NetworkPolicy来控制Egress流量，其原理是通过CNI即网络插件来实现的（部分功能需要安装的CNI插件支持），
 > 但所提供的功能丰富性无法与Istio相提并论。
 
