@@ -72,7 +72,7 @@ Deployment是K8s中最常用的用来部署和管理应用的资源对象。它�
 
 你可以在模板中定制应用的副本数量、资源限制、环境变量等配置。
 
-> [!NOTE] 
+> [!NOTE]
 > 你可能看情况需要修改模板中的`namespace`，生产环境不建议使用 default 命名空间。因为这不利于对不同类型的应用进行隔离和资源限制。
 > 比如，你可以为后端服务和前端服务分别使用backend和frontend命名空间。
 
@@ -157,16 +157,16 @@ go-multiroute-f4f8b64f4-v64l6   1/1     Running   0          8s
 
 现在已经在集群内部部署好了应用，但是还无法从集群外部访问。我们需要再部署以下资源来提供外部访问能力。
 
-- Service：为服务访问提供流量的负载均衡能力（支持TCP/UDP/SCTP协议）
-- Ingress：管理集群外部访问应用的路由端点，支持HTTP/HTTPS协议
-    - Ingress需要安装某一种Ingress控制器才能正常工作，常用的有Nginx、Traefik。
+- Service：为服务访问提供流量的负载均衡能力（支持 TCP/UDP/SCTP 协议）
+- Ingress：管理集群外部访问应用的路由端点，支持 HTTP/HTTPS 协议
+    - Ingress需要安装某一种 Ingress 控制器才能正常工作，常用的有 Nginx、Traefik。
 
-> 如果应用是非HTTP服务器（如仅TCP、Websocket服务），则无需Ingress，仅用Service来暴露服务就可。
+清单提供：
 
 - [expose_manifest/service.yaml](k8s_actions_guide/version1/expose_manifest/service.yaml)
 - [expose_manifest/ingress.yaml](k8s_actions_guide/version1/expose_manifest/ingress.yaml)
 
-部署Ingress控制器的步骤这里不再赘述，请参考[基础教程](doc_tutorial.md#82-安装Nginx-Ingress控制器)。
+部署Ingress控制器的步骤这里不再赘述，请参考 [基础教程](doc_tutorial.md#82-安装Nginx-Ingress控制器)。
 
 下面是部署Service和Ingress的步骤：
 
@@ -287,7 +287,7 @@ Nginx Ingress控制器默认通过NodePort方式部署，所以会在宿主机�
 *业务容器日志*](doc_log_collection.md#11-业务容器日志)。
 其次，你还可以参考[Kubernetes 维护指导中的*日志查看*](doc_maintaintion.md#15-日志查看)来使用第三方工具来高效查询容器日志。
 
-> [!NOTE] 
+> [!NOTE]
 > 除了Pod日志，我们还需要关注集群组件日志、节点日志、集群审计日志。
 
 ### 2.4 启动开发
@@ -455,7 +455,7 @@ cAdvisor是Google开源的一款用于展示和分析容器运行状态的可视
 
 cAdvisor暴露了Prometheus支持的指标格式，通过二者结合，我们可以轻松获取到Kubernetes集群中的Pod内部容器级别的监控数据。
 
-> [!NOTE] 
+> [!NOTE]
 > kubelet也是通过内置cAdvisor来监控容器指标。
 
 #### 3.4.5 Metrics Server
@@ -549,7 +549,7 @@ CI/CD的目标是构建一个完全自动化的过程，覆盖代码从提交到
 当应用构建成功后，应该马上执行预设的测试命令。例如，Go应用可以使用`go test`执行一组单元测试。
 当测试通过时，才能将代码打包为镜像；一旦测试失败，应立即停止流水线工作，并提供此步骤失败的日志输出。
 
-> [!NOTE] 
+> [!NOTE]
 > 除了对应用的单元测试，你可能还需要预设其他测试脚本命令。例如，对K8s清单文件的风险检测命令以及对Helm Chart文件的lint测试命令。
 
 ### 5.5 镜像构建
@@ -623,7 +623,7 @@ CI/CD的目标是构建一个完全自动化的过程，覆盖代码从提交到
 金丝雀部署中，用户流量是按比例或条件逐渐切换到新环境，而不是像蓝绿部署那样一次性地全部切换。
 例如，你可以将携带特定Header键值的请求路由到新环境。
 
-> [!NOTE] 
+> [!NOTE]
 > 在大部分移动应用项目中，客户端人员通常会通过特定的Header键值来标识当前用户使用的包环境，比如测试包/正式包/灰度包。
 
 金丝雀部署相对蓝绿部署的优点是，可以小范围验证新版本的应用，确保新版本的应用在生产环境中没有问题后再完全切换。
@@ -981,7 +981,7 @@ NetworkPolicy可以被看做是集群中的一个东西向流量防火墙，每�
 - 拒绝default命名空间下携带标签`internal: true`的Pod的出站流量；
 - 允许default命名空间下携带标签`internal: true`的Pod访问`20.2.0.0/16`网段且目标端口是5978的TCP端口。
 
-> [!NOTE] 
+> [!NOTE]
 > 该示例没有完全展示出`Ingress`和`Egress`的规则组合，更完整的示例请参考官方的
 > [NetworkPolicy](https://kubernetes.io/zh-cn/docs/concepts/services-networking/network-policies/#networkpolicy-resource)
 > 文档。
@@ -1173,7 +1173,7 @@ Istio最初由Google、IBM和Lyft等公司共同开发。在2018年发布了其1
 流量管理（负载均衡、多集群流量路由、服务发现、熔断/重试/超时/限速、动态配置、HTTP 1.1/2/3支持、TCP/gRPC支持、延迟注入等）、
 安全（认证、mTLS等）和策略。
 
-> [!NOTE] 
+> [!NOTE]
 > Istio目前在中国互联网公司中并没有大量普及，这主要是由于其上手成本较高，在生产环境中应用Istio需要团队中至少有一位Istio
 > 专家或有丰富实践经验之人，而且最好对Istio的原理有深入的理解，这样
 > 才能在出现问题时不会手忙脚乱。  
@@ -1213,7 +1213,7 @@ Istio支持的部署模型比较繁杂，它可以根据多个维度进行分类
 任何一个包含Istio的生产环境都涉及这几个维度。当然最简单的部署模型就就是单一集群+单一网络+单一控制平面+单一网格+单一租户。
 当部署Istio时，我们需要根据服务规模和团队数量来规划具体的部署模型。
 
-> [!NOTE] 
+> [!NOTE]
 > 请参考 [部署模型](https://istio.io/latest/zh/docs/ops/deployment/deployment-models/) 来详细了解Istio的部署模型。
 
 
@@ -1265,7 +1265,7 @@ Istio支持的部署模型比较繁杂，它可以根据多个维度进行分类
 当你准备好开始学习Istio时，笔者建议你使用具备高度定制化功能的`istioctl`命令行工具进行安装，在熟悉安装流程后，再尝试使用Helm或其他方式进行安装。
 完整的安装指南请参考[Istio安装指南][Istio安装指南]。
 
-> [!NOTE] 
+> [!NOTE]
 > Istio原生与Kubernetes集成（但不绑定），安装Istio时会将一些自定义资源安装到Kubernetes集群中，因此请提前准备好一个集群以供安装。
 
 安装步骤：
@@ -1838,7 +1838,7 @@ Istio的[流量管理][Istio流量管理]可以实现以下功能：
 通俗来说，`VirtualService`定义了如何进行路由（How），`DestinationRule`定义了路由到哪儿（Where），
 一定程度上是**前者引用后者**的关系。
 
-> [!NOTE] 
+> [!NOTE]
 > VirtualService 和 DestinationRule 资源并不是强绑定的关系，它们可以各自定义并独立工作，
 > 仅在定义subset（子集）时前者才会依赖后者。但只有将二者结合使用才能充分应用Istio丰富的流量管理特性。
 
@@ -1989,7 +1989,7 @@ virtualservice.networking.istio.io "go-multiroute" deleted
 网关（本质是Envoy）来管理集群的入站流量，它可以用来替换K8s内置的Ingress，
 好处是它具有更细粒度的控制功能。
 
-> [!NOTE] 
+> [!NOTE]
 > K8s Ingress也可与Istio网格协同工作。
 
 如果没有安装Ingress网关，使用`istioctl install`命令安装即可。使用如下命令检查是否安装：
@@ -2144,7 +2144,7 @@ ENDPOINT            STATUS      OUTLIER CHECK     CLUSTER
 20.2.36.94:3000     HEALTHY     OK                outbound|3000||go-multiroute.default.svc.cluster.local
 ```
 
-> [!WARNING] 
+> [!WARNING]
 > 删除包含证书的secret并不会影响网关继续正常响应对应证书域名的请求，这是因为网关不会处理删除证书的操作，
 > 除非网关重启重新加载这些数据。所以要删除一个对外的服务端口，我们必须删除对应的Gateway配置。  
 > 此外，在部署验证过程中，观察网关Pod的日志可以确认网关是否成功加载了新配置。
@@ -2230,7 +2230,7 @@ Ingress网关和Egress网关共同实现了网格网络的东西向流量控制�
     - 例如某些项目不允许服务器对外发起HTTP访问，所以当app发起HTTP请求时，请求到达Egress网关后，Egress网关将按策略对目标发起HTTPS请求
 - 统一监控并记录网格服务的出站流量（在Egress网关处查询即可）
 
-> [!NOTE] 
+> [!NOTE]
 > K8s虽然没有提出Egress网关的概念，但提供了NetworkPolicy来控制Egress流量，其原理是通过CNI即网络插件来实现的（部分功能需要安装的CNI插件支持），
 > 但所提供的功能丰富性无法与Istio相提并论。
 
