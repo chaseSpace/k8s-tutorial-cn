@@ -2545,9 +2545,33 @@ Istio允许通过配置以支持网关在转发时保留客户端IP。具体来�
 
 这包含对HTTP系列协议和TCP协议的支持，本节不演示具体操作，请直接参考[官网文档][配置Istio网络拓扑]。
 
-> 💡提示！
-> - 即使不做任何配置，Istio 网关也会通过XFF HTTP头部保留客户端IP（可能是一个IP列表，需要自行解析），但TCP协议仍需配置；
-> - 若网关前面没有任何反向代理，则后端服务收到的Header头不含`X-Envoy-External-Address`字段，仅含`X-Forwarded-For`字段。
+下面展示的是通过修改 IOP 的配置来修改网格全局的 Envoy 代理配置：
+
+```yaml
+# nonk8s
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+spec:
+  # ...
+  meshConfig:
+    defaultConfig:
+      proxyMetadata: { }
+      # 配置 sidecar 对 HTTP 请求和响应header的行为（增删改）
+      proxyHeaders:
+        # 对 XFCC 头的行为
+        forwardedClientCert: SANITIZE
+      # 配置 gateway 的部分代理行为
+      gatewayTopology:
+        numTrustedProxies: 0
+        forwardClientCertDetails: SANITIZE
+```
+
+以 XFCC（即`X-Forwarded-Client-Cert`） 头为例：默认情况网关和 sidecar 都会传递 XFCC 头，
+若网关将配置字段`forward...`改为`SANITIZE`，则 sidecar 仍然会传递 XFCC 头（并添加网关的身份ID，但不会添加自己的身份ID，
+这可能是因为sidecar的转发目标是本地）；若 sidecar 将配置字段`forward...`改为`SANITIZE`，则最终负载将无法收到 XFCC 头。
+
+对于 XEEA（即`X-Envoy-External-Address`）头，笔者认为其实不需要去配置，因为 Istio 网关默认会通过 XFF 头保留客户端IP，
+所以只需要手动解析 XFF 头即可获取客户端IP。而 XEEA 头仅在多个代理间传递时会存在。
 
 ## 参考
 
