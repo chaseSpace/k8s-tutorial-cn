@@ -5,6 +5,13 @@
 #"X-Forwarded-Client-Cert": "By=spiffe://cluster.local/ns/default/sa/default;Hash=71672accf15e585db3514f5ee28379bb49374d487d89f439b063a78934de60df;Subject=\"\";URI=spiffe://cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account",
 #"X-Forwarded-For": "192.168.31.3"  # 若经过多层代理，则此字段的值可能是逗号分割的多IP形式例如 "$IP1, $IP2"，从左到右，依次是客户端IP地址、中转的多个代理IP。
 
+# 关于XFCC头部解析：
+# - SPIFFE 是一种用于安全身份认证和授权的开放式标准，目标是为云原生环境中的各种工作负载（包括容器、虚拟机、服务等）提供一种统一的身份标识框架
+# - 每个工作负载都有一个唯一的 SPIFFE ID
+# - By部分是issuer（证书发行者），Hash部分是证书哈希值，Subject部分是证书主题，URI部分是SPIFFE ID的URI表示形式
+# - 若请求在转发过程中经过了多个代理，则XFCC头部会包含多个代理的SPIFFE ID，从而实现代理身份的认证和授权
+# - 网关和sidecar都可以配置是否自己在转发时如何设置XFCC头，默认都会携带
+
 # sidecar添加的HTTP头部示例：
 #"X-Forwarded-Proto": "http",
 #"X-Request-Id": "f96a1cf7-3a6e-4887-adc2-950d6901ccf4"
