@@ -1463,7 +1463,7 @@ LoadBalancer 正是通过使用云厂商提供的负载均衡器（Service LoadB
 那么一般也不会使用`LoadBalancer`（私有集群一般也不支持`LoadBalancer`）。
 
 > [!NOTE]
-> LoadBalancer 类型的 Service 可以用来直接对外暴露所有协议类型的服务。
+> LoadBalancer 类型的 Service 本质上是由云厂商提供具体实现，大部分云厂商都支持四层和七层协议代理。
 
 - [阿里云使用私网SLB教程](https://help.aliyun.com/zh/ack/ack-managed-and-ack-dedicated/user-guide/configure-an-ingress-controller-to-use-an-internal-facing-slb-instance?spm=a2c4g.11186623.0.0.5d1736e0l59zqg)
 
@@ -1727,17 +1727,16 @@ Ingress就是为了解决这些问题而设计的，它允许你将 Service 映�
 Ingress 可以简单理解为集群服务的网关（Gateway），它是所有流量的入口，经过配置的路由规则，将流量重定向到后端的服务。从网络分层上看，
 Ingress是作为一个七层网络代理。
 
-> [!NOTE] 
+> [!NOTE]
 > 大部分托管集群的用户会选择 LoadBalancer 类型的 Service 而不是 Ingress 来暴露服务，因为前者由云厂商支持的优势明显，通常都是通过Web页面进行配置，
-> 免去了管理清单的麻烦，而且也支持Ingress所支持的SSL、负载均衡等功能。
+> 免去了管理清单的麻烦，而且也支持Ingress所支持的SSL、负载均衡等功能，甚至包含 Ingress 不支持的四层协议代理功能！
 
-> [!WARNING] 
-> 一般不会同时使用 LoadBalancer 类型的 Service 和 Ingress 资源。这可能会造成管理上的混乱。
+> [!IMPORTANT]
+> Ingress 资源不支持原生 TCP 服务！但大部分 Ingress 控制器（如 Ingress Nginx 控制器）是支持的，它们会通过为 Ingress
+> 资源添加注解的方式来实现对原生 TCP 服务的支持。参考 [Exposing TCP and UDP services][Exposing TCP and UDP services]。
 
-> [!IMPORTANT] 
-> Ingress 资源不支持原生 TCP 服务！但某些Ingress 控制器（Nginx Ingress控制器支持）会通过 Ingress 注解方式来代理原生 TCP 服务。
-> 参考
-> [Exposing TCP and UDP services](https://kubernetes.github.io/ingress-nginx/user-guide/exposing-tcp-udp-services/)。
+> [!WARNING]
+> 一般不会同时使用 LoadBalancer 类型的 Service 和 Ingress 资源来暴露服务。这可能会造成管理上的混乱。
 
 ### 8.1 Ingress控制器
 
@@ -2360,3 +2359,5 @@ busybox-use-downwardapi
 [coredns]:https://github.com/coredns/coredns
 
 [Kubernetes 进阶教程]: https://github.com/chaseSpace/k8s-tutorial-cn/blob/main/doc_tutorial_senior.md
+
+[Exposing TCP and UDP services]: https://kubernetes.github.io/ingress-nginx/user-guide/exposing-tcp-udp-services/
