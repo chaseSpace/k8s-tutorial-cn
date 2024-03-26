@@ -1,0 +1,24 @@
+# nonk8s
+# ALLOW-with-positive-matching 意思是通过正向匹配来定义需要放行的实体
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: foo
+spec:
+  action: ALLOW
+  rules:
+    - to:
+        - operation:
+            paths: [ "/public" ]
+---
+# DENY-with-negative-match 意思是通过反向匹配来定义需要拒绝的实体
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: foo
+spec:
+  action: DENY
+  rules:
+    - to:
+        - operation:
+            notPaths: [ "/public" ]
