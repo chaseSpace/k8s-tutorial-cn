@@ -1527,7 +1527,7 @@ Istio通过为对象添加标签（Label）的方式来实现sidecar注入，具
 - 自动注入：通过为K8s集群中的命名空间（Namespace）对象添加Istio识别的特定标签来实现自动注入；
     - 具体来说，当K8s集群中的命名空间对象被添加了`istio-injection=enabled`标签时，任何新的 Pod 都将在创建时自动添加sidecar。
     - 这种注入对工作负载是完全无感知的，它不会修改资源模板；
-    - 若不希望Pod被注入sidecar，则可以为Pod对象添加`sidecar.istio.io/inject="false"`标签（此标签优先级**高于**命名空间标签）；
+    - 若不希望Pod被注入sidecar，则可以为Pod对象添加`sidecar.istio.io/inject="false"`注解（此注解优先级**高于**命名空间标签）；
 - 手动注入：通过手动执行命令实现sidecar注入
     - 具体来说，执行`istioctl kube-inject -f samples/sleep/sleep.yaml`命令即可将sidecar注入到指定的Pod
     - 以上命令使用istio安装到集群的配置进行注入，也可以使用本地配置，具体方法参考[手动注入][手动注入]；
@@ -1671,11 +1671,12 @@ go-multiroute   STRICT   4m42s
 
 启用mTLS特性需要注意两点：
 
-- 对已存在的服务启用mTLS，由于服务可能正在被调用，
-  需要先设置策略为`PERMISSIVE`模式（同时接收明文和HTTPS流量）进行过渡，
-  等待相关服务更新（建议等待1min）后再切换到`STRICT`模式。
+- 默认情况（没有任何mTLS配置）下，Istio会为所有网格（注入了sidecar的）服务启用自动 mTLS（`PERMISSIVE`模式），
+  即对网格服务发送TLS流量，对非网格服务发送明文流量。在迁移到全局`STRICT`模式前，确保没有网格服务正在收发明文流量（避免造成中断）；
+- 在迁移到全局`STRICT`模式前，确保所有指向网格服务的`DestinationRule`配置`tls.mode`为`ISTIO_MUTUAL`，避免产生503；
+- 建议以命名空间的粒度逐步启用全局mTLS；
 - 若要关闭mTLS，**直接删除策略是不起作用的**，必须将策略改为`DISABLE`模式然后应用，这样才会生效。
-  同理，为了避免影响正在运行的服务，需要先设置策略为`PERMISSIVE`模式进行过渡，一段时间后再切换到`DISABLE`模式。
+  同理，为了避免影响正在运行的服务，需要先设置策略为`PERMISSIVE`模式进行过渡，一段时间后再切换到`DISABLE`模式；
 - Istio支持为纯TCP或基于TCP的HTTP、gRPC等协议提供mTLS支持；**Istio不会代理UDP协议**（但Envoy本身支持），
   即应用容器的UDP数据报文不会经过sidecar容器的网络栈，所以也不需要在Istio的流量策略中配置应用的UDP端口；
 
@@ -2458,7 +2459,11 @@ failed to validate the JWT from cluster "Kubernetes": the service account authen
 ```
 
 具体原理笔者还未查明，但已经查到的问题是运行app容器的节点与K8s集群主节点时间不同步（相差好几个小时），
-同步后无需操作集群，问题自动消失。
+同步后无需操作集群，修复后的几秒内istiod控制面会成功完成与sidecar的配置同步。
+
+> [!Important]
+> 配置不同步可能会影响网格内服务的正常访问（导致503），这是因为 sidecar 的 Endpoints 列表是从 Istio 控制面（xDS中的EDS）获取的。
+> 你可以通过命令 `istioctl pc route/cluster/endpoint $POD` 来逐步排查原因。
 
 关于流量管理配置相关的故障，请参考官方文档[流量管理问题](https://istio.io/latest/zh/docs/ops/common-problems/network-issues/)。
 
@@ -2586,6 +2591,8 @@ spec:
 
 #### 8.4.11 最佳实践
 
+##### 8.4.11.1 流量管理
+
 以下将 VirtualService 简称 VS，DestinationRule 简称 DR。
 
 **为每个 Service 配置默认路由**
@@ -2638,9 +2645,58 @@ Service 所在空间 --> 根空间（`istio-system`）。
 
 反过来，按照先 VS 再 DR 的顺序进行删除（解除引用）。
 
+##### 8.4.11.2 安全
+
+认证和授权是Istio的两项重要安全特性，你应该在安装Istio之后尽快部署对应策略。
+参照 [Istio特性之mTLS](#8453-istio特性之mtls) 小节末尾的建议逐步将网格服务迁移至双向TLS，
+然后再根据需要添加授权策略。
+
+对于授权策略，我们应当遵循 **default-deny**
+授权策略模式，参照清单：[authz-allow-nothing.yaml](k8s_actions_guide/version1/istio_manifest/authz-allow-nothing.yaml)。
+此外，官方建议使用 **ALLOW-with-positive-matching** 和 **DENY-with-negative-match** 模式，
+参考官方提供的示例清单：[authz-recommend.yaml](k8s_actions_guide/version1/istio_manifest/authz-recommend.yaml)
+
+##### 8.4.11.3 规范HTTP路径
+
+默认情况下，Ingress网关或 sidecar 会对收到的HTTP(s)请求进行路由规范化，比如将 `/a/../b` 规范为 `/b`。
+`\da` 规范为 `/da`，规范化是为了确定在流量策略中进行路径相关的匹配行为，当然还有授权策略。
+
+你可以通过 IOP 配置来定义网格代理对HTTP路径的规范化力度：
+
+```yaml
+# istio-operator.yaml
+# 参考：https://istio.io/latest/zh/docs/reference/config/istio.mesh.v1alpha1/#MeshConfig-ProxyPathNormalization-NormalizationType
+spec:
+  meshConfig:
+    pathNormalization:
+      normalization: DEFAULT # DEFAULT, NONE, BASE, MERGE_SLASHES, DECODE_AND_MERGE_SLASHES
+```
+
+此外，Envoy 文档表示这种规范化设置不会处理路径中的大小写字母。
+参考 [官方文档](https://istio.io/latest/zh/docs/ops/best-practices/security/#customize-your-system-on-path-normalization)
+了解更多。
+
+> [!NOTE]
+> 对HTTP路径的规范化会修改客户端发送的请求，即最终服务端收到的HTTP路径与客户端发送的HTTP路径可能不会完全一致，
+> 确保在上线前进行详尽的用例测试。
+
+##### 8.4.11.4 X
+
+TODO
+
 #### 8.4.12 扩展—注入的iptables规则
 
 TODO
+
+从以上规则得知，对于Pod而言，并不全部的流量都会被拦截：
+
+- 转发只针对基于 TCP 的流量。任何 UDP 或 ICMP 包不会被拦截或更改；
+- 不会拦截 sidecar 自身使用的端口（`15xxx`）以及22端口；
+
+此外：
+
+- 可以通过为负载添加 `traffic.sidecar.istio.io/excludeInboundPorts` 注解扩展需要排除的**入站**拦截端口；
+- 可以通过为负载添加 `traffic.sidecar.istio.io/excludeOutboundPorts` 注解扩展需要排除的**出站**拦截端口；
 
 #### 8.4.13 扩展—Envoy之坑
 
