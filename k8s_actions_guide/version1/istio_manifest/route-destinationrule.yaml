@@ -8,8 +8,9 @@ metadata:
 spec:
   host: go-multiroute # 与k8s service名称一致
   trafficPolicy: # 定义默认流量策略（还可以在subset下的每个元素中单独配置）
-    #    tls:
-    #      mode: ISTIO_MUTUAL # 若负载启用了mTLS，则必需启用，否则503，默认DISABLE
+    tls:
+      # 若负载启用了mTLS，则必须配置 ISTIO_MUTUAL，否则503，默认 DISABLE。若host是网格服务，则这里可以直接启用，因为istio默认为网格服务间通信开启mTLS
+      mode: ISTIO_MUTUAL
     loadBalancer: # 定义负载均衡策略
       simple: ROUND_ROBIN # 其他：LEAST_CONN，LEAST_REQUEST，RANDOM，PASSTHROUGH
     connectionPool:
@@ -18,11 +19,11 @@ spec:
       # 若来源是网关，可以指定如下字段来使用相同协议转发流量至目标
       #http:
       #  useClientProtocol: true
-    outlierDetection: # 定义熔断策略
-      consecutive5xxErrors: 3 # 指定连续多少个 5xx 错误会导致端点被剔除，默认5，0表示禁用（但是时间窗口未知）
-      interval: 1s # 熔断检测间隔，默认10s，要求>=1ms
-      baseEjectionTime: 10s # 初始的端点剔除时间，支持单位 ms s m h，默认30s，要求>=1ms
-      maxEjectionPercent: 100 # 端点最大剔除百分比，例如一共3个端点（pod），100%表示可以全部剔除，若允许全部可剔除，届时可能将无端点可用
+  #    outlierDetection: # 定义熔断策略
+  #      consecutive5xxErrors: 3 # 指定连续多少个 5xx 错误会导致端点被剔除，默认5，0表示禁用（但是时间窗口未知）
+  #      interval: 1s # 熔断检测间隔，默认10s，要求>=1ms
+  #      baseEjectionTime: 10s # 初始的端点剔除时间，支持单位 ms s m h，默认30s，要求>=1ms
+  #      maxEjectionPercent: 100 # 端点最大剔除百分比，例如一共3个端点（pod），100%表示可以全部剔除，若允许全部可剔除，届时可能将无端点可用
   subsets: # 定义service下的不同子集（通过标签区分）
     - name: v1
       labels: # 匹配Deployment中Pod的标签
