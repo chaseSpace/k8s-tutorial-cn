@@ -1533,6 +1533,10 @@ Istio通过为对象添加标签（Label）的方式来实现sidecar注入，具
     - 以上命令使用istio安装到集群的配置进行注入，也可以使用本地配置，具体方法参考[手动注入][手动注入]；
     - 由于对资源模板的入侵性，**手动注入仅在特定情况下使用**。
 
+> [!NOTE]
+> 不要在Pod定义中包含`hostNetwork：true`，否则将不会注入sidecar。此外， `kube-system` 或 `kube-public` 命名空间
+> 中的 Pod 也不会被注入 sidecar。
+
 本文仅介绍更常用的自动注入方式，操作步骤如下：
 
 ```shell
@@ -1699,7 +1703,7 @@ kubectl delete -f peer_authn.yaml
 
 ##### 8.4.5.4 Istio特性之授权
 
-Istio通过预先安装到Kubernetes集群中的`AuthorizationPolicy`自定义API资源来提供细粒度的授权功能，其具有如下优点和特性：
+Istio通过预先安装到Kubernetes集群中的 AuthorizationPolicy 自定义API资源来提供细粒度的授权功能，其具有如下优点和特性：
 
 - 实现**拒绝或允许**指定的不同`通信源`之间的流量访问；
 - `通信源`可以是一组Pod/IP块/服务账号，甚至是一整个命名空间；
@@ -1710,10 +1714,11 @@ Istio通过预先安装到Kubernetes集群中的`AuthorizationPolicy`自定义AP
 - 可以为策略设置附加条件，例如若要拒绝通信源A到B之间的访问，还要求HTTP请求的Header中必须携带`version: v1`键值对；
 - 支持HTTP 1.1/2以及HTTPS
 
-> 注意：由于K8s内置的NetworkPolicy API与Istio的AuthorizationPolicy API存在功能上的重叠，为了降低架构复杂度，
-> 建议一旦启用AuthorizationPolicy API，就尽量停止使用NetworkPolicy API（但可以使用NetworkPolicy来控制工作负载的UDP通信）。
+> [!WARNING]
+> Istio的 AuthorizationPolicy API不能取代K8s内置的 NetworkPolicy API。这是因为Istio的授权建立在sidecar的基础上，
+> 而用户可以移除sidecar。若要（对部分关键服务）实现绝对的流量安全，请搭配使用K8s内置的 NetworkPolicy API。
 
-一个`AuthorizationPolicy`资源清单由以下三部分组成：
+一个 AuthorizationPolicy 资源清单由以下三部分组成：
 
 - selector（选择器）：匹配一组要执行策略的目标；
 - action（动作）：要执行的动作，可以`DENY`或`ALLOW`，另外还支持`CUSTOM`和`AUDIT`动作；
@@ -1996,6 +2001,7 @@ virtualservice.networking.istio.io "go-multiroute" deleted
 如果没有安装Ingress网关，使用`istioctl install`命令安装即可。使用如下命令检查是否安装：
 
 ```shell
+# 部署后，你可以使用 kubectl get deploy istio-ingressgateway -n istio-system -o yaml > ingress-deploy.yaml 导出清单来独立管理网关
 $ kubectl get deploy,svc,hpa -n istio-system |grep gateway -B 1
 NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
 deployment.apps/istio-ingressgateway   1/1     1            1           3d7h
@@ -2423,7 +2429,7 @@ $ kubectl delete -f egressgwy-proxy-http2https.yaml
 如果你希望控制网格内的服务**仅能访问**已在网格或集群中注册的服务，那你可以通过修改 IstioOperator 配置文件来完成。执行命令：
 `istioctl install -f istio-operator.yaml --set meshConfig.outboundTrafficPolicy.mode=REGISTRY_ONLY`，默认的 `mode`
 配置是`ALLOW_ANY`，即允许访问任何域名，而`REGISTRY_ONLY`表示**仅允许访问已注册的服务**。更改配置后，等待几秒钟生效，
-然后你就会发现网格内的服务无法访问类似`api.alibaba.com`这样的外部地址了，因为它没有在网格内进行注册，
+然后你就会发现网格内的服务无法访问类似`baidu.com`这样的外部地址了，因为它没有在网格内进行注册，
 通过 ServiceEntry 对象完成网格内的服务注册就可以正常访问了。
 
 最后，如果你在配置TLS时感到困惑，可以阅读官网文档
@@ -2656,7 +2662,7 @@ Service 所在空间 --> 根空间（`istio-system`）。
 此外，官方建议使用 **ALLOW-with-positive-matching** 和 **DENY-with-negative-match** 模式，
 参考官方提供的示例清单：[authz-recommend.yaml](k8s_actions_guide/version1/istio_manifest/authz-recommend.yaml)
 
-##### 8.4.11.3 规范HTTP路径
+**规范HTTP路径**
 
 默认情况下，Ingress网关或 sidecar 会对收到的HTTP(s)请求进行路由规范化，比如将 `/a/../b` 规范为 `/b`。
 `\da` 规范为 `/da`，规范化是为了确定在流量策略中进行路径相关的匹配行为，当然还有授权策略。
@@ -2678,33 +2684,175 @@ spec:
 
 > [!NOTE]
 > 对HTTP路径的规范化会修改客户端发送的请求，即最终服务端收到的HTTP路径与客户端发送的HTTP路径可能不会完全一致，
-> 确保在上线前进行详尽的用例测试。
+> 注意在上线前进行详尽的用例测试。
 
-##### 8.4.11.4 X
+**流量拦截的局限性**
 
-TODO
+Istio 流量拦截的原理是通过sidecar进行，而且仅拦截基于 TCP 协议的流量。此外，sidecar设置是属于Pod粒度，
+所以用户可能移除拦截规则，或者移除、修改或替换sidecar容器。这会导致 Istio 的各种流量和安全策略彻底失效。
+
+为了进一步确保流量安全，你可以使用 K8s 内置的 NetworkPolicy API 来定义网络策略。例如，
+仅允许携带标签`app: backend`的负载访问`app: mysql`负载的3306端口。
+
+**确保Egress流量安全**
+
+正如上面所说，Istio 无法强制 Egress 流量都经过Egress网关，所以你需要使用 NetworkPolicy API 来保证这一点。
+部署Egress网关后，建议修改Istio配置 `outboundTrafficPolicy.mode=REGISTRY_ONLY` 来阻止访问未注册的服务。
+
+其他还有一些安全最佳实践，在此不再一一列出，请参考官方提供的 [Istio 安全最佳实践][Istio安全实践]。
 
 #### 8.4.12 扩展—注入的iptables规则
 
-TODO
+通过以下命令获得任何一个网格服务的iptables规则（它们是一致的）：
 
-从以上规则得知，对于Pod而言，并不全部的流量都会被拦截：
+```shell
+kubectl debug $POD_ID -it --image vimagick/iptables --profile=netadmin  -- iptables -tnat -S
+```
 
-- 转发只针对基于 TCP 的流量。任何 UDP 或 ICMP 包不会被拦截或更改；
+规则列表如下：
+
+```shell
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+-N ISTIO_INBOUND
+-N ISTIO_IN_REDIRECT
+-N ISTIO_OUTPUT
+-N ISTIO_REDIRECT
+-A PREROUTING -p tcp -j ISTIO_INBOUND
+-A OUTPUT -p tcp -j ISTIO_OUTPUT
+-A ISTIO_INBOUND -p tcp -m tcp --dport 15008 -j RETURN
+-A ISTIO_INBOUND -p tcp -m tcp --dport 15090 -j RETURN
+-A ISTIO_INBOUND -p tcp -m tcp --dport 15021 -j RETURN
+-A ISTIO_INBOUND -p tcp -m tcp --dport 15020 -j RETURN
+-A ISTIO_INBOUND -p tcp -j ISTIO_IN_REDIRECT
+-A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006
+
+# ---- ISTIO_OUTPUT 链拥有最复杂的规则 ----
+
+# -- 对于来自`127.0.0.6/32`且出口网卡是本地环回口的流量，直接跳出当前链（不应用链中后续规则）；
+# -- `127.0.0.6`和`lo`分别是sidecar转发流量至应用容器时（也是生效时机）的通信地址及网卡；
+# -- 这条规则有效避免了sidecar转发给应用容器的流量被重定向至自身，导致死循环；
+-A ISTIO_OUTPUT -s 127.0.0.6/32 -o lo -j RETURN
+
+# -- 对于sidecar发出的站内流量，重定向到 ISTIO_IN_REDIRECT 链（再次进入sidecar）
+# -- 1337 是sidecar的固定 UID 和 GID；
+# -- 此规则用于sidecar发起（使用127.0.0.6）的自身服务调用（其本身就启动了多个服务，监听了多个15xxx端口）
+-A ISTIO_OUTPUT ! -d 127.0.0.1/32 -o lo -p tcp -m tcp ! --dport 15008 -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT
+
+# -- 对于Pod内除sidecar以外容器发出的站内流量，跳出当前链，直达目的地
+# -- 此规则用于Pod内除sidecar以外容器之间（或与自身端口）的通信；
+-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN
+
+# -- 对sidecar发出的其他流量，跳出当前链，直达目的地
+-A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN
+
+# -- 同上三条，只是从UID扩大至GID
+-A ISTIO_OUTPUT ! -d 127.0.0.1/32 -o lo -p tcp -m tcp ! --dport 15008 -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT
+-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN
+-A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN
+
+# -- 对于去往Pod内部（除sidecar外的容器）的流量，直接跳出当前链，直达目的地
+# -- 此规则用于Pod内容器之间（或与自身端口）的通信，主要是指sidecar发给应用容器的流量；
+-A ISTIO_OUTPUT -d 127.0.0.1/32 -j RETURN
+
+# -- 这两条规则表示：将 ISTIO_OUTPUT 链捕获的流量转发至 ISTIO_REDIRECT，后者再将TCP流量转发至15001（sidecar出站）端口；
+# -- sidecar 拥有入站和出站两个handler
+# -- ISTIO_OUTPUT 链最终是将应用容器的出站流量转发至 sidecar 的出站handler；
+-A ISTIO_OUTPUT -j ISTIO_REDIRECT
+-A ISTIO_REDIRECT -p tcp -j REDIRECT --to-ports 15001
+```
+
+你可以使用AI工具详细分析以上规则列表，这里笔者仅做总结性分析：
+
+- 首先设置四条已知链的默认动作是**放行**；
+- 然后新建四条`ISTIO_*`链，并随后为这些链添加规则；
+    - ①：`-A PREROUTING -p tcp -j ISTIO_INBOUND`
+        - PREROUTING 链增加规则：路由后的TCP数据包直接转发至`ISTIO_INBOUND`链；
+    - ②：`-A ISTIO_INBOUND ... --dport 150xx -j RETURN`（四条）
+        - ISTIO_INBOUND 链增加规则：对于进入`ISTIO_INBOUND`链的数据包，如果目的端口是`150xxx`
+          ，则直接跳出当前链（直接进入`OUTPUT`链而不是自定义链）；
+        - `150xx`端口是sidecar自身占用的端口，用于与istio控制面通信以及自身健康检查用途，
+          参考 [Istio使用端口][Istio使用端口]；
+    - ③：`-A ISTIO_INBOUND -p tcp -j ISTIO_IN_REDIRECT`
+        - ISTIO_INBOUND 链增加规则：将其他（除了`150xxx`以外的）TCP数据包转发至`ISTIO_IN_REDIRECT`链；
+    - ④：`-A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006`
+        - ISTIO_IN_REDIRECT 链增加规则（**关键**）：将`ISTIO_IN_REDIRECT`链中的TCP数据包重定向至15006端口（sidecar入站端口）；
+        - 结合规则③，含义是将除了原本目标是进入sidecar以外的TCP数据包重定向至sidecar代理；
+    - 对于 ISTIO_OUTPUT 链内的规则，在上面通过注释已经说明。
+
+汇总可知：
+
+- ISTIO_IN_REDIRECT 链用于捕获Pod的入站流量，然后转发至sidecar的入站端口（15006）；
+- ISTIO_REDIRECT 链用于捕获Pod的出站流量，然后转发至sidecar的出站端口（15001）；
+
+最后，根据以上规则我们还能推断出，对于Pod而言，并不是全部的流量都会被拦截：
+
+- 转发只针对基于 TCP 的流量。任何 UDP 或其他网络层协议（如ICMP、ARP等）包不会被拦截或更改；
 - 不会拦截 sidecar 自身使用的端口（`15xxx`）以及22端口；
 
-此外：
+此外，Istio允许我们扩展需要排除的出入站拦截端口：
 
-- 可以通过为负载添加 `traffic.sidecar.istio.io/excludeInboundPorts` 注解扩展需要排除的**入站**拦截端口；
-- 可以通过为负载添加 `traffic.sidecar.istio.io/excludeOutboundPorts` 注解扩展需要排除的**出站**拦截端口；
+- 通过为负载添加 `traffic.sidecar.istio.io/excludeInboundPorts` 注解扩展需要排除的**入站**拦截端口；
+- 通过为负载添加 `traffic.sidecar.istio.io/excludeOutboundPorts` 注解扩展需要排除的**出站**拦截端口；
 
 #### 8.4.13 扩展—Envoy之坑
 
 TODO
 
-#### 8.4.X 其他有用的文档链接
+#### 8.4.14 常用命令集合
+
+部署前：
+
+```shell
+# 部署前检查YAML配置是否正确 
+istioctl analyze a.yaml
+
+# 查看添加注入标签的NS（标签的值可以是 enabled 或 disabled）
+kubectl get namespace -l istio-injection
+```
+
+部署后：
+
+```shell
+# 查看pod内sidecar使用的istio证书信息
+istioctl proxy-config secret <pod-name[.namespace]>
+
+# 查看pod实时的路由、集群和端点信息
+istioctl pc route|cluster|endpoint <pod-name[.ns]>
+
+# 查看端口3000的端点的详细信息（包含健康信息）
+istioctl pc endpoint <pod-name[.ns]> --port 3000 -ojson
+
+# 查看pod的授权策略信息
+istioctl x authz check <pod-name>
+
+# 查看注入了sidecar的网格服务与istio控制面的xDS同步状态
+istioctl ps
+
+# 查看svc或pod关联的istio资源（如 DR、VS、Gateway）
+istioctl x describe <svc|pod> <name> 
+
+# 检查集群中的Istio配置是否存在问题
+istioctl analyze -A
+
+# 设置istio控制面pod的日志级别，用于调试
+istioctl admin log --level ads:debug,authorization:debug
+```
+
+其他：
+
+```shell
+# 其中 app=productpage 是工作负载的标签
+# 查询 sidecar 从控制面拉取的授权配置（验证实际分发的配置）
+kubectl exec $(kubectl get pods -l app=productpage -o jsonpath='{.items[0].metadata.name}') -c istio-proxy -- pilot-agent request GET config_dump
+```
+
+#### 8.4.15 推荐的官方文档
 
 - [Istio: 加固Docker容器镜像](https://istio.io/latest/zh/docs/ops/configuration/security/harden-docker-images/)
+- [Istio 常见问题](https://istio.io/latest/zh/docs/ops/common-problems/)
 
 ## 参考
 
@@ -2759,3 +2907,7 @@ TODO
 [what-is-sni]: https://www.cloudflare.com/zh-cn/learning/ssl/what-is-sni/
 
 [配置Istio网络拓扑]: https://istio.io/latest/zh/docs/ops/configuration/traffic-management/network-topologies/#forwarding-external-client-attributes-to-destination-workloads
+
+[Istio使用端口]: https://istio.io/latest/zh/docs/ops/deployment/requirements/#ports-used-by-Istio
+
+[Istio安全实践]: https://istio.io/latest/zh/docs/ops/best-practices/security/#configure-TLS-verification-in-destination-rule-when-using-TLS-origination
