@@ -7,7 +7,7 @@ kind: Gateway
 metadata:
   # 命名携带 ingress前缀，方便与egress网关策略进行区分
   name: ingress-go-multiroute
-  namespace: default
+  namespace: istio-system # 建议将网关对象部署在istio-system命名空间中，以便可以通过istioctl管理它
 spec:
   selector: # 关联ingress网关的pod（默认在所有命名空间中匹配，除非istiod中的 PILOT_SCOPE_GATEWAY_TO_NAMESPACE 变量设置true）
     app: istio-ingressgateway

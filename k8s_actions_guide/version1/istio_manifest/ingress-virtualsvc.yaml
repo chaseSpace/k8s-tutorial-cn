@@ -11,7 +11,7 @@ spec:
   hosts:
     - "*.foobar.com"
   gateways: # 指定策略要应用的网关
-    - default/ingress-go-multiroute # 需要指定ns前缀，否则无法正常工作
+    - istio-system/ingress-go-multiroute # 需要指定ns前缀，否则无法正常工作
     #- mesh # 应用于整个网格
   http:
     - route:
