@@ -20,6 +20,9 @@ spec:
             test-version:
               exact: "v2" # 除了exact，还支持prefix、regex
       timeout: 1200ms
+#      corsPolicy: # 跨域资源共享策略（http支持）
+#        allowOrigins:
+#          - exact: https://example.com
       route:
         - destination:
             host: go-multiroute # 此字段的值要么是集群中的service，要么已通过ServiceEntry定义，其他任何地址都将导致访问503
