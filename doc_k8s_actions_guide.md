@@ -2806,8 +2806,11 @@ TODO
 部署前：
 
 ```shell
-# 部署前检查YAML配置是否正确 
+# 部署前诊断YAML配置是否正确，参数可以是目录、或通配符如 *.yaml
 istioctl analyze a.yaml
+
+# 直接诊断集群（获得建议和问题报告）
+istioctl analyze -A
 
 # 查看添加注入标签的NS（标签的值可以是 enabled 或 disabled）
 kubectl get namespace -l istio-injection
@@ -2816,14 +2819,25 @@ kubectl get namespace -l istio-injection
 部署后：
 
 ```shell
+# 检查pod是否被正确注入了sidecar，以及原因
+# - 最后一个参数可以替换为：deploy/<deployment-name> 或 -l <label-key>=<label-value>
+istioctl experimental check-inject -n <namespace> <pod-name>
+
 # 查看pod内sidecar使用的istio证书信息
 istioctl proxy-config secret <pod-name[.namespace]>
 
-# 查看pod实时的路由、集群和端点信息
-istioctl pc route|cluster|endpoint <pod-name[.ns]>
+# 查看pod实时的路由、集群和端点信息（添加-o json获得更详细的信息）
+# 如何调试envoy：https://istio.io/latest/zh/docs/ops/diagnostic-tools/proxy-cmd/
+istioctl pc listener|route|cluster|endpoint <pod-name[.ns]> [flags]
 
 # 查看端口3000的端点的详细信息（包含健康信息）
 istioctl pc endpoint <pod-name[.ns]> --port 3000 -ojson
+
+# 查看网格中所有pod的istio配置的同步状态（NOT SENT表示没有可发送的内容）
+istioctl ps
+
+# 查看pod的istio配置的同步状态
+istioctl ps <pod-name[.ns]>
 
 # 查看pod的授权策略信息
 istioctl x authz check <pod-name>
@@ -2831,14 +2845,19 @@ istioctl x authz check <pod-name>
 # 查看注入了sidecar的网格服务与istio控制面的xDS同步状态
 istioctl ps
 
-# 查看svc或pod关联的istio资源（如 DR、VS、Gateway）
+# 查看svc或pod关联的istio资源配置（如 DR、VS、PeerAuthentication、Gateway等）
+# - 并且会输出VS和DR配置中存在的问题
 istioctl x describe <svc|pod> <name> 
 
 # 检查集群中的Istio配置是否存在问题
 istioctl analyze -A
 
-# 设置istio控制面pod的日志级别，用于调试
-istioctl admin log --level ads:debug,authorization:debug
+# 测试pod与istiod pod的连通性，进入pod内执行（正常能够获得istiod版本信息）
+curl -sS istiod.istio-system:15014/version
+
+# 查看sidecar（即envoy）版本，进入sidecar容器执行
+# - 返回示例: { "version": "2d4ec97f3ac7b3256d060e1bb8aa6c415f5cef63/1.17.0/Clean/RELEASE/BoringSSL" }
+pilot-agent request GET server_info --log_as_json | jq {version}
 ```
 
 其他：
@@ -2847,12 +2866,18 @@ istioctl admin log --level ads:debug,authorization:debug
 # 其中 app=productpage 是工作负载的标签
 # 查询 sidecar 从控制面拉取的授权配置（验证实际分发的配置）
 kubectl exec $(kubectl get pods -l app=productpage -o jsonpath='{.items[0].metadata.name}') -c istio-proxy -- pilot-agent request GET config_dump
+
+# 设置istio控制面pod的日志级别，用于调试
+istioctl admin log --level ads:debug,authorization:debug
 ```
 
 #### 8.4.15 推荐的官方文档
 
 - [Istio: 加固Docker容器镜像](https://istio.io/latest/zh/docs/ops/configuration/security/harden-docker-images/)
 - [Istio 常见问题](https://istio.io/latest/zh/docs/ops/common-problems/)
+- [istioctl 命令补全](https://istio.io/latest/zh/docs/ops/diagnostic-tools/istioctl/)
+- [调试 Envoy 和 Istiod](https://istio.io/latest/zh/docs/ops/diagnostic-tools/proxy-cmd/)
+- [istiod组件的日志配置](https://istio.io/latest/zh/docs/ops/diagnostic-tools/component-logging/)
 
 ## 参考
 
