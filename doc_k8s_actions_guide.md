@@ -2878,6 +2878,7 @@ istioctl admin log --level ads:debug,authorization:debug
 - [istioctl 命令补全](https://istio.io/latest/zh/docs/ops/diagnostic-tools/istioctl/)
 - [调试 Envoy 和 Istiod](https://istio.io/latest/zh/docs/ops/diagnostic-tools/proxy-cmd/)
 - [istiod组件的日志配置](https://istio.io/latest/zh/docs/ops/diagnostic-tools/component-logging/)
+- [MYSQL 连接故障排除](https://istio.io/latest/zh/about/faq/security/#mysql-with-mtls)
 
 ## 参考
 
