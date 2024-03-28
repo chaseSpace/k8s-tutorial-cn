@@ -2700,7 +2700,33 @@ Istio 流量拦截的原理是通过sidecar进行，而且仅拦截基于 TCP �
 
 其他还有一些安全最佳实践，在此不再一一列出，请参考官方提供的 [Istio 安全最佳实践][Istio安全实践]。
 
-#### 8.4.12 扩展—注入的iptables规则
+#### 8.4.12 Dashboard
+
+Istio 支持集成第三方Web控制台来查看和管理内部配置以及运行状态。通过 istioctl 命令可查istio支持的控制台类型。
+
+```shell
+$ istioctl dashboard -h           
+Access to Istio web UIs
+
+...
+
+Available Commands:
+  controlz    Open ControlZ web UI
+  envoy       Open Envoy admin web UI
+  grafana     Open Grafana web UI
+  jaeger      Open Jaeger web UI
+  kiali       Open Kiali web UI
+  prometheus  Open Prometheus web UI
+  proxy       Open admin web UI for a proxy
+  skywalking  Open SkyWalking UI
+  zipkin      Open Zipkin web UI
+```
+
+但是，这些控制台不是Istio默认安装的一部分，需要用户手动安装。其中 kiali 是 Istio 的主控制台，它可以实时监控网格服务的结构和运行状态，
+并允许在Web控制台进行配置，是官方推荐安装的控制台，具体安装方法请参考[官方文档][Kiali官方文档]。kiali 控制台的安装和使用都很简单，
+此处不再赘述。其他控制台则根据需求进行安装即可，官方也都有提供相应的安装文档。
+
+#### 8.4.13 扩展—注入的iptables规则
 
 通过以下命令获得任何一个网格服务的iptables规则（它们是一致的）：
 
@@ -2796,11 +2822,11 @@ kubectl debug $POD_ID -it --image vimagick/iptables --profile=netadmin  -- iptab
 - 通过为负载添加 `traffic.sidecar.istio.io/excludeInboundPorts` 注解扩展需要排除的**入站**拦截端口；
 - 通过为负载添加 `traffic.sidecar.istio.io/excludeOutboundPorts` 注解扩展需要排除的**出站**拦截端口；
 
-#### 8.4.13 扩展—Envoy之坑
+#### 8.4.14 扩展—Envoy之坑
 
 TODO
 
-#### 8.4.14 常用命令集合
+#### 8.4.15 常用命令集合
 
 部署前：
 
@@ -2870,10 +2896,11 @@ kubectl exec $(kubectl get pods -l app=productpage -o jsonpath='{.items[0].metad
 istioctl admin log --level ads:debug,authorization:debug
 ```
 
-#### 8.4.15 推荐的官方文档
+#### 8.4.16 推荐的官方文档
 
 - [Istio: 加固Docker容器镜像](https://istio.io/latest/zh/docs/ops/configuration/security/harden-docker-images/)
 - [Istio 常见问题](https://istio.io/latest/zh/docs/ops/common-problems/)
+- [可观测性](https://istio.io/latest/zh/docs/tasks/observability/)
 - [istioctl 命令补全](https://istio.io/latest/zh/docs/ops/diagnostic-tools/istioctl/)
 - [调试 Envoy 和 Istiod](https://istio.io/latest/zh/docs/ops/diagnostic-tools/proxy-cmd/)
 - [istiod组件的日志配置](https://istio.io/latest/zh/docs/ops/diagnostic-tools/component-logging/)
@@ -2936,3 +2963,5 @@ istioctl admin log --level ads:debug,authorization:debug
 [Istio使用端口]: https://istio.io/latest/zh/docs/ops/deployment/requirements/#ports-used-by-Istio
 
 [Istio安全实践]: https://istio.io/latest/zh/docs/ops/best-practices/security/#configure-TLS-verification-in-destination-rule-when-using-TLS-origination
+
+[Kiali官方文档]: https://istio.io/latest/zh/docs/tasks/observability/kiali/
