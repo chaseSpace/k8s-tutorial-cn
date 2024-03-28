@@ -12,7 +12,7 @@
 - [Kubernetes 日志收集](doc_log_collection.md)
 - [Kubernetes 维护指导](doc_maintaintion.md)
 - [Kubernetes 安全分析](doc_security.md)
-- [Kubernetes 实战指导（更新中）🆕](doc_k8s_actions_guide.md)
+- [Kubernetes 实战指导](doc_k8s_actions_guide.md)
 - [特别篇 — 服务网格 | Istio 🆕](./doc_k8s_actions_guide.md#8-服务网格)
 
 #### 快速入门指南
