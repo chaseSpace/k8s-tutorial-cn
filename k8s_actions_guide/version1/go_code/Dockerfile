@@ -1,14 +1,19 @@
+# docker build --build-arg CODE_SRC=client . -t $_IMAGE_
 FROM golang:1.20-alpine AS builder
 
+ARG CODE_SRC
+
 WORKDIR /go/cache
-COPY go.mod .
-COPY go.sum .
+
+COPY $CODE_SRC/go.mod .
+COPY $CODE_SRC/go.sum .
+
 RUN GOPROXY=https://goproxy.cn,direct go mod tidy
 
 WORKDIR /build
 
 # 复制项目代码到容器中（注意不要包含代码以外的文件，避免占用过多构建机空间）
-COPY . .
+COPY $CODE_SRC .
 
 # 关闭cgo的原因：使用了多阶段构建，go程序的编译环境和运行环境不同，不关就无法运行go程序
 RUN GOPROXY=https://goproxy.cn,direct GOOS=linux CGO_ENABLED=0 GOARCH=amd64 GO111MODULE=auto go build -o main -ldflags "-w -extldflags -static"

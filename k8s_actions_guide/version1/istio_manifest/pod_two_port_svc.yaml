@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: two-port-svc
+  labels:
+    app: two-port-svc
+    version: v1
+spec:
+  containers:
+    - image: docker.io/leigg/two_port_svc:v1
+      name: two-port-svc
+#      resources:
+#        requests:
+#          cpu: 100m
+#          memory: 10Mi
+#        limits:
+#          cpu: 100m
+#          memory: 15Mi
+#      volumeMounts:
+#        - name: config
+#          mountPath: "/config"
+#      env:
+#        - name: VERSION
+#          value: v1
+#        - name: POD_IP
+#          valueFrom:
+#            fieldRef:
+#              fieldPath: status.podIP
+#        - name: DB_PASS
+#          valueFrom:
+#            secretKeyRef:
+#              key: db_pass
+#              name: go-multiroute-v1
+#  volumes:
+#    - name: config
+#      configMap:
+#        name: go-multiroute-v1
