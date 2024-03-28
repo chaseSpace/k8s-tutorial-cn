@@ -118,10 +118,7 @@ TAG=v1 # 每次迭代时手动指定
 _IMAGE_=$IMAGE:$TAG
 
 # 构建镜像（将leigg替换为你的镜像仓库地址）
-$ docker build . -t $_IMAGE_
-...
-Successfully built 20e2a541e835
-Successfully tagged leigg/go_multiroute:v1
+docker build --build-arg CODE_SRC=go_multiroute . -t $_IMAGE_
 
 # 推送镜像到仓库
 $ docker push $_IMAGE_
@@ -1607,8 +1604,10 @@ Istio提供诸多特性，这里将介绍如何使用其中的**mTLS**（双向T
 部署后，Istio的控制面可以自动完成将要过期的sidecar证书轮换。
 要启用mTLS，必须启动两个不同的服务进行互相通信，前面已经部署了一个`go-multiroute`服务，
 它通过configmap提供了两个HTTP接口`/route1`和`/route2`，这里将其作为被调用端，
-然后我们再启动一个调用端服务[istio_client_test.yaml](k8s_actions_guide/version1/istio_manifest/istio_client_test.yaml)，
-构建和上传镜像的步骤略，包含代码实现在内的相关清单在 [istio_manifest/](k8s_actions_guide/version1/istio_manifest) 目录下。
+然后我们再启动一个调用端服务`istio_client_test`，构建和上传镜像的步骤略，相关清单如下：
+
+- [client代码](k8s_actions_guide/version1/go_code/client)
+- [client deployment清单](k8s_actions_guide/version1/istio_manifest/istio_client_test.yaml)
 
 操作步骤如下：
 
