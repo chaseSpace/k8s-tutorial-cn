@@ -1029,13 +1029,13 @@ kk rollout resume deploy {deploy-name}
 
 ```shell
 # 一次性执行两条命令
-kk set image deploy hellok8s-go-http=leigg/hellok8s:v2
+kk set image deployment/hellok8s-go-http hellok8s=leigg/hellok8s:v2
 kk rollout pause deploy hellok8s-go-http
 
 # 现在观察更新情况，会发现只有一个pod被更新
 kk get pods
 
-# 如果此刻想要回滚
+# 如果此刻想要回滚（N需要替换为具体版本号）
 kk rollout undo deployment hellok8s-go-http --to-revision=N
 
 # 若要继续更新
