@@ -102,6 +102,3 @@ Kubernetes Ingress:
 - **Author**：Leigg
 - **Email**：random2035@qq.com
 - **Programming years**：7 years
-
-> 题外话：
-笔者近期正在寻找一份 Golang <u>远程工作</u>，如果您的公司有需要，或者您有合适的机会推荐，您可以通过 issue 或邮箱联系我，将由衷地表示感谢！
