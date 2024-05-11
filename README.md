@@ -13,6 +13,7 @@
 - [Kubernetes 维护指导](doc_maintaintion.md)
 - [Kubernetes 安全分析](doc_security.md)
 - [Kubernetes 实战指导](doc_k8s_actions_guide.md)
+- [Kubernetes 技巧汇总](doc_skills.md)
 - [特别篇：服务网格 | Istio 🆕](./doc_k8s_actions_guide.md#8-服务网格)
 
 #### 快速入门指南
@@ -39,7 +40,7 @@
 
 ### 最佳实践
 
-对于英文文章，你可以使用网页翻译插件（如欧路翻译、沉浸式翻译等）来提高阅读效率。
+对于英文文章，你可以使用网页翻译插件（如欧路翻译、沉浸式翻译、Relingo等）来提高阅读效率。
 
 - [（英）每个开发人员都应该知道的 15 个 Kubernetes 最佳实践](https://collabnix.com/15-kubernetes-best-practices-every-developer-should-know/)
 - [（英）每个开发人员都应该知道的 17 个 Kubernetes 最佳实践](https://spacelift.io/blog/kubernetes-best-practices#3-use-autoscaling)
@@ -82,6 +83,14 @@ Kubernetes Ingress:
 
 - [（英）什么是 Kubernetes Ingress，它是如何工作的？](https://heffenvox.com/what-is-kubernetes-ingress-and-how-it-works/)
 - [（英）Kubernetes Ingress 控制器高级指南](https://loft.sh/blog/advanced-guide-to-kubernetes-ingress-controllers/)
+
+Kubernetes 维护&排障：
+
+- [微信文章：搞定K8S运维常见故障处理](https://mp.weixin.qq.com/s/QsrUrtbqIRRF9ydqOAWHPg)
+- [微信文章：记一次 K8s 故障处理（涉及Pod异常、kubelet日志、PID数量限制和内存泄漏）](https://mp.weixin.qq.com/s/yZZj8vB71h0bPoseKK5p5Q)
+- [微信文章：Pod驱逐问题处理](https://mp.weixin.qq.com/s/rlazFRKKVlyOG2jp309isg)
+- [微信文章：一次意想不到的Pod内存驱逐问题（涉及kubelet）](https://mp.weixin.qq.com/s/51BWWG1ZkVK0txetUIat4A)
+- [微信文章：记一次持续三个月的 K8s DNS 排障过程⭐（涉及coreDNS、libc、alpine、conntrack）](https://mp.weixin.qq.com/s/dDfckiTaALmFYHL6Tes_SA)
 
 ### PDF&报告
 
