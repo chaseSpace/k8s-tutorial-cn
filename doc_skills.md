@@ -253,3 +253,13 @@ kubectl debug myapp --copy-to=myapp-debug --set-image=*=busybox
 # - 此容器与目标节点共享IPC空间、NET空间、PID空间，但没有特权
 kubectl debug node/mynode -it --image=ubuntu
 ```
+
+## 检查Master组件状态
+
+包括kube-apiserver、kube-controller-manager和kube-scheduler。
+
+```shell
+kubectl get componentstatuses
+```
+
+## 未完待续
