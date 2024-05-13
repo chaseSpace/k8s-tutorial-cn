@@ -264,4 +264,29 @@ kubectl debug node/mynode -it --image=ubuntu
 kubectl get componentstatuses
 ```
 
+## 在Alpine容器中运行glibc依赖程序
+
+Alpine Linux 是一个相当精简的操作系统，经常用来作为生产应用容器的基础镜像。但使用它需要注意几点：
+
+- 由于过度精简，所以缺少大部分常用工具
+- 使用的musl libc动态库，而不是常用的glibc组件
+
+本节要说的就是第二点。它会导致一个常见问题，比如在Dockerfile中，多阶段构建Go应用容器，第一阶段使用golang基础镜像编译go程序，第二阶段使用alpine镜像运行程序。
+启动容器后可能会报错：`exec user process caused "no such file or directory"`，这就是因为go程序依赖了OS的C动态库（一般是glibc），
+然而alpine提供的是musl。
+
+解决办法有以下几种：
+
+1. 编译Go程序时禁用`CGO`（通过`CGO_ENABLED=0`），让程序使用语言内置实现，不调用系统提供的C动态库；
+2. 在alpine中安装 gcompat 包，即`apk add gcompat`；
+3. 使用 **golang:alpine** 镜像来编译Go程序，它是Go官方提供的基于Alpine的包含Go工具链的镜像。然后你可以继续使用多阶段构建，在alpine镜像中运行go程序；
+4. 使用 **busybox:glibc** 作为运行镜像（大小<15M）。
+5. 对于Rust程序，可以使用 **rust:alpine** 作为运行镜像（Rust依赖了 busybox:glibc 中不存在的库 `libdl`）。
+
+**参考**
+
+- [Running glibc programs](https://wiki.alpinelinux.org/wiki/Running_glibc_programs)
+- [使用 alpine 打包镜像注意事项](https://blog.csdn.net/j3T9Z7H/article/details/106232650)
+- [What Is glibc?](https://www.baeldung.com/linux/gnu-c-library)
+
 ## 未完待续
