@@ -1563,13 +1563,13 @@ Address 2: 20.2.36.78 20-2-36-78.service-hellok8s-clusterip-headless.default.svc
 ### 7.6 Service 类型之 ExternalName
 
 ExternalName 也是 k8s 中一个特殊的 Service 类型，它不需要设置 selector 去选择为哪些 pod 实例提供服务，而是使用 DNS
-CNAME 机制把 svc 指向另外一个域名，这个域名可以是任何能够访问的虚拟地址（不可以是 IP），
+CNAME 机制把 svc 指向另外一个域名，这个域名可以是任何能够访问的虚拟地址（不能是 IP），
 比如`mysql.db.svc`这样的建立在 db 命名空间内的 mysql 服务，也可以指定`www.baidu.com`这样的外部真实域名。
 
 比如可以定义一个 service 指向 `www.baidu.com`，然后可以在集群内的任何一个 pod 上访问这个 service 的域名，
 请求 service 域名将自动重定向到`www.baidu.com`。
 
-> 注意: ExternalName 这个类型也仅在集群内（不含节点）可访问。
+> 注意: ExternalName 这个类型也仅在集群内（不含节点本地）可访问。
 
 操作步骤：
 
@@ -1599,23 +1599,35 @@ Address 1: 14.119.104.189
 Address 2: 14.119.104.254
 Address 3: 240e:ff:e020:37::ff:b08c:124f
 Address 4: 240e:ff:e020:38::ff:b06d:569b
+
+
+# curl 访问：打印状态码
+$ curl -s -o /dev/null -H 'Host:www.baidu.com' http://service-hellok8s-externalname.default.svc.cluster.local -w "%{http_code}\n"
+200
+
+# curl 访问：打印状态码（不带Host头）
+$ curl -s -o /dev/null http://service-hellok8s-externalname.default.svc.cluster.local -w "%{http_code}\n"
+403
+
+# curl 访问：只打印html的title
+curl -s -H 'Host:www.baidu.com' http://service-hellok8s-externalname.default.svc.cluster.local |grep -oE '<title>.*?</title>'
+<title>百度一下，你就知道</title>
 ```
 
-注意：这里无法通过 curl 测试达到访问百度的效果，笔者推断是因为 curl 在使用 service 域名访问时只能拿到`www.baidu.com`
-，拿不到百度服务器 IP，即 curl 不具备 DNS 解析功能，所以无法正常访问百度获取到 HTML。而 ping 工具可以执行 DNS 解析，所以能够拿到
-IP。
+> [!IMPORTANT]
+> 这里需要加`-H 'Host:www.baidu.com'` 才能通过代理服务器的Host请求头验证，以正常访问Web页面，否则403。
 
-**用途说明**：ExternalName 类 Service 一般用在集群内部需要调用外部服务的时候，比如云服务商部署的 DB 等服务。
+**用途说明**：ExternalName 这类 Service 一般用在集群内部需要调用外部服务的时候，比如云服务商托管的 DB 等服务。
 
 **无头 Service + Endpoints**  
 另外，很多时候，比如是自己部署的 DB 服务，只有 IP 而没有域名，ExternalName
-是无法实现这个需求的，需要使用 `无头Service`+`Endpoints`来实现，
+无法实现这个需求，需要使用`无头Service`+`Endpoints`来实现，
 这里提供一个测试通过的模板 [service-headless-endpoints.yaml](service-headless-endpoints.yaml) 供读者自行练习。
 
+> [!NOTE]
 > Endpoints 对象一般不需要手动创建，Service controller 会在 service 创建时自动创建，只有在需要关联集群外的服务时可能用到。
->
-这个时候就可定义 Endpoints 模板，其中填入外部服务的 IP 和端口，然后应用即可。如果集群外的服务提供的地址是域名而不是
-IP，则使用`ExternalName`。
+> 这个时候就可定义 Endpoints 模板，其中填入外部服务的 IP 和端口，然后应用即可。如果集群外的服务提供的地址是域名而不是
+> IP，则使用 ExternalName。
 
 ### 7.7 搭配 ExternalIP
 
@@ -2034,7 +2046,7 @@ $ vi deploy.yaml
 $ kk apply -f deploy.yaml # 更新部署
 ```
 
-注意：默认不能部署到 master
+注意：默认不能将应用Pod部署到 master
 节点，存在污点问题，需要移除污点才可以，参考 [k8s-master 增加和删除污点](https://www.cnblogs.com/zouhong/p/17351418.html)。
 
 ### 8.5 Ingress 部署方案推荐
