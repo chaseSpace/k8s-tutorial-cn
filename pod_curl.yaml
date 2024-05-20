@@ -11,5 +11,5 @@ metadata:
 spec:
   containers:
     - name: curl-container
-      image: appropriate/curl
+      image: curlimages/curl
       command: [ "sh","-c", "sleep 1h" ]
