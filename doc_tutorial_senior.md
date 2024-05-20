@@ -3406,17 +3406,14 @@ K9s支持多平台以及多种方式安装部署，这里我们介绍在Linux上
 > 在开始之前，你需要在上面提到的K9s仓库中选择对应K8s版本的K9s版本。
 
 ```shell
-$ wget https://hub.gitmirror.com/?q=https://github.com/derailed/k9s/releases/download/v0.28.2/k9s_Linux_amd64.tar.gz -O k9s_Linux_amd64.tar.gz
+wget --no-check-certificate https://hub.gitmirror.com/?q=https://github.com/derailed/k9s/releases/download/v0.28.2/k9s_Linux_amd64.tar.gz -O k9s_Linux_amd64.tar.gz
 
-$ tar xvf k9s_Linux_amd64.tar.gz           
-LICENSE
-README.md
-k9s
+tar zxf k9s_Linux_amd64.tar.gz           
 
-$ cp k9s /usr/local/sbin
+cp k9s /usr/local/sbin
 
 # 启动面板, Ctrl+C退出
-$ k9s 
+k9s 
 ```
 
 常用命令：
