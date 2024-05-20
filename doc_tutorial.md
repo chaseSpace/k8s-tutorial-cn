@@ -1800,10 +1800,9 @@ Ingress 是作为一个七层网络代理。
 > 免去了管理清单的麻烦，而且也支持 Ingress 所支持的 SSL、负载均衡等功能，甚至包含 Ingress 不支持的四层协议代理功能！
 
 > [!IMPORTANT]
-Ingress 资源不支持原生 TCP 代理服务！但大部分实现 Ingress API 的控制器（如 ingress Nginx Controller）是支持的，它们通过为
-Ingress
-资源添加注解的方式来实现对原生 TCP
-服务的支持。参考 [Nginx: Exposing TCP and UDP services][Exposing TCP and UDP services]。
+> Ingress 资源不支持原生 TCP 代理服务！但大部分实现 Ingress API 的控制器（如 ingress Nginx Controller）是支持的，它们通过为
+> Ingress 资源添加注解的方式来实现对原生 TCP
+> 服务的支持。参考 [Nginx: Exposing TCP and UDP services][Exposing TCP and UDP services]。
 
 > [!WARNING]
 > 一般不会同时使用 LoadBalancer 类型的 Service 和 Ingress 资源来暴露服务，这会造成管理上的混乱。
@@ -2067,24 +2066,23 @@ $ kk apply -f deploy.yaml # 更新部署
    有一个问题是由于直接利用宿主机节点的网络和端口，一个 node 只能部署一个 ingress-controller
    Pod，但这在生产环境下也不算是问题，只要完成多节点部署实现高可用即可。
    然后将 Ingress 节点公网 IP 填到域名 CNAME 记录中即可。  
-   笔者提供测试通过的 Ingress-nginx
+   笔者提供测试通过的 ingress-nginx
    模板供读者练习：[ingress-nginx-daemonset-hostnetwork.yaml](ingress-nginx-daemonset-hostnetwork.yaml)，主要修改了 3 处：
     - `Deployment` 改为 `DaemonSet`
     - 注释`DaemonSet`模块的`strategy`部分（strategy 是 Deployment 模块下的字段）
-    - 在 DaemonSet 模块的`spec.template.spec`下添加`hostNetwork: true`
-      使用这个模板后，可以观察到在 k8s-node1 上会监听 80、443 和 8443 端口（Ingress-nginx 需要的端口）。
+    - 在 DaemonSet 模块的`spec.template.spec`下添加`hostNetwork: true`，
+      使用这个模板后，可以观察到在 k8s-node1 上会监听 80、443 和 8443 端口（ingress-nginx 需要的端口）。
 
 3. **Deployment + `NodePort`模式的 Service**  
    说明：同样用 Deployment 模式部署 ingress-controller，并创建对应的 service，但是 type 为`NodePort`。这样，Ingress 就会暴露在集群节点
    ip 的特定端口上。
    然后可以直接将 Ingress 节点公网 IP 填到域名 CNAME 记录中。    
-   笔者提供测试通过 Ingress-nginx
+   笔者提供测试通过 ingress-nginx
    模板供读者练习：[ingress-nginx-deployment-nodeport.yaml](ingress-nginx-deployment-nodeport.yaml)，主要修改了 2 处：
-    - Service 模块下`spec.ports`部分新增`nodePort: 30080`和`nodePort: 30443`（注意`nodePort`对应的端口范围受到限制：30000-32767）
+    - Service 模块下`spec.ports`部分新增`nodePort: 30080`和`nodePort: 30443`（注意`nodePort`对应的端口范围受到限制：30000-32767）。
+      这种方式可以使用的节点端口受到了固定范围限制，具有一定局限性，应用规划端口时需要考虑到这一点。
 
-   这种方式可以使用的节点端口受到了固定范围限制，具有一定局限性，应用规划端口时需要考虑到这一点。
-
-练习时，如对 Ingress-nginx 模板有修改，建议完全删除该模板对应资源（使用`kk delete -f deploy.yaml`，操作可能会耗时几十秒），否则直接应用可能不会生效。
+练习时，如对 ingress-nginx 模板有修改，建议完全删除该模板对应资源（使用`kk delete -f deploy.yaml`，操作可能会耗时几十秒），否则直接应用可能不会生效。
 
 ## 9. 使用 Namespace
 
