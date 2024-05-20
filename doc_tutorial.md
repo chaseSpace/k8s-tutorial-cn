@@ -1800,19 +1800,20 @@ Ingress 是作为一个七层网络代理。
 > 免去了管理清单的麻烦，而且也支持 Ingress 所支持的 SSL、负载均衡等功能，甚至包含 Ingress 不支持的四层协议代理功能！
 
 > [!IMPORTANT]
-> Ingress 资源不支持原生 TCP 服务！但大部分 Ingress 控制器（如 Ingress Nginx 控制器）是支持的，它们会通过为 Ingress
-> 资源添加注解的方式来实现对原生 TCP 服务的支持。参考 [Exposing TCP and UDP services][Exposing TCP and UDP services]。
+> Ingress 资源不支持原生 TCP 代理服务！但大部分实现 Ingress API的控制器（如 ingress Nginx Controller）是支持的，它们通过为
+> Ingress
+> 资源添加注解的方式来实现对原生 TCP
+> 服务的支持。参考 [Nginx: Exposing TCP and UDP services][Exposing TCP and UDP services]。
 
 > [!WARNING]
-> 一般不会同时使用 LoadBalancer 类型的 Service 和 Ingress 资源来暴露服务。这可能会造成管理上的混乱。
+> 一般不会同时使用 LoadBalancer 类型的 Service 和 Ingress 资源来暴露服务，这会造成管理上的混乱。
 
 ### 8.1 Ingress 控制器
 
 使用 Ingress 时一般涉及 2 个组件：
 
-- **Ingress**：是 Kubernetes 中的一种 API 资源类型，它定义了从集群外部访问集群内服务的规则。通常，这些规则涉及到 HTTP 和
-  HTTPS 流量的路由和负载均衡。
-  Ingress 对象本身只是一种规则定义，它需要一个 Ingress 控制器来实际执行这些规则。
+- **Ingress 清单**：是 Kubernetes 中的一种 API 资源类型，它定义了从集群外部访问集群内服务的规则。通常，这些规则涉及到 HTTP 和
+  HTTPS 流量的路由和负载均衡。Ingress 对象本身只是一种规则定义，它需要一个 Ingress 控制器来实际执行这些规则。
 - **Ingress 控制器**：是 Kubernetes 集群中的一个独立组件或服务，以 Pod 形式存在。它实际处理 Ingress 规则，根据这些规则配置集群中的代理服务器（如
   Nginx、Traefik 等）来处理流量路由和负载均衡。
     - Ingress 控制器负责监视 Ingress 对象的变化，然后动态更新代理服务器的配置以反映这些变化。Kubernetes 社区提供了一些不同的
@@ -1831,12 +1832,12 @@ Ingress 是作为一个七层网络代理。
 - Node 接收到流量后再根据（kube-proxy 所配置好的）本地 iptables 将流量转发给本地的 Pod
 
 Ingress 控制器不会随集群一起安装，需要单独安装。可以选择的 Ingress
-控制器很多，可查看[官方提供的 Ingress 控制器列表](https://kubernetes.io/zh-cn/docs/concepts/services-networking/ingress-controllers/)，
-再根据情况自行选择，常用的是 Nginx、Traefik。
+控制器很多，可查看[官方提供的 Ingress 控制器列表](https://kubernetes.io/zh-cn/docs/concepts/services-networking/ingress-controllers/)
+，再根据情况自行选择，常用的是 Nginx、Traefik。
 
 ### 8.2 安装 Nginx Ingress 控制器
 
-传统架构中常用 Nginx 作为外部网关，所以这里也使用 Nginx 作为 Ingress 控制器来练习。
+传统架构中常用 Nginx 作为外部网关，所以这里也使用 Nginx 作为 Ingress 控制器来练习。当然，它也可应用到生产环境。
 
 - [官方仓库](https://github.com/kubernetes/ingress-nginx)
 - [官方安装指导](https://kubernetes.github.io/ingress-nginx/deploy/)
@@ -1857,7 +1858,7 @@ $ cat nginx-ingress.yaml|grep image:
         image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b
         image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407@sha256:543c40fd093964bc9ab509d3e791f9989963021f1e9e4c9c7b6700b02bfb227b
 
-$ 在node1上手动拉取镜像（部署的Pod会调度到非Master节点）
+# 在node1上手动拉取镜像（部署的Pod会调度到非Master节点）
 $ grep -oP 'image:\s*\K[^[:space:]]+' nginx-ingress.yaml | xargs -n 1 ctr image pull
 
 # 安装
@@ -1873,10 +1874,10 @@ ingress-nginx-controller-6f4df7b5d6-lxfsr   1/1     Running     0          2m36s
 # 注意前两个 Completed 的pod是一次性的，用于执行初始化工作，现在安装成功。
 
 # 等待各项资源就绪
-kk wait --namespace ingress-nginx \
-  --for=condition=ready pod \
-  --selector=app.kubernetes.io/component=controller \
-  --timeout=120s
+$ kk wait --namespace ingress-nginx \
+      --for=condition=ready pod \
+      --selector=app.kubernetes.io/component=controller \
+      --timeout=120s
   
 #查看安装的各种资源
 $ kk get all -n ingress-nginx
@@ -1902,7 +1903,7 @@ job.batch/ingress-nginx-admission-patch    1/1           7s         16m
 
 可能会遇到 image 拉取失败，解决如下：
 
-```plain
+```shell
 $ kk get pod -ningress-nginx                                           
 NAME                                        READY   STATUS              RESTARTS   AGE
 ingress-nginx-admission-create-csfjc        0/1     ImagePullBackOff    0          5m55s
