@@ -1615,7 +1615,7 @@ curl -s -H 'Host:www.baidu.com' http://service-hellok8s-externalname.default.svc
 ```
 
 > [!IMPORTANT]
-> 这里需要加`-H 'Host:www.baidu.com'` 才能通过代理服务器的Host请求头验证，以正常访问Web页面，否则403。
+> 这里需要加`-H 'Host:www.baidu.com'` 才能通过代理服务器的 Host 请求头验证，以正常访问 Web 页面，否则 403。
 
 **用途说明**：ExternalName 这类 Service 一般用在集群内部需要调用外部服务的时候，比如云服务商托管的 DB 等服务。
 
@@ -1800,10 +1800,10 @@ Ingress 是作为一个七层网络代理。
 > 免去了管理清单的麻烦，而且也支持 Ingress 所支持的 SSL、负载均衡等功能，甚至包含 Ingress 不支持的四层协议代理功能！
 
 > [!IMPORTANT]
-> Ingress 资源不支持原生 TCP 代理服务！但大部分实现 Ingress API的控制器（如 ingress Nginx Controller）是支持的，它们通过为
-> Ingress
-> 资源添加注解的方式来实现对原生 TCP
-> 服务的支持。参考 [Nginx: Exposing TCP and UDP services][Exposing TCP and UDP services]。
+Ingress 资源不支持原生 TCP 代理服务！但大部分实现 Ingress API 的控制器（如 ingress Nginx Controller）是支持的，它们通过为
+Ingress
+资源添加注解的方式来实现对原生 TCP
+服务的支持。参考 [Nginx: Exposing TCP and UDP services][Exposing TCP and UDP services]。
 
 > [!WARNING]
 > 一般不会同时使用 LoadBalancer 类型的 Service 和 Ingress 资源来暴露服务，这会造成管理上的混乱。
@@ -2047,7 +2047,7 @@ $ vi deploy.yaml
 $ kk apply -f deploy.yaml # 更新部署
 ```
 
-注意：默认不能将应用Pod部署到 master
+注意：默认不能将应用 Pod 部署到 master
 节点，存在污点问题，需要移除污点才可以，参考 [k8s-master 增加和删除污点](https://www.cnblogs.com/zouhong/p/17351418.html)。
 
 ### 8.5 Ingress 部署方案推荐
@@ -2068,8 +2068,7 @@ $ kk apply -f deploy.yaml # 更新部署
    Pod，但这在生产环境下也不算是问题，只要完成多节点部署实现高可用即可。
    然后将 Ingress 节点公网 IP 填到域名 CNAME 记录中即可。  
    笔者提供测试通过的 Ingress-nginx
-   模板供读者练习：[ingress-nginx-daemonset-hostnetwork.yaml](ingress-nginx-daemonset-hostnetwork.yaml)
-   ，主要 修 改了3处：
+   模板供读者练习：[ingress-nginx-daemonset-hostnetwork.yaml](ingress-nginx-daemonset-hostnetwork.yaml)，主要修改了 3 处：
     - `Deployment` 改为 `DaemonSet`
     - 注释`DaemonSet`模块的`strategy`部分（strategy 是 Deployment 模块下的字段）
     - 在 DaemonSet 模块的`spec.template.spec`下添加`hostNetwork: true`
@@ -2080,8 +2079,7 @@ $ kk apply -f deploy.yaml # 更新部署
    ip 的特定端口上。
    然后可以直接将 Ingress 节点公网 IP 填到域名 CNAME 记录中。    
    笔者提供测试通过 Ingress-nginx
-   模板供读者练习：[ingress-nginx-deployment-nodeport.yaml](ingress-nginx-deployment-nodeport.yaml)，
-   主要 修 改了2处：
+   模板供读者练习：[ingress-nginx-deployment-nodeport.yaml](ingress-nginx-deployment-nodeport.yaml)，主要修改了 2 处：
     - Service 模块下`spec.ports`部分新增`nodePort: 30080`和`nodePort: 30443`（注意`nodePort`对应的端口范围受到限制：30000-32767）
 
    这种方式可以使用的节点端口受到了固定范围限制，具有一定局限性，应用规划端口时需要考虑到这一点。
