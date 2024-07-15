@@ -94,7 +94,11 @@ Kubernetes 维护&排障：
 
 ### PDF&报告
 
-- [（英）2023 年 Kubernetes 使用报告 来自 VMware](https://www.vmware.com/content/dam/digitalmarketing/vmware/en/pdf/docs/vmware-ebook-state-of-kubernetes.pdf)
+- [（英）**2024** 年 Kubernetes 性能测试报告 @Fairwinds](https://www.fairwinds.com/kubernetes-config-benchmark-report)
+- [（英）**2024** 年 Kubernetes 安全报告 @Red Hat](https://www.redhat.com/en/engage/state-kubernetes-security-report-2024)
+- [（英）**2024** 年 Kubernetes 成本基准报告 @Cast](https://cast.ai/kubernetes-cost-benchmark/)
+- [（英）**2024** 年 Kubernetes 专家之声报告 @Portworx](https://portworx.com/resources/voice-of-kubernetes-expert-report/)
+- [（英）2023 年 Kubernetes 使用报告 @VMware](https://www.vmware.com/content/dam/digitalmarketing/vmware/en/pdf/docs/vmware-ebook-state-of-kubernetes.pdf)
 - [（英）2023 年 Kubernetes 安全报告（23 页）](https://www.redhat.com/en/resources/state-kubernetes-security-report-2023)
 - [（英）2019 年 Kubernetes 安全审查](https://github.com/trailofbits/audit-kubernetes/blob/master/reports/Kubernetes%20Security%20Review.pdf)
 
