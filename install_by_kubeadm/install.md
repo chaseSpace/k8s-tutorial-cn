@@ -455,6 +455,7 @@ mkdir -p ~/k8s/calico && cd ~/k8s/calico
 # 注意calico版本需要匹配k8s版本，否则无法应用
 wget --no-check-certificate  https://raw.gitmirror.com/projectcalico/calico/v3.26.1/manifests/calico.yaml
 
+#！！！
 # 修改calico.yaml，在 CALICO_IPV4POOL_CIDR 的位置，修改value为pod网段：20.2.0.0/16 (与前面的--pod-network-cidr参数一致)
 
 # 应用配置文件
@@ -472,9 +473,9 @@ calico-node-xjwt8                          0/1     Init:ErrImagePull   0        
 # 观察到calico镜像拉取失败，查看pod日志
 kubectl describe pod -n kube-system calico-node-bsqtv
 # 从输出中可观察到是拉取 docker.io/calico/cni:v3.26.1 镜像失败，改为手动拉取（在所有节点都执行）
-ctr image pull docker.io/calico/cni:v3.26.1 && \
-ctr image pull docker.io/calico/node:v3.26.1 && \
-ctr image pull docker.io/calico/kube-controllers:v3.26.1
+ctr -n k8s.io image pull docker.io/calico/cni:v3.26.1 &&
+ctr -n k8s.io image pull docker.io/calico/node:v3.26.1 &&
+ctr -n k8s.io image pull docker.io/calico/kube-controllers:v3.26.1 
 
 # 检查
 $ ctr image ls
@@ -488,15 +489,15 @@ kk get pods -A --watch
 
 # ok后，重启一下网络（笔者出现集群正常后，无法连通外网，重启后可以）
 service network restart
+```
 
-# 当需要重置网络时，在master节点删除calico全部资源，再重新配置
-kubectl delete -f calico.yaml && rm -rf /etc/cni/net.d
-service kubelet restart
-# 当需要重置网络时，在其他节点：
+当需要重置网络时，在master节点删除calico全部资源：`kubectl delete -f calico.yaml`，然后在所有节点执行：
+
+```shell
 rm -rf /etc/cni/net.d && service kubelet restart
 ```
 
-安装calicoctl（也可暂时不用安装），方便观察calico的各种信息和状态：
+安装`calicoctl`（可选），方便观察calico的各种信息和状态：
 
 ```shell
 # 第1种安装方式（推荐）

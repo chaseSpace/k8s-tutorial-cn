@@ -223,7 +223,7 @@ Successfully packaged chart and saved it to: /mnt/hgfs/go_dev/k8s-tutorial-cn/he
 # 打包时增加的版本号
 version: 0.1.0
 
-# 发布时增加的版本号
+# 发布应用时增加的版本号
 appVersion: "1.16.0"
 ```
 

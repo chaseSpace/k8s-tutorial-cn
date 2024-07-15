@@ -3604,7 +3604,7 @@ linux-amd64/helm
 linux-amd64/LICENSE
 linux-amd64/README.md
        
-$ mv linux-amd64/helm /usr/local/bin/helm
+$ mv linux-amd64/helm /usr/local/bin/
 $ helm -h                
 The Kubernetes package manager
 
