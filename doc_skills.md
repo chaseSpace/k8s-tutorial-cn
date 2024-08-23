@@ -209,7 +209,7 @@ spec:
     - name: go-http
       image: leigg/hellok8s:v1
       command: ["xxx"]  # 添加此行，xxx是一个无效的程序，所以Pod无法正常启动
-      
+
 $ kk apply -f pod.yaml
 
 $ kk get po go-http        
@@ -244,11 +244,14 @@ PID   USER     TIME  COMMAND
 $ kk delete po debugger
 ```
 
-其他还有一种使用方式，根据情况使用：
+还有其他几种方式，根据情况使用：
 
 ```shell
-# 在创建Pod副本时，使用包含调试命令的镜像替换原来的镜像
-kubectl debug myapp --copy-to=myapp-debug --set-image=*=busybox
+# 创建Pod副本，改变进入命令
+kubectl debug myapp -it --copy-to=myapp-debug --container=myapp -- sh
+
+# 创建Pod副本，使用包含调试命令的镜像替换原来的镜像
+kubectl debug myapp -it --copy-to=myapp-debug --set-image=*=busybox
 
 # 直接使用一个临时容器连接到无法运行Pod的节点上进行调试（一般是推测因为节点原因导致Pod无法运行，才会使用此法）
 # - 此时节点的文件系统将挂在到容器的 host/ 目录

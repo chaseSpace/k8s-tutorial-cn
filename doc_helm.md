@@ -135,7 +135,7 @@ $ helm lint example-chart
 
 在最终执行`helm install`
 进行部署时，会将Chart文件解析为K8s能够识别的各种对象模板以进行部署。
-可使用`helm install --dry-run --debug [Chart目录位置]`来提前检查Chart生成的k8s对象模板是否正确。
+可使用`helm install --dry-run --debug [Chart目录位置] <name>`来提前检查Chart生成的k8s对象模板是否正确。
 
 ```shell
 # 其中helm-nginx是发布名称，最后才是chart目录作为参数

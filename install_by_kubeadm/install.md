@@ -463,7 +463,7 @@ wget --no-check-certificate  https://raw.gitmirror.com/projectcalico/calico/v3.2
 kubectl apply -f calico.yaml
 
 # 观察calico 的几个 pod是否 running，这可能需要几分钟
-[root@k8s-master calico]# kubectl get pods -n kube-system --watch
+$ kubectl get pods -n kube-system -w |grep calico
 NAME                                       READY   STATUS              RESTARTS      AGE
 calico-kube-controllers-74cfc9ffcc-85ng7   0/1     Pending             0             17s
 calico-node-bsqtv                          0/1     Init:ErrImagePull   0             17s
