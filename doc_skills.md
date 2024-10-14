@@ -198,6 +198,9 @@ PID   USER     TIME  COMMAND
 
 # 退出临时容器
 # exit
+
+# 常见调试命令
+kk debug pod-xxx -it --image nginx -- sh
 ```
 
 但如果目标容器已经崩溃，上面的方法就失效了。需要采用Pod副本的方式来调试，步骤如下：

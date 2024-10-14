@@ -559,7 +559,7 @@ crictl config runtime-endpoint unix:///var/run/containerd/containerd.sock
 
 ```shell
 # 在具体节点上执行
-$ crictl images                                                            
+$ crictl img                                                            
 IMAGE                                                             TAG                 IMAGE ID            SIZE
 docker.io/calico/cni                                              v3.26.1             9dee260ef7f59       93.4MB
 docker.io/calico/kube-controllers                                 v3.26.1             1919f2787fa70       32.8MB

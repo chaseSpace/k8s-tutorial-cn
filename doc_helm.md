@@ -200,10 +200,11 @@ NAME                                        READY   STATUS    RESTARTS   AGE
 helm-nginx-example-chart-5b5b69cb9d-nnrpn   1/1     Running   0          6m5s
 ```
 
-删除部署（无法回滚）：
+彻底删除部署：
 
 ```shell
-helm uninstall helm-nginx
+# un 可以等价替换为 del
+helm un helm-nginx
 ```
 
 ### 4. 打包Chart

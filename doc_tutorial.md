@@ -2342,6 +2342,11 @@ $ kk get secret db-user-pass -o jsonpath='{.data.username}' | base64 --decode
 admin
 ```
 
+项目会遇到需要将证书导入Secret的需求：
+```shell
+kubectl create secret tls cert-foobar --cert=foobar.crt --key=foobar.key
+```
+
 删除 Secret：
 
 ```shell
