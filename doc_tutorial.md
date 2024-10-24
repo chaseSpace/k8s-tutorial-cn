@@ -2343,6 +2343,7 @@ admin
 ```
 
 项目会遇到需要将证书导入Secret的需求：
+
 ```shell
 kubectl create secret tls cert-foobar --cert=foobar.crt --key=foobar.key
 ```
@@ -2364,7 +2365,8 @@ Kubernetes 客户端或 API 服务器的情况下获得自己或集群的信息�
 
 这两种暴露 Pod 和容器字段的方式统称为 Downward API。
 
-**可用字段**  
+**可用字段**
+
 只有部分 Kubernetes API 字段可以通过 Downward API 使用。本节列出了你可以使用的字段。
 你可以使用 `fieldRef` 传递来自可用的 Pod 级字段的信息。
 
@@ -2374,7 +2376,7 @@ Kubernetes 客户端或 API 服务器的情况下获得自己或集群的信息�
 - metadata.annotations['<KEY>']：Pod 的注解 <KEY> 的值
 - metadata.labels['<KEY>']：Pod 的标签 <KEY> 的值
 
-以下信息可以通过环境变量获得，但**不能作为 `downwardAPI` 卷`fieldRef`** 获得：
+以下信息**仅**可以通过环境变量获得：
 
 - spec.serviceAccountName：Pod 的服务账号名称
 - spec.nodeName：Pod 运行时所处的节点名称
@@ -2383,12 +2385,12 @@ Kubernetes 客户端或 API 服务器的情况下获得自己或集群的信息�
   PodHostIPs 特性门控后可用。
 - status.podIP：Pod 的主 IP 地址（通常是其 IPv4 地址）
 
-以下信息可以通过 downwardAPI 卷`fieldRef` 获得，但**不能作为环境变量**获得：
+以下信息**仅**可以通过 downwardAPI 的 `fieldRef` 字段获得：
 
 - metadata.labels：Pod 的所有标签，格式为 标签键名="转义后的标签值"，每行一个标签
 - metadata.annotations：Pod 的全部注解，格式为 注解键名="转义后的注解值"，每行一个注解
 
-可通过 resourceFieldRef 获得的信息:
+最后，下面的信息**仅**可通过 downwardAPI 的 `resourceFieldRef` 字段获得:
 
 - limits.cpu：容器的 CPU 限制值
 - requests.cpu：容器的 CPU 请求值
