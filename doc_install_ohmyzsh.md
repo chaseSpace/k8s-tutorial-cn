@@ -1,5 +1,7 @@
 ## 快速安装ohmyzsh
 
+[什么是ohmyzsh？](https://www.google.com.hk/search?q=什么是ohmyzsh)
+
 ```shell
 yum install -y git zsh wget
 
