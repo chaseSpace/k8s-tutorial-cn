@@ -2189,7 +2189,6 @@ kk apply -f deployment-use-configmap.yaml
 $ kk get pod                               
 NAME                                READY   STATUS    RESTARTS   AGE
 hellok8s-go-http-684ff55564-qf2x9   1/1     Running   0          3m47s
-hellok8s-go-http-684ff55564-s5bfl   1/1     Running   0          3m47s
 
 # pod直接映射到节点端口
 $ curl 10.0.2.3:3000/hello
