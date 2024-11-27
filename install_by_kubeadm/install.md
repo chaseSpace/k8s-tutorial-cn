@@ -2,28 +2,30 @@
 
 **目录**
 <!-- TOC -->
+
 * [使用kubeadm搭建K8s多节点集群](#使用kubeadm搭建k8s多节点集群)
-  * [1. 准备资源](#1-准备资源)
-  * [2. 安装容器运行时](#2-安装容器运行时)
-    * [2.1 介绍](#21-介绍)
-    * [2.2 Linux支持的CRI的端点](#22-linux支持的cri的端点)
-    * [2.3 安装Containerd](#23-安装containerd)
-  * [3. 安装三大件](#3-安装三大件)
-  * [4. 配置cgroup driver](#4-配置cgroup-driver)
-  * [5. 创建集群](#5-创建集群)
-    * [5.1 在master上初始化集群](#51-在master上初始化集群)
-    * [5.2 准备用户的 k8s 配置文件](#52-准备用户的-k8s-配置文件)
-    * [5.3 其他节点加入集群](#53-其他节点加入集群)
-    * [5.4 安装第三方网络插件](#54-安装第三方网络插件)
-    * [5.5 在普通节点执行kubectl](#55-在普通节点执行kubectl)
-    * [5.6 删除集群](#56-删除集群)
-  * [6. 验证集群](#6-验证集群)
-  * [7. 疑难解决](#7-疑难解决)
-    * [7.1 解决calico镜像下载较慢的问题](#71-解决calico镜像下载较慢的问题)
-    * [7.2 解决calico密钥过期问题](#72-解决calico密钥过期问题)
-    * [7.3 解决k8s证书过期问题](#73-解决k8s证书过期问题)
-    * [7.4 安装其他网络插件-flannel](#74-安装其他网络插件-flannel)
-  * [参考](#参考)
+    * [1. 准备资源](#1-准备资源)
+    * [2. 安装容器运行时](#2-安装容器运行时)
+        * [2.1 介绍](#21-介绍)
+        * [2.2 Linux支持的CRI的端点](#22-linux支持的cri的端点)
+        * [2.3 安装Containerd](#23-安装containerd)
+    * [3. 安装三大件](#3-安装三大件)
+    * [4. 配置cgroup driver](#4-配置cgroup-driver)
+    * [5. 创建集群](#5-创建集群)
+        * [5.1 在master上初始化集群](#51-在master上初始化集群)
+        * [5.2 准备用户的 k8s 配置文件](#52-准备用户的-k8s-配置文件)
+        * [5.3 其他节点加入集群](#53-其他节点加入集群)
+        * [5.4 安装第三方网络插件](#54-安装第三方网络插件)
+        * [5.5 在普通节点执行kubectl](#55-在普通节点执行kubectl)
+        * [5.6 删除集群](#56-删除集群)
+    * [6. 验证集群](#6-验证集群)
+    * [7. 疑难解决](#7-疑难解决)
+        * [7.1 解决calico镜像下载较慢的问题](#71-解决calico镜像下载较慢的问题)
+        * [7.2 解决calico密钥过期问题](#72-解决calico密钥过期问题)
+        * [7.3 解决k8s证书过期问题](#73-解决k8s证书过期问题)
+        * [7.4 安装其他网络插件-flannel](#74-安装其他网络插件-flannel)
+    * [参考](#参考)
+
 <!-- TOC -->
 
 为了提高命令行使用效率，建议先[安装ohmyzsh](../doc_install_ohmyzsh.md)。此外，本教程演示安装的K8s版本为 **v1.27.0**
@@ -838,6 +840,63 @@ NAMESPACE      NAME                                 READY   STATUS    RESTARTS  
 default        hellok8s-go-http-999f66c56-7fdst     1/1     Running   0          1s
 default        hellok8s-go-http-999f66c56-j5dhx     1/1     Running   0          1s
 ```
+
+### 7.5 解决etcd文件损坏导致k8s无法连接的问题
+
+**症状**
+
+```shell
+➜   xx git:(main) ✗ kk get nodes
+E1127 10:34:46.376506   80176 memcache.go:265] couldn't get current server API group list: Get "https://192.168.1.10:6443/api?timeout=32s": dial tcp 192.168.1.10:6443: connect: connection refused
+...
+The connection to the server 192.168.1.10:6443 was refused - did you specify the right host or port?
+```
+
+几乎所有k8s命令都会提示这个错误，这首先是因为K8s的 API Server 宕机了。下面检查 API Server 的日志：
+
+```shell
+# crictl 是CRI容器运行时接口的命令行工具
+➜  xx git:(main) ✗ crictl ps -a             
+CONTAINER           IMAGE               CREATED             STATE               NAME                      ATTEMPT             POD ID              POD
+efb7225909997       6f707f569b572       2 minutes ago       Exited              kube-apiserver            1629                fd11a466c5da6       kube-apiserver-k8s-master
+cb50e990ca244       86b6af7dd652c       4 minutes ago       Exited              etcd                      1671                76cea9f6fba09       etcd-k8s-master
+b7ec55d7c5778       f73f1b39c3fe8       11 days ago         Running             kube-scheduler            18                  0ab488cc9134f       kube-scheduler-k8s-master
+bd49ad6e09286       95fe52ed44570       11 days ago         Running             kube-controller-manager   19                  d18d0db5e48e9       kube-controller-manager-k8s-master
+c7d49da9a929c       f73f1b39c3fe8       2 weeks ago         Exited              kube-scheduler            17                  b79e3528a25c6       kube-scheduler-k8s-master
+21414c85dd2f4       95fe52ed44570       2 weeks ago         Exited              kube-controller-manager   18                  146661b811d27       kube-controller-manager-k8s-master
+
+# 查看API Server容器的日志
+➜  xxx git:(main) ✗ crictl logs 8eec80bf1a3d7             
+I1127 02:26:17.324123       1 server.go:551] external host was not specified, using 192.168.1.10
+I1127 02:26:17.324870       1 server.go:165] Version: v1.27.0
+I1127 02:26:17.324891       1 server.go:167] "Golang settings" GOGC="" GOMAXPROCS="" GOTRACEBACK=""
+I1127 02:26:17.534744       1 shared_informer.go:311] Waiting for caches to sync for node_authorizer
+I1127 02:26:17.543324       1 plugins.go:158] Loaded 12 mutating admission controller(s) successfully in the following order: NamespaceLifecycle,LimitRanger,ServiceAccount,NodeRestriction,TaintNodesByCondition,Priority,DefaultTolerationSeconds,DefaultStorageClass,StorageObjectInUseProtection,RuntimeClass,DefaultIngressClass,MutatingAdmissionWebhook.
+I1127 02:26:17.543338       1 plugins.go:161] Loaded 13 validating admission controller(s) successfully in the following order: LimitRanger,ServiceAccount,PodSecurity,Priority,PersistentVolumeClaimResize,RuntimeClass,CertificateApproval,CertificateSigning,ClusterTrustBundleAttest,CertificateSubjectRestriction,ValidatingAdmissionPolicy,ValidatingAdmissionWebhook,ResourceQuota.
+W1127 02:26:17.547556       1 logging.go:59] [core] [Channel #1 SubChannel #2] grpc: addrConn.createTransport failed to connect to {
+  "Addr": "127.0.0.1:2379",
+  "ServerName": "127.0.0.1",
+  "Attributes": null,
+  "BalancerAttributes": null,
+  "Type": 0,
+  "Metadata": null
+}. Err: connection error: desc = "transport: Error while dialing dial tcp 127.0.0.1:2379: connect: connection refused"
+...
+```
+
+API Server 的日志提示了 etcd 服务器（2379端口）连接失败，说明etcd服务异常，从以上容器状态列表中可见，etcd容器也退出了，现在查看它的日志：
+
+```shell
+➜  xxx git:(main) ✗ crictl logs 671f3a4d55ae5   
+{"level":"info","ts":"2024-11-27T02:28:01.319Z","caller":"embed/etcd.go:306","msg":"starting an etcd server","etcd-version":"3.5.7","git-sha":"215b53cf3","go-version":"go1.17.13","go-os":"linux","go-arch":"amd64","max-cpu-set":2,"max-cpu-available":2,"member-initialized":true,"name":"k8s-master","data-dir":"/var/lib/etcd","wal-dir":"","wal-dir-dedicated":"","member-dir":"/var/lib/etcd/member","force-new-cluster":false,"heartbeat-interval":"100ms","election-timeout":"1s","initial-election-tick-advance":true,"snapshot-count":10000,"max-wals":5,"max-snapshots":5,"snapshot-catchup-entries":5000,"initial-advertise-peer-urls":["https://192.168.1.10:2380"],"listen-peer-urls":["https://192.168.1.10:2380"],"advertise-client-urls":["https://192.168.1.10:2379"],"listen-client-urls":["https://127.0.0.1:2379","https://192.168.1.10:2379"],"listen-metrics-urls":["http://127.0.0.1:2381"],"cors":["*"],"host-whitelist":["*"],"initial-cluster":"","initial-cluster-state":"new","initial-cluster-token":"","quota-backend-bytes":2147483648,"max-request-bytes":1572864,"max-concurrent-streams":4294967295,"pre-vote":true,"initial-corrupt-check":true,"corrupt-check-time-interval":"0s","compact-check-time-enabled":false,"compact-check-time-interval":"1m0s","auto-compaction-mode":"periodic","auto-compaction-retention":"0s","auto-compaction-interval":"0s","discovery-url":"","discovery-proxy":"","downgrade-check-interval":"5s"}
+panic: freepages: failed to get all reachable pages (page 236: multiple references)
+...
+```
+
+通过搜索引擎查询上述关键错误信息可知，这可能是因为断电导致的，在测试环境中需要重建集群；若是自行维护的生产环境，
+这需要从备份中恢复etcd数据（所以若没有专业的K8s运维人员，请不要在生产环境中自行搭建k8s集群）。
+
+要重建集群，请先[删除集群](#56-删除集群)，然后再[安装集群](#51-在master上初始化集群)。
 
 ## 参考
 
