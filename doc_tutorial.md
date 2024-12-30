@@ -629,7 +629,7 @@ Pod 中的容器所看到的系统主机名与为 Pod 名称相同。
 $ kk apply -f deployment.yaml
 deployment.apps/hellok8s-go-http created
 
-# 查看启动的pod
+# 查看启动的 deployment
 $ kk get deployments                
 NAME               READY   UP-TO-DATE   AVAILABLE   AGE
 hellok8s-go-http   2/2     2            2           3m
